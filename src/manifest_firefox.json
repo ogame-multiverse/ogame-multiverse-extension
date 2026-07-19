@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "OGame Multiverse",
+  "version": "0.0.0",
+  "description": "OGame Multiverse is an extension helping you to play multiple universe at time.",
+  "host_permissions": [ "https://*.ogame.gameforge.com/game/*" ],
+  "permissions": [ "storage" ],
+  "icons": {
+    "512": "assets/images/logo.png",
+    "256": "assets/images/logo.png",
+    "128": "assets/images/logo.png",
+    "32": "assets/images/logo.png"
+  },
+  "action": {
+    "default_icon": { "32": "assets/images/logo.png" },
+    "default_title": "Ogame Multiverse"
+  },
+  "sidebar_action": {
+    "default_panel": "views/sidepanel.html",
+    "default_title": "Ogame Multiverse"
+  },
+  "content_scripts": [
+    {
+      "js": [ "app.content.js" ],
+      "run_at": "document_start",
+      "matches": [ "https://*.ogame.gameforge.com/game/*" ],
+      "exclude_matches": [
+        "https://*.gameforge.com/game/admin2/*",
+        "https://*.ogame.gameforge.com/game/index.php?page=standalone&component=empire"
+      ]
+    }
+  ],
+  "background": {
+    "scripts": [ "app.worker.js" ]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ogame-multiverse@extension.local"
+    }
+  }
+}
