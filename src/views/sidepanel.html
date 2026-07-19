@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OGame Multiverse</title>
+    <link rel="stylesheet" href="../sidepanel.css" />
+</head>
+<body>
+    <div id="app">
+        <nav class="tabs" aria-label="Sidepanel tabs">
+            <button id="tab-universe" class="tab" type="button" role="tab" aria-controls="panel-universe" aria-selected="true" oga-data-i18n="SidePanelUniverse"></button>
+        </nav>
+
+        <section id="panel-universe" class="panel" role="tabpanel" aria-labelledby="tab-universe" data-active="true">
+            <div id="universe-list" class="universe-list">
+                <div class="universe-empty">Aucun univers disponible.</div>
+            </div>
+        </section>
+    </div>
+    <script src="../app.sidepanel.js"></script>
+</body>
+</html>
