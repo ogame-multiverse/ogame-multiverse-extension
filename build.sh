@@ -1,5 +1,39 @@
 #!/bin/bash
 
+TMP_DIR="./dist/temp"
+BUILD_DIR="./dist/build"
+CHROME_DIR="./dist/ogame-multiverse_chrome"
+FIREFOX_DIR="./dist/ogame-multiverse_firefox"
+
+# --- ANALYSE DES ARGUMENTS ---
+IS_RELEASE=false
+IS_PACKAGE=false
+
+for arg in "$@"; do
+    if [ "$arg" = "release" ]; then
+        IS_RELEASE=true
+    elif [ "$arg" = "package" ]; then
+        IS_PACKAGE=true
+    fi
+done
+# ------------------------------
+
+# Nettoyage des builds précédents
+rm -rf "$TMP_DIR" "$BUILD_DIR" "$CHROME_DIR" "$FIREFOX_DIR" ./dist/*.zip
+
+# Création des répertoires
+mkdir -p "$TMP_DIR"
+mkdir -p "$BUILD_DIR"
+mkdir -p "$CHROME_DIR"
+mkdir -p "$FIREFOX_DIR"
+
+# Copie des sources dans le dossier temporaire
+echo "📂 Copie des sources dans $TMP_DIR..."
+cp -r src/* "$TMP_DIR/"
+
+# Définition du chemin vers le fichier globalConstants.ts
+GLOBAL_CONSTANTS_FILE="$TMP_DIR/app/globalConstants.ts"
+
 # Fonction de compilation pour TypeScript
 bundle_ts() {
     local ENTRY_FILE="$1"
@@ -48,26 +82,42 @@ if ! npx tsc --noEmit -p tsconfig.app.worker.json; then
     exit 1
 fi
 
-# Nettoyage des builds précédents
-rm -rf ./dist ./dist_firefox
+# --- MODIFICATION EN MODE RELEASE ---
+if [ "$IS_RELEASE" = true ]; then
+    # Génère le format : YYYY.MM.DDHHMMSS
+    VERSION_TIMESTAMP=$(date +"%Y.%m.%d%H%M%S")
+    echo "🏷️ Mode Release détecté. Génération de la version : $VERSION_TIMESTAMP"
+
+    # Remplacement dans les fichiers de configuration du dossier temp
+    sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_TIMESTAMP\"/g" "$TMP_DIR/manifest.json"
+    sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_TIMESTAMP\"/g" "$TMP_DIR/manifest_firefox.json"
+
+    # Remplacement de la constante de version globale dans le code
+    if [ -f "$GLOBAL_CONSTANTS_FILE" ]; then
+        sed -i "s/__VERSION__/$VERSION_TIMESTAMP/g" "$GLOBAL_CONSTANTS_FILE"
+        echo "✅ Version injectée dans globalConstants.ts"
+    else
+        echo "⚠️ Avertissement : $GLOBAL_CONSTANTS_FILE introuvable."
+    fi
+fi
+# ------------------------------------------------
 
 # 2. Boucle de build pour générer les deux dossiers
 for TARGET in chrome firefox; do
+
+    OUT_DIR="$CHROME_DIR"
+    MANIFEST_SRC="$TMP_DIR/manifest.json"
     if [ "$TARGET" = "firefox" ]; then
-        OUT_DIR="./dist_firefox"
-        MANIFEST_SRC="src/manifest_firefox.json"
-    else
-        OUT_DIR="./dist"
-        MANIFEST_SRC="src/manifest.json"
+        OUT_DIR="$FIREFOX_DIR"
+        MANIFEST_SRC="$TMP_DIR/manifest_firefox.json"
     fi
 
     echo "🚀 Building extension for target: $TARGET into $OUT_DIR..."
 
-    # FIX : On crée la racine d'abord, on copie les dossiers sources,
-    # puis on crée le sous-dossier pour la police.
+    # Utilisation des sources du dossier temporaire
     mkdir -p "$OUT_DIR"
-    cp -r "src/assets" "$OUT_DIR/"
-    cp -r "src/views" "$OUT_DIR/"
+    cp -r "$TMP_DIR/assets" "$OUT_DIR/"
+    cp -r "$TMP_DIR/views" "$OUT_DIR/"
     
     mkdir -p "$OUT_DIR/assets/fonts"
     cp node_modules/@fontsource/material-symbols-outlined/files/material-symbols-outlined-latin-400-normal.woff2 "$OUT_DIR/assets/fonts/"
@@ -79,13 +129,31 @@ for TARGET in chrome firefox; do
         exit 1
     fi
 
-    # Bundling JS
-    bundle_ts "src/app/contexts/content.entry.ts" "$OUT_DIR/app.content.js" --minify
-    bundle_ts "src/app/contexts/serviceWorker.entry.ts" "$OUT_DIR/app.worker.js" --minify
-    bundle_ts "src/app/contexts/sidePanel.entry.ts" "$OUT_DIR/app.sidepanel.js" --minify
+    # Bundling JS depuis TEMP
+    bundle_ts "$TMP_DIR/app/contexts/content.entry.ts" "$OUT_DIR/app.content.js" --minify
+    bundle_ts "$TMP_DIR/app/contexts/serviceWorker.entry.ts" "$OUT_DIR/app.worker.js" --minify
+    bundle_ts "$TMP_DIR/app/contexts/sidePanel.entry.ts" "$OUT_DIR/app.sidepanel.js" --minify
 
-    # Compilation CSS
-    compile_scss "src/app/sidePanelContext/sidepanel.scss" "$OUT_DIR/sidepanel.css"
+    # Compilation CSS depuis TEMP
+    compile_scss "$TMP_DIR/app/sidePanelContext/sidepanel.scss" "$OUT_DIR/sidepanel.css"
 done
 
-echo "🎉 All builds complete. /dist (Chrome) and /dist_firefox (Firefox) are ready."
+# --- CREATION DES ARCHIVES ZIP (MODE PACKAGE) ---
+if [ "$IS_PACKAGE" = true ]; then
+    echo "📦 Création de l'archive pour Chrome..."
+    (cd "$CHROME_DIR" && zip -qr "../ogame-multiverse_chrome.zip" .)
+    
+    echo "📦 Création de l'archive pour Firefox..."
+    (cd "$FIREFOX_DIR" && zip -qr "../ogame-multiverse_firefox.zip" .)
+    
+    echo "✅ Archives créées avec succès dans ./dist/"
+fi
+# ------------------------------------------------
+
+# Nettoyage final du dossier temporaire
+rm -rf "$TMP_DIR"
+
+# Nettoyage du dossier de build
+rm -rf "$BUILD_DIR"
+
+echo "🎉 All builds complete. $CHROME_DIR (Chrome) and $FIREFOX_DIR (Firefox) are ready."
