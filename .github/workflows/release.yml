@@ -10,6 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write # Autorise la création de Releases et de Tags
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
