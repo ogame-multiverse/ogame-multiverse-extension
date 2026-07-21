@@ -77,8 +77,12 @@ if ! npx tsc --noEmit -p tsconfig.app.content.json; then
     echo "❌ Type checking failed for content app."
     exit 1
 fi
-if ! npx tsc --noEmit -p tsconfig.app.worker.json; then
-    echo "❌ Type checking failed for worker app."
+if ! npx tsc --noEmit -p tsconfig.app.serviceWorker.json; then
+    echo "❌ Type checking failed for serviceWorker app."
+    exit 1
+fi
+if ! npx tsc --noEmit -p tsconfig.app.sidePanel.json; then
+    echo "❌ Type checking failed for sidePanel app."
     exit 1
 fi
 
@@ -135,7 +139,7 @@ for TARGET in chrome firefox; do
     bundle_ts "$TMP_DIR/app/contexts/sidePanel.entry.ts" "$OUT_DIR/app.sidepanel.js" --minify
 
     # Compilation CSS depuis TEMP
-    compile_scss "$TMP_DIR/app/sidePanelContext/sidepanel.scss" "$OUT_DIR/sidepanel.css"
+    compile_scss "$TMP_DIR/app/contexts/sidePanel/sidepanel.scss" "$OUT_DIR/sidepanel.css"
 done
 
 # --- CREATION DES ARCHIVES ZIP (MODE PACKAGE) ---

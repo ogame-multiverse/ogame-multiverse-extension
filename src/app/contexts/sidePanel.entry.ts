@@ -1,1 +1,1 @@
-import '../sidePanelContext/app';
+import './sidePanel/app';

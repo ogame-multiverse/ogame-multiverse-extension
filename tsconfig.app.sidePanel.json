@@ -4,7 +4,7 @@
     "outDir": "dist"
   },
   "include": [
-    "src/app/contexts/content.entry.ts",
-    "src/app/contexts/content/**/*.ts"
+    "src/app/contexts/sidePanel.entry.ts",
+    "src/app/contexts/sidePanel/**/*.ts"
   ]
 }

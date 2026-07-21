@@ -1,1 +1,1 @@
-import '../serviceWorkerContext/app';
+import './serviceWorker/app';
