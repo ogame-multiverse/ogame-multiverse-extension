@@ -10,6 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write # Autorise la création de Releases et de Tags
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,3 +46,12 @@ jobs:
         with:
           name: ogame-multiverse-v${{ env.VERSION }}
           path: dist/*.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          files: dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
