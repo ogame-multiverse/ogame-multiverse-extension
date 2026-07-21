@@ -1,0 +1,45 @@
+name: Release Build & Package
+
+on:
+  push:
+    branches:
+      - 'release/**'
+  workflow_dispatch: # Allows manual triggering of the workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Extract Version from Branch Name
+        run: |
+          # Extract the version number from the branch name "release/" (ex: release/1.0.0.0 -> 1.0.0.0)
+          VERSION="${GITHUB_REF_NAME#release/}"
+
+          if [ -z "$VERSION" ]; then
+            echo "❌ Error : Invalid branch name. Expected format: release/x.x.x.x"
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "🏷️ extracted version: $VERSION"
+
+      - name: Build & Package
+        run: |
+          chmod +x ./build.sh
+          ./build.sh release package version ${{ env.VERSION }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogame-multiverse-v${{ env.VERSION }}
+          path: dist/*.zip
