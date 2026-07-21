@@ -8,13 +8,26 @@ FIREFOX_DIR="./dist/ogame-multiverse_firefox"
 # --- ANALYSE DES ARGUMENTS ---
 IS_RELEASE=false
 IS_PACKAGE=false
+VERSION_NUMBER=""
 
-for arg in "$@"; do
-    if [ "$arg" = "release" ]; then
-        IS_RELEASE=true
-    elif [ "$arg" = "package" ]; then
-        IS_PACKAGE=true
-    fi
+while [ $# -gt 0 ]; do
+    case "$1" in
+        release)
+            IS_RELEASE=true
+            shift
+            ;;
+        package)
+            IS_PACKAGE=true
+            shift
+            ;;
+        version)
+            VERSION_NUMBER="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
 done
 # ------------------------------
 
@@ -86,25 +99,23 @@ if ! npx tsc --noEmit -p tsconfig.app.sidePanel.json; then
     exit 1
 fi
 
-# --- MODIFICATION EN MODE RELEASE ---
-if [ "$IS_RELEASE" = true ]; then
-    # Génère le format : YYYY.MM.DDHHMMSS
-    VERSION_TIMESTAMP=$(date +"%Y.%m.%d%H%M%S")
-    echo "🏷️ Mode Release détecté. Génération de la version : $VERSION_TIMESTAMP"
+# --- MODIFICATION DU NUMÉRO DE VERSION ---
+if [ -n "$VERSION_NUMBER" ]; then
+    echo "🏷️ Version spécifiée : $VERSION_NUMBER"
 
-    # Remplacement dans les fichiers de configuration du dossier temp
-    sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_TIMESTAMP\"/g" "$TMP_DIR/manifest.json"
-    sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_TIMESTAMP\"/g" "$TMP_DIR/manifest_firefox.json"
+    # Remplacement dans les manifests
+    sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_NUMBER\"/g" "$TMP_DIR/manifest.json"
+    sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_NUMBER\"/g" "$TMP_DIR/manifest_firefox.json"
 
-    # Remplacement de la constante de version globale dans le code
+    # Remplacement dans le code TS
     if [ -f "$GLOBAL_CONSTANTS_FILE" ]; then
-        sed -i "s/__VERSION__/$VERSION_TIMESTAMP/g" "$GLOBAL_CONSTANTS_FILE"
+        sed -i "s/__VERSION__/$VERSION_NUMBER/g" "$GLOBAL_CONSTANTS_FILE"
         echo "✅ Version injectée dans globalConstants.ts"
     else
         echo "⚠️ Avertissement : $GLOBAL_CONSTANTS_FILE introuvable."
     fi
 fi
-# ------------------------------------------------
+# ------------------------------------------
 
 # 2. Boucle de build pour générer les deux dossiers
 for TARGET in chrome firefox; do
