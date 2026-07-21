@@ -1,1 +1,1 @@
-import '../contentContext/app';
+import './content/app';
