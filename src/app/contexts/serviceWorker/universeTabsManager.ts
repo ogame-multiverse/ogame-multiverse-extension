@@ -1,9 +1,12 @@
 import { GlobalConstants } from '../../globalConstants';
+import { Logger } from '../../logging/logger';
 import { UniverseDataNormalizer } from '../../universeDataNormalizer';
 
 export class UniverseTabsService {
   private readonly universeByTabId = new Map<number, string>();
   private started = false;
+
+  constructor(private readonly logger: Logger) { }
 
   public GetUniverseTabs(): Map<number, string> {
     return this.universeByTabId;
@@ -43,9 +46,9 @@ export class UniverseTabsService {
       if (reloadableTabIds.length === 0) return;
 
       await Promise.allSettled(reloadableTabIds.map((tabId: any) => chromeApi.tabs.reload(tabId, { bypassCache: false })));
-      console.info(`Reconnected ${reloadableTabIds.length} open OGame tab(s) after extension ${chromeApi.runtime?.id ? 'reload/update' : 'install'}.`);
+      this.logger.debug(`Reconnected ${reloadableTabIds.length} open OGame tab(s) after extension ${chromeApi.runtime?.id ? 'reload/update' : 'install'}.`);
     } catch (error) {
-      console.debug('Failed to reconnect open OGame tabs on install/update.', error);
+      this.logger.error('Failed to reconnect open OGame tabs on install/update.', error);
     }
   }
 
@@ -148,7 +151,7 @@ export class UniverseTabsService {
       const normalizedUniverseKey = UniverseDataNormalizer.NormalizeUniverseKey(universeKey);
       return normalizedUniverseKey || undefined;
     } catch (error) {
-      console.debug('Unable to parse tab URL for universe extraction', error);
+      this.logger.warn('Unable to parse tab URL for universe extraction', error);
       return undefined;
     }
   }

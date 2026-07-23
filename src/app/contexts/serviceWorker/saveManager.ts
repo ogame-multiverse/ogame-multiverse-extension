@@ -1,9 +1,9 @@
 import { ExtensionLocalData } from '../../model/save/extensionLocalData';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
-import { ExtensionStorageService, StorageArea } from './extensionStorageService';
+import { ExtensionStorageService } from './extensionStorageService';
 
 export class SaveManager {
-  private readonly extensionStorageService: ExtensionStorageService<ExtensionLocalData> = new ExtensionStorageService<ExtensionLocalData>(StorageArea.Local);
+  constructor(private readonly extensionStorageService: ExtensionStorageService<ExtensionLocalData>) { }
   public async GetAllExtensionLocalDataAsync(): Promise<Record<string, ExtensionLocalData>> {
     return await this.extensionStorageService.GetAll();
   }

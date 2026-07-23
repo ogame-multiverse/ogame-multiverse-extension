@@ -1,16 +1,18 @@
 import { Localizator } from '../../localization/localizator';
 import { UniversePanelController } from './universePanelController';
+import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
 
 class SidePanelContextApp {
+  private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
   private readonly supportedLanguages = new Set(['en', 'fr', 'es', 'de', 'tr', 'br']);
-  private readonly universePanelController = new UniversePanelController();
+  private readonly universePanelController = new UniversePanelController(sidePanelLoggerFactory.CreateLogger('UniversePanelController'));
 
   public Start(): void {
     const language = this.ResolveLanguage();
     document.documentElement.lang = language;
 
     Localizator.Init(language);
-    Localizator.ApplyAll();
+    Localizator.ApplyAll(this.logger);
 
     this.InitializeTabs('tab-universe');
   }
