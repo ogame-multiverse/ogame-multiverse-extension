@@ -1,3 +1,4 @@
+import { Logger } from "../logging/logger";
 export class I18nValue {
   public code: string;
   public values: Record<string, string>;
@@ -57,10 +58,10 @@ export class I18n {
      * - textAttrNames: replace innerHTML with translated text
      * - attrAttrNames: replace attributes using spec "attr:Key;attr2:OtherKey"
      */
-  public static ApplyAll(root: HTMLElement | Document = document): void {
+  public static ApplyAll(logger: Logger, root: HTMLElement | Document = document): void {
     // Vérifier que Init a été appelé
     if (!this.textAttrNames || !this.attrAttrNames) {
-      console.warn("I18n.Init() must be called before ApplyAll()");
+      logger.warn("I18n.Init() must be called before ApplyAll()");
       return;
     }
 

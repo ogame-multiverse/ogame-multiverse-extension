@@ -1,4 +1,5 @@
 import { defineExtensionMessaging } from '@webext-core/messaging'
+import { Logger } from '../logging/logger'
 import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters'
 import { SidePanelUniverseStatus } from '../model/sidePanel/sidePanelUniverseStatus'
 import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOptions'
@@ -18,82 +19,85 @@ const serviceWorkerMessenger = defineExtensionMessaging<ServiceWorkerProtocol>()
 export class ServiceWorkerProtocolClient {
   // internal type-safe helper: if 'key' does not exist in ServiceWorkerProtocol, TS refuses to compile
   private send<K extends keyof ServiceWorkerProtocol>(
+    logger: Logger,
     key: K,
     ...args: Parameters<ServiceWorkerProtocol[K]>
   ): ReturnType<ServiceWorkerProtocol[K]> {
+    logger.debug(`Sending message for ServiceWorkerProtocol.${key}`, args[0]);
     return serviceWorkerMessenger.sendMessage(key as any, args[0]) as any
   }
 
-  public RegisterUniverseAsync(universeKey: string, universeDomain: string, lastRefreshDate: number) {
-    return this.send('RegisterUniverse', { universeKey, universeDomain, lastRefreshDate })
+  public RegisterUniverseAsync(logger: Logger, universeKey: string, universeDomain: string, lastRefreshDate: number) {
+    return this.send(logger, 'RegisterUniverse', { universeKey, universeDomain, lastRefreshDate })
   }
 
-  public UpdateUniverseStatusAsync(universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters) {
-    return this.send('UpdateUniverseStatus', { universeKey, universeName, universeCounters })
+  public UpdateUniverseStatusAsync(logger: Logger, universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters) {
+    return this.send(logger, 'UpdateUniverseStatus', { universeKey, universeName, universeCounters })
   }
 
-  public GetUniversesStatusesAsync() {
-    return this.send('GetUniversesStatuses')
+  public GetUniversesStatusesAsync(logger: Logger) {
+    return this.send(logger, 'GetUniversesStatuses')
   }
 
-  public ReloadUniverseTabAsync(universeKey: string) {
-    return this.send('ReloadUniverseTab', universeKey)
+  public ReloadUniverseTabAsync(logger: Logger, universeKey: string) {
+    return this.send(logger, 'ReloadUniverseTab', universeKey)
   }
 
-  public RemoveUniverseAsync(universeKey: string) {
-    return this.send('RemoveUniverse', universeKey)
+  public RemoveUniverseAsync(logger: Logger, universeKey: string) {
+    return this.send(logger, 'RemoveUniverse', universeKey)
   }
 
-  public GetUniverseSidePanelOptionsAsync(universeKey: string) {
-    return this.send('GetUniverseSidePanelOptions', universeKey)
+  public GetUniverseSidePanelOptionsAsync(logger: Logger, universeKey: string) {
+    return this.send(logger, 'GetUniverseSidePanelOptions', universeKey)
   }
 
-  public SaveUniverseSidePanelOptionsAsync(universeKey: string, options: UniverseSidePanelOptions) {
-    return this.send('SaveUniverseSidePanelOptions', { universeKey, options })
+  public SaveUniverseSidePanelOptionsAsync(logger: Logger, universeKey: string, options: UniverseSidePanelOptions) {
+    return this.send(logger, 'SaveUniverseSidePanelOptions', { universeKey, options })
   }
 }
 
 export class ServiceWorkerProtocolRegistrar {
   // internal type-safe helper: if 'key' does not exist in ServiceWorkerProtocol, TS refuses to compile
   private listen<K extends keyof ServiceWorkerProtocol>(
+    logger: Logger,
     key: K,
     handler: ServiceWorkerProtocol[K]
   ): void {
     serviceWorkerMessenger.onMessage(key as any, ({ data }: any) => {
-      console.info(`ServiceWorkerProtocolRegistrar: Received message for ${key}`, data);
+      logger.debug(`Received message for ServiceWorkerProtocol.${key}`, data);
       return (handler as Function)(data);
     })
   }
 
   // directly expose the protocol methods with type safety
-  public OnRegisterUniverse(handler: ServiceWorkerProtocol['RegisterUniverse']): void {
-    this.listen('RegisterUniverse', handler)
+  public OnRegisterUniverse(logger: Logger, handler: ServiceWorkerProtocol['RegisterUniverse']): void {
+    this.listen(logger, 'RegisterUniverse', handler)
   }
 
-  public OnUpdateUniverseStatus(handler: ServiceWorkerProtocol['UpdateUniverseStatus']): void {
-    this.listen('UpdateUniverseStatus', handler)
+  public OnUpdateUniverseStatus(logger: Logger, handler: ServiceWorkerProtocol['UpdateUniverseStatus']): void {
+    this.listen(logger, 'UpdateUniverseStatus', handler)
   }
 
-  public OnGetUniversesStatuses(handler: ServiceWorkerProtocol['GetUniversesStatuses']): void {
-    this.listen('GetUniversesStatuses', handler)
+  public OnGetUniversesStatuses(logger: Logger, handler: ServiceWorkerProtocol['GetUniversesStatuses']): void {
+    this.listen(logger, 'GetUniversesStatuses', handler)
   }
 
-  public OnReloadUniverseTab(handler: ServiceWorkerProtocol['ReloadUniverseTab']): void {
-    this.listen('ReloadUniverseTab', handler)
+  public OnReloadUniverseTab(logger: Logger, handler: ServiceWorkerProtocol['ReloadUniverseTab']): void {
+    this.listen(logger, 'ReloadUniverseTab', handler)
   }
 
-  public OnRemoveUniverse(handler: ServiceWorkerProtocol['RemoveUniverse']): void {
-    this.listen('RemoveUniverse', handler)
+  public OnRemoveUniverse(logger: Logger, handler: ServiceWorkerProtocol['RemoveUniverse']): void {
+    this.listen(logger, 'RemoveUniverse', handler)
   }
 
-  public OnGetUniverseSidePanelOptions(handler: ServiceWorkerProtocol['GetUniverseSidePanelOptions']): void {
-    this.listen('GetUniverseSidePanelOptions', handler)
+  public OnGetUniverseSidePanelOptions(logger: Logger, handler: ServiceWorkerProtocol['GetUniverseSidePanelOptions']): void {
+    this.listen(logger, 'GetUniverseSidePanelOptions', handler)
   }
 
-  public OnSaveUniverseSidePanelOptions(handler: ServiceWorkerProtocol['SaveUniverseSidePanelOptions']): void {
-    this.listen('SaveUniverseSidePanelOptions', handler)
+  public OnSaveUniverseSidePanelOptions(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseSidePanelOptions']): void {
+    this.listen(logger, 'SaveUniverseSidePanelOptions', handler)
   }
 }
 
-export const serviceWorkerProtocolClient = new ServiceWorkerProtocolClient()
-export const serviceWorkerProtocolRegistrar = new ServiceWorkerProtocolRegistrar()
+export const serviceWorkerProtocolClient = new ServiceWorkerProtocolClient();
+export const serviceWorkerProtocolRegistrar = new ServiceWorkerProtocolRegistrar();

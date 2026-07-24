@@ -2,6 +2,7 @@ import { GlobalConstants } from '../../globalConstants';
 import { Localizator } from '../../localization/localizator';
 import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtocol';
 import { SidePanelUniverseStatus } from '../../model/sidePanel/sidePanelUniverseStatus';
+import { Logger } from '../../logging/logger';
 
 interface UniverseRowView {
   row: HTMLElement;
@@ -36,6 +37,8 @@ export class UniversePanelController {
   private syncIndicatorEl: HTMLElement | undefined;
   private readonly universeRowsByKey = new Map<string, UniverseRowView>();
 
+  constructor(private readonly logger: Logger) { }
+
   public Activate(): void {
     if (!this.loaded) {
       this.loaded = true;
@@ -58,7 +61,7 @@ export class UniversePanelController {
     const container = document.getElementById('universe-list');
     if (!container) return;
 
-    const universeStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync();
+    const universeStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger);
     if (!universeStatuses.length) {
       container.replaceChildren();
       this.universeRowsByKey.clear();
@@ -346,9 +349,9 @@ export class UniversePanelController {
 
       status.SidePanelOptions.WarningThresholdMinutes = selectedMinutes;
 
-      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(status.UniverseKey);
+      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey);
       options.WarningThresholdMinutes = selectedMinutes;
-      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(status.UniverseKey, options);
+      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey, options);
       
       updateWarningState(selectedMinutes);
     });
@@ -359,7 +362,7 @@ export class UniversePanelController {
 
 
       try {
-        await serviceWorkerProtocolClient.ReloadUniverseTabAsync(status.UniverseKey);
+        await serviceWorkerProtocolClient.ReloadUniverseTabAsync(this.logger, status.UniverseKey);
       } finally {
         try {
           await this.RefreshAsync();
@@ -374,7 +377,7 @@ export class UniversePanelController {
       removeButton.disabled = true;
 
       try {
-        await serviceWorkerProtocolClient.RemoveUniverseAsync(status.UniverseKey);
+        await serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, status.UniverseKey);
       } finally {
         try {
           await this.RefreshAsync();
@@ -403,9 +406,9 @@ export class UniversePanelController {
     displayHostileFleetCheckboxSetting.addEventListener('change', async () => {
       const checked = displayHostileFleetCheckboxSetting.checked;
 
-      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(status.UniverseKey);
+      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey);
       options.ShowHostileFleetIndicator = checked;
-      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(status.UniverseKey, options);
+      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey, options);
 
       updateBooleanRowAttribute('show-hostile-fleets-indicator', checked);
     });
@@ -415,9 +418,9 @@ export class UniversePanelController {
     displayFriendlyFleetCheckboxSetting.addEventListener('change', async () => {
       const checked = displayFriendlyFleetCheckboxSetting.checked;
 
-      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(status.UniverseKey);
+      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey);
       options.ShowFriendlyFleetIndicator = checked;
-      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(status.UniverseKey, options);
+      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey, options);
 
       updateBooleanRowAttribute('show-friendly-fleets-indicator', checked);
     });
@@ -427,9 +430,9 @@ export class UniversePanelController {
     displayOwnFleetCheckboxSetting.addEventListener('change', async () => {
       const checked = displayOwnFleetCheckboxSetting.checked;
 
-      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(status.UniverseKey);
+      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey);
       options.ShowOwnFleetIndicator = checked;
-      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(status.UniverseKey, options);
+      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey, options);
 
       updateBooleanRowAttribute('show-own-fleets-indicator', checked);
     });
@@ -439,9 +442,9 @@ export class UniversePanelController {
     displayUnreadMailCheckboxSetting.addEventListener('change', async () => {
       const checked = displayUnreadMailCheckboxSetting.checked;
 
-      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(status.UniverseKey);
+      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey);
       options.ShowUnreadMessagesIndicator = checked;
-      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(status.UniverseKey, options);
+      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey, options);
 
       updateBooleanRowAttribute('show-unread-mail-indicator', checked);
     });
@@ -451,9 +454,9 @@ export class UniversePanelController {
     displayUnreadChatCheckboxSetting.addEventListener('change', async () => {
       const checked = displayUnreadChatCheckboxSetting.checked;
 
-      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(status.UniverseKey);
+      const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey);
       options.ShowUnreadChatMessagesIndicator = checked;
-      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(status.UniverseKey, options);
+      await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, status.UniverseKey, options);
 
       updateBooleanRowAttribute('show-unread-chat-indicator', checked);
     });

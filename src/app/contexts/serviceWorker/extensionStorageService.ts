@@ -1,3 +1,5 @@
+import { Logger } from '../../logging/logger';
+
 // The type polyfill is still needed to avoid the error on 'browser'.
 declare var browser: typeof chrome;
 const browserApi = (typeof browser !== 'undefined' ? browser : chrome) as typeof chrome;
@@ -44,6 +46,7 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
   private storageArea: chrome.storage.StorageArea;
 
   constructor(
+    private readonly logger: Logger,
     private area: StorageArea
   ) {
     super();
@@ -62,13 +65,13 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
 
       // If the key is not found, 'result' is an empty object or the object lacks the key.
       if (result && key in result) {
-        console.debug(`✅ Successfully retrieved key '${key}' from '${this.area}' storage`);
+        this.logger.debug(`✅ Successfully retrieved key '${key}' from '${this.area}' storage`);
         return result[key] as T;
       }
-      console.warn(`⚠️ Key '${key}' not found in '${this.area}' storage`);
+      this.logger.warn(`⚠️ Key '${key}' not found in '${this.area}' storage`);
       return null;
     } catch (error) {
-      console.error(`⚠️ Error retrieving key '${key}':`, error);
+      this.logger.error(`⚠️ Error retrieving key '${key}':`, error);
       return null;
     }
   }
@@ -81,12 +84,12 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
    */
   public async Set(key: string, value: T): Promise<void> {
     const sizeInBytes = BaseExtensionStorageService.GetByteSize(value);
-    console.info(`💾 About to save ${sizeInBytes} bytes into ${this.area} storage with key '${key}'`);
+    this.logger.debug(`💾 About to save ${sizeInBytes} bytes into ${this.area} storage with key '${key}'`);
     try {
       await this.storageArea.set({ [key]: value });
-      console.debug(`✅ Successfully saved key '${key}' to '${this.area}' storage`);
+      this.logger.debug(`✅ Successfully saved key '${key}' to '${this.area}' storage`);
     } catch (error) {
-      console.error(`⚠️ Error saving key '${key}':`, error);
+      this.logger.error(`⚠️ Error saving key '${key}':`, error);
     }
   }
 
@@ -97,13 +100,13 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
         const value = result[key];
         const jsonString = JSON.stringify(value);
         const sizeInBytes = new TextEncoder().encode(jsonString).length;
-        console.debug(`✅ Size of key '${key}' in '${this.area}' storage: ${sizeInBytes} bytes`);
+        this.logger.debug(`✅ Size of key '${key}' in '${this.area}' storage: ${sizeInBytes} bytes`);
         return sizeInBytes;
       }
-      console.warn(`⚠️ Key '${key}' not found in '${this.area}' storage`);
+      this.logger.warn(`⚠️ Key '${key}' not found in '${this.area}' storage`);
       return 0;
     } catch (error) {
-      console.error(`⚠️ Error getting size of key '${key}':`, error);
+      this.logger.error(`⚠️ Error getting size of key '${key}':`, error);
       return 0;
     }
   }
@@ -116,9 +119,9 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
   public async Remove(key: string): Promise<void> {
     try {
       await this.storageArea.remove(key);
-      console.info(`✅ Successfully removed key '${key}' from '${this.area}' storage`);
+      this.logger.debug(`✅ Successfully removed key '${key}' from '${this.area}' storage`);
     } catch (error) {
-      console.error(`⚠️ Error removing key '${key}':`, error);
+      this.logger.error(`⚠️ Error removing key '${key}':`, error);
     }
   }
 
@@ -131,7 +134,7 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
       // 🔧 Correction : Cast explicite du résultat vers le type attendu
       return (result ?? {}) as Record<string, T | null>;
     } catch (error) {
-      console.error(`⚠️ Error reading all keys from '${this.area}' storage:`, error);
+      this.logger.error(`⚠️ Error reading all keys from '${this.area}' storage:`, error);
       return {};
     }
   }
@@ -148,7 +151,7 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
       const allValues = await this.GetAll();
       return BaseExtensionStorageService.GetByteSize(allValues);
     } catch (error) {
-      console.error(`⚠️ Error getting total size from '${this.area}' storage:`, error);
+      this.logger.error(`⚠️ Error getting total size from '${this.area}' storage:`, error);
       return 0;
     }
   }
@@ -159,28 +162,9 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
   public async Clear(): Promise<void> {
     try {
       await this.storageArea.clear();
-      console.info(`✅ Successfully cleared '${this.area}' storage`);
+      this.logger.debug(`✅ Successfully cleared '${this.area}' storage`);
     } catch (error) {
-      console.error(`⚠️ Error clearing '${this.area}' storage:`, error);
+      this.logger.error(`⚠️ Error clearing '${this.area}' storage:`, error);
     }
   }
 }
-
-// ----------------------------------------------------------------------
-// USAGE EXAMPLE (Better Typing)
-// ----------------------------------------------------------------------
-
-// 1. Define an interface for your synchronized preferences
-/*
-interface UserSettings {
-    theme: 'dark' | 'light';
-    volume: number;
-}
-*/
-
-// 2. Create strongly typed instances
-/*
-const syncStorage = new ExtensionStorageService<UserSettings>(logger, 'StorageArea.Sync');
-const localStorageForCache = new ExtensionStorageService<string>(logger, 'StorageArea.Local');
-const webLocalStorage = new WebStorageService<number>(logger); // To store numbers in window.localStorage
-*/

@@ -5,17 +5,15 @@ import { UniverseSidePanelOptions } from "../../model/sidePanel/universeSidePane
 import { UniverseDataNormalizer } from "../../universeDataNormalizer";
 import { SaveManager } from "./saveManager";
 import { UniverseTabsService } from "./universeTabsManager";
+import { Logger } from "../../logging/logger";
 export class UniverseManager {
 
   private readonly universeDataByUniverse = new Map<string, { universeName: string, universeCounters: SidePanelUniverseCounters }>();
   private readonly savesByUniverse = new Map<string, ExtensionLocalData>();
 
-  private readonly saveManager: SaveManager;
-  private readonly universeTabsService: UniverseTabsService
-  constructor(saveManager: SaveManager, universeTabsService: UniverseTabsService) {
-    this.saveManager = saveManager;
-    this.universeTabsService = universeTabsService;
-  }
+  constructor(private readonly logger: Logger,
+    private readonly saveManager: SaveManager,
+    private readonly universeTabsService: UniverseTabsService) { }
 
   public async InitializeAsync(): Promise<void> {
     try {
@@ -30,9 +28,9 @@ export class UniverseManager {
         }
       }
 
-      console.info(`[Init] Initialisé avec succès. Nombre d'univers : ${this.savesByUniverse.size}`);
+      this.logger.info('Initialization complete. Loaded universes:', Array.from(this.savesByUniverse.keys()));
     } catch (error) {
-      console.error("[Init] Erreur d'initialisation :", error);
+      this.logger.error('Error during initialization:', error);
     }
   }
 
@@ -63,8 +61,6 @@ export class UniverseManager {
 
   public async ListUniverseStatusesAsync(): Promise<SidePanelUniverseStatus[]> {
     const allUniverseKeys = Array.from(this.savesByUniverse.keys());
-    console.info(`[ListUniverseStatusesAsync] Found ${allUniverseKeys.length} universe(s) in local save.`);
-
     await this.universeTabsService.RebuildOpenTabsStateAsync();
     const openTabsCountByUniverse = this.universeTabsService.GetOpenTabsCountByUniverse(allUniverseKeys);
 
@@ -88,8 +84,6 @@ export class UniverseManager {
       LastRefreshAtIso: typeof lastRefreshAtMs === 'number' ? new Date(lastRefreshAtMs).toISOString() : undefined,
       SidePanelOptions: universe?.SidePanelOptions || new UniverseSidePanelOptions({}),
       SidePanelUniverseCounters: universeData?.universeCounters || new SidePanelUniverseCounters({})
-
-
     });
   }
 
