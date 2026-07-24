@@ -17,6 +17,14 @@ export class OgameHeaderScanner {
       return;
     }
 
+    // Listen for visibility changes to sync counters when the tab becomes visible
+    $(document).on('visibilitychange.OgameHeaderScanner', () => {
+      if (document.visibilityState === 'visible') {
+        this.logger.debug("Tab became visible, syncing counters...");
+        OgameHeaderScanner.Sync();
+      }
+    });
+
     const watchedSelectors = ['#newmessagesindicatorcomponent', '#eventboxFilled'];
     try {
       await DomDelayer.WaitForAllQuerySelectors(watchedSelectors, 50, 5000);
@@ -46,6 +54,7 @@ export class OgameHeaderScanner {
   }
 
   public Stop(): void {
+    $(document).off('visibilitychange.OgameHeaderScanner');
     if (this.observer) {
       this.observer.disconnect();
       this.observer = undefined;
