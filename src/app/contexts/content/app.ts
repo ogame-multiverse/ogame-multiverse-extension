@@ -8,7 +8,7 @@ import { contentScriptLoggerFactory } from '../../logging/loggerFactory'
   OgmContentContext.Instance.InitializeAsync().then(() => {
     $(() => {
       const headerScanner = new OgameHeaderScanner(contentScriptLoggerFactory.CreateLogger("OgameHeaderScanner"));
-      headerScanner.Start();
+      headerScanner.StartAsync();
     });
   });
 })();

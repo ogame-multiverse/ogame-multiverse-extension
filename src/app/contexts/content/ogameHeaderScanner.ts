@@ -3,46 +3,45 @@ import { Logger } from '../../logging/logger';
 import { SidePanelUniverseCounters } from "../../model/sidePanel/sidePanelUniverseCounters";
 import { OgmContentContext } from "./ogmContentContext";
 import { Observer } from '../../dom/observer';
+import { Debouncer } from '../../async/debouncer';
+import { DomDelayer } from '../../async/domDelayer';
 
 export class OgameHeaderScanner {
   private observer: MutationObserver | undefined;
 
   constructor(private readonly logger: Logger) { }
 
-  public Start(): void {
+  public async StartAsync(): Promise<void> {
     if (this.observer) {
       this.logger.warn("Start called but already observing.");
       return;
     }
-    else {
 
-      OgameHeaderScanner.Sync();
-      const obserrveSelector = [
-        '#newmessagesindicatorcomponent .messagesIndicator',
-        '#newmessagesindicatorcomponent .chatIndicator',
-        '#eventboxFilled'
-      ];
-
-      if (this.observer) {
-        this.logger.warn("Start called but already observing.");
-        return;
-      }
-
+    const watchedSelectors = ['#newmessagesindicatorcomponent', '#eventboxFilled'];
+    try {
+      await DomDelayer.WaitForAllQuerySelectors(watchedSelectors, 50, 5000);
+      // Change detection for message and fleet counters
       this.observer = Observer.Observe(
-        [{ element: $(obserrveSelector.join(', ')), options: { childList: true, subtree: true } }],
+        [{ element: $(watchedSelectors.join(', ')), options: { childList: true, subtree: true } }],
         (mutations) => {
-          // Ignore mutations that are not relevant
           if (!mutations || mutations.length === 0) return;
 
-          // Ignore mutations that are only related to the temp counter (e.g., when hovering over the message icon)
+          // Ignore les mutations liées au compteur temporaire au survol
           if (mutations.every(m => $(m.target).closest('#tempcounter').length > 0)) return;
 
           this.logger.debug("Detected relevant DOM changes, syncing counters...", mutations);
-
           OgameHeaderScanner.Sync();
         }
       );
       this.logger.debug("Started observing DOM changes for message and fleet counters.");
+    }
+    catch (error) {
+      this.logger.error("Error waiting for DOM elements to observe:", { watchedSelectors, error });
+    }
+    finally {
+      // Initial sync on start
+      this.logger.debug("Performing initial sync of counters.");
+      OgameHeaderScanner.Sync();
     }
   }
 
@@ -54,31 +53,32 @@ export class OgameHeaderScanner {
     }
   }
 
-  public static Sync(): void {
-    const { hostile, friendly, own } = OgameHeaderScanner.GetFleetCounters();
-    const { messages, chat } = OgameHeaderScanner.GetMessageCounters();
+  private static Sync(): void {
+    Debouncer.Debounce("OgameHeaderScanner.Sync", () => {
+      const { hostile, friendly, own } = OgameHeaderScanner.GetFleetCounters();
+      const { messages, chat } = OgameHeaderScanner.GetMessageCounters();
 
-    OgmContentContext.Instance.UpdateUniverseStatusAsync(
-      new SidePanelUniverseCounters({
-        NewMessages: messages,
-        NewChatMessages: chat,
-        HostileFleetCount: hostile,
-        FriendlyFleetCount: friendly,
-        OwnFleetCount: own
-      })
-    );
+      OgmContentContext.Instance.UpdateUniverseStatusAsync(
+        new SidePanelUniverseCounters({
+          NewMessages: messages,
+          NewChatMessages: chat,
+          HostileFleetCount: hostile,
+          FriendlyFleetCount: friendly,
+          OwnFleetCount: own
+        })
+      );
+    }, 100);
   }
 
-  private static GetFleetCounters(): { hostile: number, friendly: number, own: number } {
+  private static GetFleetCounters(): { hostile: number; friendly: number; own: number } {
     let hostile = 0, friendly = 0, own = 0;
 
     const $root = $('#eventboxFilled');
     if ($root.length > 0) {
       const parseCount = (selector: string): number => {
         const text = $root.find(selector).text().trim();
-        if (!text) return 0;
         const match = text.match(/\d+/);
-        return match ? Math.max(0, Number(match[0]) || 0) : 0;
+        return match ? Math.max(0, parseInt(match[0], 10)) : 0;
       };
 
       const hasAnyCounter = $root.find('.event_list .undermark, .event_list .middlemark, .event_list .overmark').length > 0;
@@ -91,7 +91,7 @@ export class OgameHeaderScanner {
     return { hostile, friendly, own };
   }
 
-  public static GetMessageCounters(): { messages: number, chat: number } {
+  private static GetMessageCounters(): { messages: number; chat: number } {
     const $container = $('#newmessagesindicatorcomponent');
     const $root = $container.length > 0 ? $container : $(document.body);
 
@@ -101,17 +101,14 @@ export class OgameHeaderScanner {
       for (const attrName of attrs) {
         const attr = ($el.attr(attrName) || '').trim();
         if (!attr) continue;
-        const digits = attr.replace(/[^0-9]/g, '');
-        if (!digits) continue;
-        const n = parseInt(digits, 10);
-        if (Number.isFinite(n)) return Math.max(0, n);
+        const match = attr.match(/\d+/);
+        if (match) return Math.max(0, parseInt(match[0], 10));
       }
 
       const newCountText = $el.find('.newCount').text().trim();
-      const fullText = `${newCountText} ${$el.text().trim()}`.trim();
-      const digits = fullText.replace(/[^0-9]/g, '');
-      const n = digits ? parseInt(digits, 10) : 0;
-      return Number.isFinite(n) ? Math.max(0, n) : 0;
+      const textToParse = newCountText || $el.text().trim();
+      const match = textToParse.match(/\d+/);
+      return match ? Math.max(0, parseInt(match[0], 10)) : 0;
     };
 
     const parseCount = ($parent: JQuery<HTMLElement>, selectors: string[]): number => {
