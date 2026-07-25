@@ -49,6 +49,10 @@ class ServiceWorkerContextApp {
     serviceWorkerProtocolRegistrar.OnSaveUniverseSidePanelOptions(this.logger, (data: { universeKey: string, options: UniverseSidePanelOptions }) =>
       this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options)
     );
+
+    serviceWorkerProtocolRegistrar.OnOpenSidePanel(this.logger, (_, sender) =>
+      this.sidePanelManager.OpenSidePanel(sender)
+      )
   }
 
   public async StartAsync(): Promise<void> {

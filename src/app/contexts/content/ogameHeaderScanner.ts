@@ -5,6 +5,8 @@ import { OgmContentContext } from "./ogmContentContext";
 import { Observer } from '../../dom/observer';
 import { Debouncer } from '../../async/debouncer';
 import { DomDelayer } from '../../async/domDelayer';
+import { DomUtil } from '../../dom/domUtil';
+import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtocol';
 
 export class OgameHeaderScanner {
   private observer: MutationObserver | undefined;
@@ -12,6 +14,17 @@ export class OgameHeaderScanner {
   constructor(private readonly logger: Logger) { }
 
   public async StartAsync(): Promise<void> {
+
+
+
+
+
+    const button = DomUtil.FindOrCreateElement($('body'), '#ogm-sidePanelButton', 'button', { id: 'ogm-sidePanelButton' }, true, 'OGM');
+
+    button.off('click').on('click', () => {
+      serviceWorkerProtocolClient.OpenSidePanel(this.logger);
+    });
+
     if (this.observer) {
       this.logger.warn("Start called but already observing.");
       return;

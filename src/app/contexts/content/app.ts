@@ -9,6 +9,9 @@ import { contentScriptLoggerFactory } from '../../logging/loggerFactory'
     $(() => {
       const headerScanner = new OgameHeaderScanner(contentScriptLoggerFactory.CreateLogger("OgameHeaderScanner"));
       headerScanner.StartAsync();
+
+
+
     });
   });
 })();

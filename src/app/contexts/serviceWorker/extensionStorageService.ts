@@ -1,3 +1,4 @@
+
 import { Logger } from '../../logging/logger';
 
 // The type polyfill is still needed to avoid the error on 'browser'.

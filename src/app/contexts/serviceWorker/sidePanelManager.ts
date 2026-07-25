@@ -1,9 +1,10 @@
 import { Logger } from '../../logging/logger';
+
+const chromeApi = (globalThis as { chrome?: any }).chrome;
 export class SidePanelManager {
   constructor(private readonly logger: Logger) { }
   public Start(): void {
     try {
-      const chromeApi = (globalThis as { chrome?: any }).chrome;
       if (!chromeApi?.sidePanel) return;
 
       if (typeof chromeApi.sidePanel.setPanelBehavior === 'function') {
@@ -12,5 +13,14 @@ export class SidePanelManager {
     } catch (error) {
       this.logger.error('SidePanelManager.Start failed', error);
     }
+  }
+
+  public OpenSidePanel(sender: chrome.runtime.MessageSender): void {
+    const tabId = sender?.tab?.id;
+    if (!tabId) return;
+
+    chromeApi.sidePanel.open({ tabId }).catch((error: unknown) => {
+      this.logger.error('SidePanelManager.OpenSidePanel failed', error);
+    });
   }
 }

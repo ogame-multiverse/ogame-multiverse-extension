@@ -12,6 +12,7 @@ export interface ServiceWorkerProtocol {
   RemoveUniverse(universeKey: string): Promise<void>
   GetUniverseSidePanelOptions(universeKey: string): Promise<UniverseSidePanelOptions>
   SaveUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): Promise<void>
+  OpenSidePanel(): void
 }
 
 const serviceWorkerMessenger = defineExtensionMessaging<ServiceWorkerProtocol>()
@@ -54,48 +55,49 @@ export class ServiceWorkerProtocolClient {
   public SaveUniverseSidePanelOptionsAsync(logger: Logger, universeKey: string, options: UniverseSidePanelOptions) {
     return this.send(logger, 'SaveUniverseSidePanelOptions', { universeKey, options })
   }
-}
 
+  public OpenSidePanel(logger: Logger) {
+    return this.send(logger, 'OpenSidePanel');
+  }
+}
 export class ServiceWorkerProtocolRegistrar {
-  // internal type-safe helper: if 'key' does not exist in ServiceWorkerProtocol, TS refuses to compile
-  private listen<K extends keyof ServiceWorkerProtocol>(
-    logger: Logger,
-    key: K,
-    handler: ServiceWorkerProtocol[K]
-  ): void {
-    serviceWorkerMessenger.onMessage(key as any, ({ data }: any) => {
+  private listen(logger: Logger, key: string, handler: Function): void {
+    serviceWorkerMessenger.onMessage(key as any, ({ data, sender }: any) => {
       logger.debug(`Received message for ServiceWorkerProtocol.${key}`, data);
-      return (handler as Function)(data);
-    })
+      return handler(data, sender);
+    });
   }
 
-  // directly expose the protocol methods with type safety
   public OnRegisterUniverse(logger: Logger, handler: ServiceWorkerProtocol['RegisterUniverse']): void {
-    this.listen(logger, 'RegisterUniverse', handler)
+    this.listen(logger, 'RegisterUniverse', handler);
   }
 
   public OnUpdateUniverseStatus(logger: Logger, handler: ServiceWorkerProtocol['UpdateUniverseStatus']): void {
-    this.listen(logger, 'UpdateUniverseStatus', handler)
+    this.listen(logger, 'UpdateUniverseStatus', handler);
   }
 
   public OnGetUniversesStatuses(logger: Logger, handler: ServiceWorkerProtocol['GetUniversesStatuses']): void {
-    this.listen(logger, 'GetUniversesStatuses', handler)
+    this.listen(logger, 'GetUniversesStatuses', handler);
   }
 
   public OnReloadUniverseTab(logger: Logger, handler: ServiceWorkerProtocol['ReloadUniverseTab']): void {
-    this.listen(logger, 'ReloadUniverseTab', handler)
+    this.listen(logger, 'ReloadUniverseTab', handler);
   }
 
   public OnRemoveUniverse(logger: Logger, handler: ServiceWorkerProtocol['RemoveUniverse']): void {
-    this.listen(logger, 'RemoveUniverse', handler)
+    this.listen(logger, 'RemoveUniverse', handler);
   }
 
   public OnGetUniverseSidePanelOptions(logger: Logger, handler: ServiceWorkerProtocol['GetUniverseSidePanelOptions']): void {
-    this.listen(logger, 'GetUniverseSidePanelOptions', handler)
+    this.listen(logger, 'GetUniverseSidePanelOptions', handler);
   }
 
   public OnSaveUniverseSidePanelOptions(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseSidePanelOptions']): void {
-    this.listen(logger, 'SaveUniverseSidePanelOptions', handler)
+    this.listen(logger, 'SaveUniverseSidePanelOptions', handler);
+  }
+
+  public OnOpenSidePanel(logger: Logger, handler: (data: void, sender: chrome.runtime.MessageSender) => void): void {
+    this.listen(logger, 'OpenSidePanel', handler);
   }
 }
 
