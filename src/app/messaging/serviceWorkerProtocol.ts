@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 import { defineExtensionMessaging } from '@webext-core/messaging'
 import { Logger } from '../logging/logger'
 import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters'
@@ -96,7 +97,7 @@ export class ServiceWorkerProtocolRegistrar {
     this.listen(logger, 'SaveUniverseSidePanelOptions', handler);
   }
 
-  public OnOpenSidePanel(logger: Logger, handler: (data: void, sender: chrome.runtime.MessageSender) => void): void {
+  public OnOpenSidePanel(logger: Logger, handler: (data: void, sender: browser.Runtime.MessageSender) => void): void {
     this.listen(logger, 'OpenSidePanel', handler);
   }
 }

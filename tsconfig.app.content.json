@@ -1,6 +1,8 @@
 {
   "extends": "./tsconfig.app.base.json",
   "compilerOptions": {
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "outDir": "dist"
   },
   "include": [

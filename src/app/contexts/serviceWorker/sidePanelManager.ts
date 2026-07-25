@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 import { Logger } from '../../logging/logger';
 
 const chromeApi = (globalThis as { chrome?: any }).chrome;
@@ -15,7 +16,7 @@ export class SidePanelManager {
     }
   }
 
-  public OpenSidePanel(sender: chrome.runtime.MessageSender): void {
+  public OpenSidePanel(sender: browser.Runtime.MessageSender): void {
     const tabId = sender?.tab?.id;
     if (!tabId) return;
 

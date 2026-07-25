@@ -12,8 +12,7 @@ export class ResourceInjector {
   constructor(private readonly logger: Logger) { }
 
   public async GetExtensionResourceUrlAsync(resourcePath: string): Promise<string> {
-    const runtime = typeof browser !== 'undefined' ? browser.runtime : chrome.runtime;
-    return runtime.getURL(resourcePath);
+    return browser.runtime.getURL(resourcePath);
   }
 
   public async InjectExtensionScriptResourceAsync(scriptName: string): Promise<void> {

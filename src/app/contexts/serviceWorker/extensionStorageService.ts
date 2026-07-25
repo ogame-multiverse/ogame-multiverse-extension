@@ -1,9 +1,6 @@
 
+import browser from 'webextension-polyfill';
 import { Logger } from '../../logging/logger';
-
-// The type polyfill is still needed to avoid the error on 'browser'.
-declare var browser: typeof chrome;
-const browserApi = (typeof browser !== 'undefined' ? browser : chrome) as typeof chrome;
 
 /**
  * Enumeration for the different storage areas available in browser extensions:
@@ -44,14 +41,14 @@ class BaseExtensionStorageService {
  * T is the type of the stored value (e.g., string, number, MySettingsObject).
  */
 export class ExtensionStorageService<T> extends BaseExtensionStorageService {
-  private storageArea: chrome.storage.StorageArea;
+  private storageArea: browser.Storage.StorageArea;
 
   constructor(
     private readonly logger: Logger,
     private area: StorageArea
   ) {
     super();
-    this.storageArea = browserApi.storage[area];
+    this.storageArea = browser.storage[area];
   }
 
   /**
