@@ -150,6 +150,7 @@ for TARGET in chrome firefox; do
     bundle_ts "$TMP_DIR/app/contexts/sidePanel.entry.ts" "$OUT_DIR/app.sidepanel.js" --minify
 
     # Compilation CSS depuis TEMP
+    compile_scss "$TMP_DIR/app/app.scss" "$OUT_DIR/app.css"
     compile_scss "$TMP_DIR/app/contexts/sidePanel/sidepanel.scss" "$OUT_DIR/sidepanel.css"
 done
 

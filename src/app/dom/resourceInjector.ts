@@ -57,7 +57,7 @@ export class ResourceInjector {
         $insertion.append(extensionResourceContent);
       }
 
-      Localizator.ApplyAll($insertion);
+      Localizator.ApplyAll(this.logger, $insertion.get(0));
     } else {
       throw new Error(`Unknown resource type: ${resourceType}`);
     }

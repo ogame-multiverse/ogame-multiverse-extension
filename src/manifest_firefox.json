@@ -19,8 +19,15 @@
     "default_panel": "views/sidepanel.html",
     "default_title": "Ogame Multiverse"
   },
+  "web_accessible_resources": [
+    {
+      "matches": [ "<all_urls>" ],
+      "resources": [ "assets/images/*", "views/*" ]
+    }
+  ],
   "content_scripts": [
     {
+      "css": [ "app.css" ],
       "js": [ "app.content.js" ],
       "run_at": "document_start",
       "matches": [ "https://*.ogame.gameforge.com/game/*" ],
