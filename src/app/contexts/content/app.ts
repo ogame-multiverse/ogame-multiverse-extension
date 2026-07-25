@@ -19,12 +19,10 @@ import { SidebarManager } from './sidebarManager';
 
     public async StartAsync(): Promise<void> {
 
-      await this.RegisterUniverseAsync();
+      await Promise.all([this.sidebarManager.RenderSidebarAsync(),
+      this.RegisterUniverseAsync()]);
 
       $(() => {
-        // Render the sidebar after the DOM is ready
-        this.sidebarManager.RenderSidebarAsync();
-
         // Start the header scanner after the DOM is ready
         this.ogameEventsScanner.StartAsync();
       });
