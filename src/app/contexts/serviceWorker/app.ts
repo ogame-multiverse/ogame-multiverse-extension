@@ -22,6 +22,10 @@ class ServiceWorkerContextApp {
     this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
     this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsService);
 
+    this.RegisterServiceWorkerEvents();
+  }
+
+  private RegisterServiceWorkerEvents(): void {
     serviceWorkerProtocolRegistrar.OnRegisterUniverse(this.logger, (data: { universeKey: string, universeDomain: string, lastRefreshDate: number }) =>
       this.universeManager.RegisterUniverseAsync(data.universeKey, data.universeDomain, data.lastRefreshDate)
     )
@@ -52,7 +56,7 @@ class ServiceWorkerContextApp {
 
     serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
       this.sidePanelManager.ToggleSidePanel(sender)
-      )
+    )
   }
 
   public async StartAsync(): Promise<void> {

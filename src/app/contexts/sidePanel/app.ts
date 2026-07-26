@@ -2,10 +2,10 @@ import { Localizator } from '../../localization/localizator';
 import browser from 'webextension-polyfill';
 import { UniversePanelController } from './universePanelController';
 import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
+import { sidePanelProtocolRegistrar } from '../../messaging/sidePanelProtocol';
 
 class SidePanelContextApp {
   private windowId: number | undefined;
-  private port: browser.Runtime.Port | undefined;
   private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
   private readonly supportedLanguages = new Set(['en', 'fr', 'es', 'de', 'tr', 'br']);
   private readonly universePanelController = new UniversePanelController(sidePanelLoggerFactory.CreateLogger('UniversePanelController'));
@@ -13,19 +13,12 @@ class SidePanelContextApp {
   public async StartAsync(): Promise<void> {
     const currentWindow = await browser.windows.getCurrent();
     this.windowId = currentWindow.id;
-    if (this.windowId) {
-      this.port = browser.runtime.connect({ name: `sidepanel-${this.windowId}` });
-
-      this.port.onMessage.addListener((message: unknown) => {
-        const msg = message as { action?: string };
-
-        if (msg?.action === 'CLOSE') {
-          window.close();
-        }
-      });
-    } else {
+    if (!this.windowId) {
       this.logger.error("Failed to retrieve the current window ID.");
+      return;
     }
+
+    this.RegisterSidePanelEvents();
 
     const language = this.ResolveLanguage();
     document.documentElement.lang = language;
@@ -34,6 +27,12 @@ class SidePanelContextApp {
     Localizator.ApplyAll(this.logger);
 
     this.InitializeTabs('tab-universe');
+  }
+
+  private RegisterSidePanelEvents(): void {
+    const port = sidePanelProtocolRegistrar.OpenPort(this.logger, this.windowId);
+    sidePanelProtocolRegistrar.OnClosePanel(() => { window.close(); });
+    sidePanelProtocolRegistrar.Connect(this.logger, port);
   }
 
   private ResolveLanguage(): string {
