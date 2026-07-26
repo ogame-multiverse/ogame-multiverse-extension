@@ -1,7 +1,7 @@
 import $ from 'jquery';
 import browser from 'webextension-polyfill';
-import { Logger } from '../logging/logger';
 import { Localizator } from '../localization/localizator';
+import { Logger } from '../logging/logger';
 
 export enum InjectedResourceType {
   Script,
@@ -45,6 +45,9 @@ export class ResourceInjector {
       let $insertion: JQuery<HTMLElement>;
       if (!target) {
         $insertion = $('body');
+        if ($insertion.length === 0) {
+          $insertion = $(document.documentElement);
+        }
       } else if (typeof target === 'string') {
         $insertion = $(target);
       } else {

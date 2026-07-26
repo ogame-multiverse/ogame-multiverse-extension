@@ -1,18 +1,24 @@
+import browser from 'webextension-polyfill';
+import { browserInfo } from '../../dom/browserInfos';
+import { serviceWorkerLoggerFactory } from '../../logging/loggerFactory';
 import { serviceWorkerProtocolRegistrar } from '../../messaging/serviceWorkerProtocol';
+import { ExtensionLocalData } from '../../model/save/extensionLocalData';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
+import { ContextMenusManager } from './contextMenusManager';
+import { ExtensionStorageService, StorageArea } from './extensionStorageService';
+import { KeyboardCommandsManager } from './keyboardCommandsManager';
 import { SaveManager } from './saveManager';
 import { SidePanelManager } from './sidePanelManager';
 import { UniverseManager } from './universeManager';
 import { UniverseTabsService } from './universeTabsManager';
-import { serviceWorkerLoggerFactory } from '../../logging/loggerFactory';
-import { ExtensionStorageService } from './extensionStorageService';
-import { StorageArea } from './extensionStorageService';
-import { ExtensionLocalData } from '../../model/save/extensionLocalData'
+import { Localizator } from '../../localization/localizator';
 
 class ServiceWorkerContextApp {
   private readonly universeManager: UniverseManager;
   private readonly universeTabsService: UniverseTabsService;
   private readonly sidePanelManager: SidePanelManager;
+  private readonly contextMenusManager: ContextMenusManager;
+  private readonly keyboardCommandsManager: KeyboardCommandsManager
   private readonly saveManager: SaveManager;
   private readonly logger = serviceWorkerLoggerFactory.CreateLogger("ServiceWorkerContextApp");
 
@@ -21,8 +27,13 @@ class ServiceWorkerContextApp {
     this.universeTabsService = new UniverseTabsService(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
     this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
     this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsService);
+    this.contextMenusManager = new ContextMenusManager(serviceWorkerLoggerFactory.CreateLogger("ContextMenusManager"), this.sidePanelManager);
+    this.keyboardCommandsManager = new KeyboardCommandsManager(serviceWorkerLoggerFactory.CreateLogger("KeyboardCommandsManager"), this.sidePanelManager);
 
     this.RegisterServiceWorkerEvents();
+
+    // Listen for extension installation or update events to reconnect open OGame tabs
+    browser.runtime.onInstalled.addListener(this.OnExtensionInstallation);
   }
 
   private RegisterServiceWorkerEvents(): void {
@@ -59,12 +70,22 @@ class ServiceWorkerContextApp {
     )
   }
 
+
+  private readonly OnExtensionInstallation = (details: { reason: string }): void => {
+    if (details.reason == 'install' || details.reason == 'update') {
+      this.contextMenusManager.RegisterContextMenus();
+      this.keyboardCommandsManager.RegisterKeyboardCommands();
+      this.universeTabsService.ReconnectOpenOgameTabsAsync();
+    }
+  };
+
   public async StartAsync(): Promise<void> {
-    this.universeManager.InitializeAsync().then(() => {
-      this.universeTabsService.Start();
-      this.sidePanelManager.Start();
-      this.logger.info('OGame Multiverse ✅ Started.');
-    });
+    await browserInfo.InitAsync();
+    Localizator.Init(browserInfo.Language);
+    await this.universeManager.InitializeAsync();
+    this.universeTabsService.Start();
+    this.sidePanelManager.Start();
+    this.logger.info('OGame Multiverse ✅ Started.');
   }
 }
 

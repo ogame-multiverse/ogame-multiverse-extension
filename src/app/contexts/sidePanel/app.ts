@@ -1,5 +1,6 @@
 import { Localizator } from '../../localization/localizator';
 import browser from 'webextension-polyfill';
+import { browserInfo } from '../../dom/browserInfos';
 import { UniversePanelController } from './universePanelController';
 import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
 import { sidePanelProtocolRegistrar } from '../../messaging/sidePanelProtocol';
@@ -7,10 +8,13 @@ import { sidePanelProtocolRegistrar } from '../../messaging/sidePanelProtocol';
 class SidePanelContextApp {
   private windowId: number | undefined;
   private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
-  private readonly supportedLanguages = new Set(['en', 'fr', 'es', 'de', 'tr', 'br']);
   private readonly universePanelController = new UniversePanelController(sidePanelLoggerFactory.CreateLogger('UniversePanelController'));
 
   public async StartAsync(): Promise<void> {
+    await browserInfo.InitAsync();
+    Localizator.Init(browserInfo.Language);
+    Localizator.ApplyAll(this.logger);
+
     const currentWindow = await browser.windows.getCurrent();
     this.windowId = currentWindow.id;
     if (!this.windowId) {
@@ -20,11 +24,8 @@ class SidePanelContextApp {
 
     this.RegisterSidePanelEvents();
 
-    const language = this.ResolveLanguage();
-    document.documentElement.lang = language;
+    document.documentElement.lang = browserInfo.Language;
 
-    Localizator.Init(language);
-    Localizator.ApplyAll(this.logger);
 
     this.InitializeTabs('tab-universe');
   }
@@ -35,14 +36,7 @@ class SidePanelContextApp {
     sidePanelProtocolRegistrar.Connect(this.logger, port);
   }
 
-  private ResolveLanguage(): string {
-    const browserLanguage = browser?.i18n?.getUILanguage?.() || navigator.language || 'en';
-    const languageCode = browserLanguage.split('-')[0].toLowerCase();
 
-    if (languageCode === 'pt') return 'br';
-    if (this.supportedLanguages.has(languageCode)) return languageCode;
-    return 'en';
-  }
 
   private InitializeTabs(defaultTabId: string): void {
     const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));

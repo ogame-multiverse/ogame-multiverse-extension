@@ -1,4 +1,5 @@
 import browser from 'webextension-polyfill';
+import { browserInfo } from '../../dom/browserInfos';
 import { Logger } from '../../logging/logger';
 import { sidePanelProtocolClient } from '../../messaging/sidePanelProtocol';
 
@@ -41,19 +42,36 @@ export class SidePanelManager {
     }
   }
 
-  public ToggleSidePanel(sender: browser.Runtime.MessageSender): void {
-    const windowId = sender?.tab?.windowId;
-    if (!windowId) return;
+  public OpenSidePanel(windowId: number): void {
 
-    if (sidePanelProtocolClient.IsOpen(windowId)) {
-      // If open: close the panel
-      sidePanelProtocolClient.ClosePanel(this.logger, windowId);
-    } else {
-      // If closed: open the panel
+    if (browserInfo.IsFirefox) {
+      (browserPolyfill as any).sidebarAction.open()
+        .catch((error: unknown) => {
+          this.logger.error('SidePanelManager.ToggleSidePanel failed', error);
+        });
+    }
+    else {
+
       browserPolyfill.sidePanel.open({ windowId })
         .catch((error: unknown) => {
           this.logger.error('SidePanelManager.ToggleSidePanel failed', error);
         });
+    }
+  }
+
+  public ToggleSidePanel(sender: browser.Runtime.MessageSender): void;
+  public ToggleSidePanel(windowId: number): void;
+  public ToggleSidePanel(senderOrWindowId: browser.Runtime.MessageSender | number): void {
+    const windowId = typeof senderOrWindowId === 'number'
+      ? senderOrWindowId
+      : senderOrWindowId?.tab?.windowId;
+
+    if (!windowId) return;
+
+    if (sidePanelProtocolClient.IsOpen(windowId)) {
+      sidePanelProtocolClient.ClosePanel(this.logger, windowId);
+    } else {
+      this.OpenSidePanel(windowId);
     }
   }
 }

@@ -193,4 +193,12 @@ export const Localizations = [
     tr: 'Evreni kaldır',
     br: 'Remover universo',
   }),
+  new I18nValue('ContextMenuOpenSidePanel', {
+    en: 'OGame Multiverse - Open side panel',
+    fr: 'OGame Multiverse - Ouvrir le panneau latéral',
+    es: 'OGame Multiverse - Abrir panel lateral',
+    de: 'OGame Multiverse - Seitenleiste öffnen',
+    tr: 'OGame Multiverse - Yan paneli aç',
+    br: 'OGame Multiverse - Abrir painel lateral',
+  })
 ];

@@ -22,8 +22,6 @@ export class UniverseTabsService {
     browser.tabs.onRemoved.addListener(this.OnTabRemoved);
     browser.tabs.onCreated.addListener(this.OnTabCreated);
 
-    // Listen for extension installation or update events to reconnect open OGame tabs
-    browser.runtime.onInstalled.addListener(this.OnExtensionInstallation);
 
     this.started = true;
     void this.RebuildOpenTabsStateAsync();
@@ -36,7 +34,7 @@ export class UniverseTabsService {
    * To mitigate this, we proactively query and reload any open OGame tabs to ensure they are correctly registered and updated with the latest extension data.
    * @returns promise that resolves when the reconnection process is complete, allowing for better handling of any potential errors or delays in tab updates after extension changes.
    */
-  private async ReconnectOpenOgameTabsAsync(): Promise<void> {
+  public async ReconnectOpenOgameTabsAsync(): Promise<void> {
     if (!browser?.tabs?.query || !browser.tabs.reload) return;
 
     try {
@@ -78,12 +76,6 @@ export class UniverseTabsService {
     else await browser.tabs.reload(tabToReload.id, { bypassCache: true });
   }
 
-  private readonly OnExtensionInstallation = (details: { reason: string }): void => {
-    debugger;
-    if (details.reason == 'install' || details.reason == 'update') {
-      this.ReconnectOpenOgameTabsAsync();
-    }
-  };
 
   private readonly OnTabUpdated = (tabId: number, changeInfo: { status?: string; url?: string }, tab: browser.Tabs.Tab): void => {
     const universeFromUrl = this.ExtractUniverseKeyFromUrl(changeInfo.url || tab.url);

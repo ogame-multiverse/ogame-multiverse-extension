@@ -1,4 +1,5 @@
 import $ from 'jquery';
+import { browserInfo } from '../../dom/browserInfos';
 import { contentScriptLoggerFactory } from '../../logging/loggerFactory';
 import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtocol';
 import { UniverseDataNormalizer } from '../../universeDataNormalizer';
@@ -18,6 +19,7 @@ import { SidebarManager } from './sidebarManager';
     private readonly sidebarManager = new SidebarManager(contentScriptLoggerFactory.CreateLogger("SidebarManager"));
 
     public async StartAsync(): Promise<void> {
+      await browserInfo.InitAsync();
 
       await Promise.all([this.sidebarManager.RenderSidebarAsync(),
       this.RegisterUniverseAsync()]);
