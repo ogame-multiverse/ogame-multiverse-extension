@@ -51,6 +51,10 @@ export class UniversePanelController {
 
   private rafId?: number;
   private readonly lastSecondByUniverseKey = new Map<string, number>();
+  private lastSyncCheckTime = 0;
+
+  private readonly onTabActivated = () => { void this.CheckSyncStateAsync(); };
+  private readonly onTabUpdated = () => { void this.CheckSyncStateAsync(); };
 
   constructor(private readonly logger: Logger) {
     // new universe -> Refresh the list to add it to the DOM
@@ -84,6 +88,13 @@ export class UniversePanelController {
       this.Refresh();
     }
     this.StartAnimationLoop();
+    void this.CheckSyncStateAsync();
+
+    const chromeApi = (globalThis as { chrome?: any }).chrome;
+    if (chromeApi?.tabs) {
+      chromeApi.tabs.onActivated?.addListener(this.onTabActivated);
+      chromeApi.tabs.onUpdated?.addListener(this.onTabUpdated);
+    }
   }
 
   public Deactivate(): void {
@@ -91,12 +102,20 @@ export class UniversePanelController {
       cancelAnimationFrame(this.rafId);
       this.rafId = undefined;
     }
+
+    const chromeApi = (globalThis as { chrome?: any }).chrome;
+    if (chromeApi?.tabs) {
+      chromeApi.tabs.onActivated?.removeListener(this.onTabActivated);
+      chromeApi.tabs.onUpdated?.removeListener(this.onTabUpdated);
+    }
   }
 
   public Refresh(): void {
     Debouncer.Debounce('universe-panel-refresh', async () => {
       const container = document.getElementById('universe-list');
       if (!container) return;
+
+      void this.CheckSyncStateAsync();
 
       const universeStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger);
       if (!universeStatuses.length) {
@@ -115,11 +134,17 @@ export class UniversePanelController {
     }, 100, false);
   }
 
+  /**
+   * Check if an active syncable OGame tab is open, and update the banner indicator.
+   */
+  public async CheckSyncStateAsync(): Promise<void> {
+    const hasActiveTab = await this.HasActiveSyncableTabAsync();
+    this.syncSuspended = !hasActiveTab;
+    this.SetSyncPausedIndicator(this.syncSuspended);
+  }
 
   /**
    * Update the status of a single universe in the DOM, if it exists. If it doesn't exist, refresh the entire list.
-   * @param data
-   * @returns
    */
   public UpdateSingleUniverseStatus(data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters }): void {
     if (!data?.universeKey) return;
@@ -134,7 +159,6 @@ export class UniversePanelController {
       }
       this.UpdateUniverseRow(existingRow, existingRow.currentStatus);
     } else {
-      // Si la ligne n'est pas encore présente dans la vue, on recharge la liste
       this.Refresh();
     }
   }
@@ -194,6 +218,10 @@ export class UniversePanelController {
     existingRow.updateWarningState();
   }
 
+  /**
+   * Start the animation loop to update the rendered universe rows every frame. This is used to update the last refresh time and warning state of each row.
+   * @returns
+   */
   private StartAnimationLoop(): void {
     if (this.rafId !== undefined) return;
 
@@ -204,8 +232,17 @@ export class UniversePanelController {
     this.rafId = requestAnimationFrame(loop);
   }
 
+  /**
+   * Tick the rendered universe rows to update their last refresh time and warning state. This is called on each animation frame. 
+   */
   private TickRenderedRows(): void {
     const now = Date.now();
+
+    // Check tab sync state every second
+    if (now - this.lastSyncCheckTime >= 1000) {
+      this.lastSyncCheckTime = now;
+      void this.CheckSyncStateAsync();
+    }
 
     this.universeRowsByKey.forEach((rowView, universeKey) => {
       const status = rowView.currentStatus;
@@ -229,10 +266,10 @@ export class UniversePanelController {
     });
   }
 
-  private RefreshRenderedRowsOnly(): void {
-    this.TickRenderedRows();
-  }
-
+  /**
+   * Check if there is an active OGame tab that matches the syncable URLs. If the Chrome API is not available, assume there is an active tab. 
+   * @returns
+   */
   private async HasActiveSyncableTabAsync(): Promise<boolean> {
     const chromeApi = (globalThis as { chrome?: any }).chrome;
     if (!chromeApi?.tabs?.query) return true;
@@ -249,12 +286,20 @@ export class UniversePanelController {
     }
   }
 
+  /**
+   * Check if a given tab matches the syncable URLs defined in GlobalConstants.SYNC_TABS_URLS_REGEXPS. If no regexps are defined, return true.
+   * @param tab
+   * @returns
+   */
   private IsKeepSyncTab(tab: any): boolean {
     if (GlobalConstants.SYNC_TABS_URLS_REGEXPS.length === 0) return true;
     const url = typeof tab?.url === 'string' ? tab.url : typeof tab?.pendingUrl === 'string' ? tab.pendingUrl : '';
     return GlobalConstants.SYNC_TABS_URLS_REGEXPS.some((regexp) => regexp.test(url));
   }
 
+  /**
+   * Set the sync paused indicator in the DOM. If paused is true, show the indicator. If paused is false, remove the indicator.
+   */
   private SetSyncPausedIndicator(paused: boolean): void {
     const container = document.getElementById('universe-list');
     if (!container) return;
@@ -282,6 +327,9 @@ export class UniversePanelController {
     this.syncIndicatorEl = el;
   }
 
+  /**
+   * Build a universe row element from the given status. This creates the DOM elements and sets up event listeners for the row. It does not add the row to the DOM; that is done by SyncUniverseRows. 
+   */
   private BuildUniverseRow(status: SidePanelUniverseStatus): UniverseRowView {
     const tempContainer = document.createElement('div');
     tempContainer.innerHTML = this.GetUniverseRowTemplate(status.UniverseKey);
