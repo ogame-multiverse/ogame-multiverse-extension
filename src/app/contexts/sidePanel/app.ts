@@ -1,31 +1,42 @@
 import { Localizator } from '../../localization/localizator';
+import browser from 'webextension-polyfill';
+import { browserInfo } from '../../dom/browserInfos';
 import { UniversePanelController } from './universePanelController';
 import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
+import { sidePanelProtocolRegistrar } from '../../messaging/sidePanelProtocol';
 
 class SidePanelContextApp {
+  private windowId: number | undefined;
   private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
-  private readonly supportedLanguages = new Set(['en', 'fr', 'es', 'de', 'tr', 'br']);
   private readonly universePanelController = new UniversePanelController(sidePanelLoggerFactory.CreateLogger('UniversePanelController'));
 
-  public Start(): void {
-    const language = this.ResolveLanguage();
-    document.documentElement.lang = language;
-
-    Localizator.Init(language);
+  public async StartAsync(): Promise<void> {
+    await browserInfo.InitAsync();
+    Localizator.Init(browserInfo.Language);
     Localizator.ApplyAll(this.logger);
+
+    const currentWindow = await browser.windows.getCurrent();
+    this.windowId = currentWindow.id;
+    if (!this.windowId) {
+      this.logger.error("Failed to retrieve the current window ID.");
+      return;
+    }
+
+    this.RegisterSidePanelEvents();
+
+    document.documentElement.lang = browserInfo.Language;
+
 
     this.InitializeTabs('tab-universe');
   }
 
-  private ResolveLanguage(): string {
-    const chromeApi = (globalThis as { chrome?: { i18n?: { getUILanguage?: () => string } } }).chrome;
-    const browserLanguage = chromeApi?.i18n?.getUILanguage?.() || navigator.language || 'en';
-    const languageCode = browserLanguage.split('-')[0].toLowerCase();
-
-    if (languageCode === 'pt') return 'br';
-    if (this.supportedLanguages.has(languageCode)) return languageCode;
-    return 'en';
+  private RegisterSidePanelEvents(): void {
+    const port = sidePanelProtocolRegistrar.OpenPort(this.logger, this.windowId);
+    sidePanelProtocolRegistrar.OnClosePanel(() => { window.close(); });
+    sidePanelProtocolRegistrar.Connect(this.logger, port);
   }
+
+
 
   private InitializeTabs(defaultTabId: string): void {
     const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
@@ -57,12 +68,6 @@ class SidePanelContextApp {
     if (initialTab) activate(initialTab.id);
   }
 
-  private HandleContextInvalidated(): void {
-    this.universePanelController.StopSync();
-    window.setTimeout(() => {
-      window.location.reload();
-    }, 50);
-  }
 }
 
-new SidePanelContextApp().Start();
+new SidePanelContextApp().StartAsync();

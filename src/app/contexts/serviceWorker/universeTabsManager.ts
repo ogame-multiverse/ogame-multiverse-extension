@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 import { GlobalConstants } from '../../globalConstants';
 import { Logger } from '../../logging/logger';
 import { UniverseDataNormalizer } from '../../universeDataNormalizer';
@@ -15,15 +16,12 @@ export class UniverseTabsService {
 
   public Start(): void {
     if (this.started) return;
-    const chromeApi = (globalThis as { chrome?: typeof chrome }).chrome;
-    if (!chromeApi?.tabs) return;
+    if (!browser?.tabs) return;
 
-    chromeApi.tabs.onUpdated.addListener(this.OnTabUpdated);
-    chromeApi.tabs.onRemoved.addListener(this.OnTabRemoved);
-    chromeApi.tabs.onCreated.addListener(this.OnTabCreated);
+    browser.tabs.onUpdated.addListener(this.OnTabUpdated);
+    browser.tabs.onRemoved.addListener(this.OnTabRemoved);
+    browser.tabs.onCreated.addListener(this.OnTabCreated);
 
-    // Listen for extension installation or update events to reconnect open OGame tabs
-    chromeApi.runtime.onInstalled.addListener(this.OnExtensionInstallation);
 
     this.started = true;
     void this.RebuildOpenTabsStateAsync();
@@ -36,17 +34,16 @@ export class UniverseTabsService {
    * To mitigate this, we proactively query and reload any open OGame tabs to ensure they are correctly registered and updated with the latest extension data.
    * @returns promise that resolves when the reconnection process is complete, allowing for better handling of any potential errors or delays in tab updates after extension changes.
    */
-  private async ReconnectOpenOgameTabsAsync(): Promise<void> {
-    const chromeApi = (globalThis as { chrome?: typeof chrome }).chrome;
-    if (!chromeApi?.tabs?.query || !chromeApi.tabs.reload) return;
+  public async ReconnectOpenOgameTabsAsync(): Promise<void> {
+    if (!browser?.tabs?.query || !browser.tabs.reload) return;
 
     try {
-      const tabs = await chromeApi.tabs.query({ url: GlobalConstants.OGAME_URL_GAME_PATTERN });
-      const reloadableTabIds = tabs.map((tab: chrome.tabs.Tab) => tab.id).filter((tabId: any): tabId is number => typeof tabId === 'number');
+      const tabs = await browser.tabs.query({ url: GlobalConstants.OGAME_URL_GAME_PATTERN });
+      const reloadableTabIds = tabs.map((tab: browser.Tabs.Tab) => tab.id).filter((tabId: any): tabId is number => typeof tabId === 'number');
       if (reloadableTabIds.length === 0) return;
 
-      await Promise.allSettled(reloadableTabIds.map((tabId: any) => chromeApi.tabs.reload(tabId, { bypassCache: false })));
-      this.logger.debug(`Reconnected ${reloadableTabIds.length} open OGame tab(s) after extension ${chromeApi.runtime?.id ? 'reload/update' : 'install'}.`);
+      await Promise.allSettled(reloadableTabIds.map((tabId: any) => browser.tabs.reload(tabId, { bypassCache: false })));
+      this.logger.debug(`Reconnected ${reloadableTabIds.length} open OGame tab(s) after extension ${browser.runtime?.id ? 'reload/update' : 'install'}.`);
     } catch (error) {
       this.logger.error('Failed to reconnect open OGame tabs on install/update.', error);
     }
@@ -59,13 +56,12 @@ export class UniverseTabsService {
 
 
   public async ReloadUniverseTabAsync(universeKey: string): Promise<void> {
-    const chromeApi = (globalThis as { chrome?: typeof chrome }).chrome;
-    if (!chromeApi?.tabs?.query || !chromeApi.tabs.reload) return;
+    if (!browser?.tabs?.query || !browser.tabs.reload) return;
 
-    const tabs = await chromeApi.tabs.query({ url: GlobalConstants.OGAME_URL_GAME_PATTERN });
-    const matchingTabs = tabs.filter((tab: chrome.tabs.Tab) => this.ExtractUniverseKeyFromTab(tab) === universeKey && typeof tab.id === 'number');
+    const tabs = await browser.tabs.query({ url: GlobalConstants.OGAME_URL_GAME_PATTERN });
+    const matchingTabs = tabs.filter((tab: browser.Tabs.Tab) => this.ExtractUniverseKeyFromTab(tab) === universeKey && typeof tab.id === 'number');
     if (matchingTabs.length === 0) {
-      await chromeApi.tabs.create({
+      await browser.tabs.create({
         url: this.BuildUniverseOverviewUrl(universeKey),
         active: true
       });
@@ -76,18 +72,12 @@ export class UniverseTabsService {
     const tabToReload = activeTab || matchingTabs[0];
     if (typeof tabToReload.id !== 'number') return;
 
-    if (chromeApi.tabs.update) await chromeApi.tabs.update(tabToReload.id, { active: true, url: this.BuildUniverseOverviewUrl(universeKey), });
-    else await chromeApi.tabs.reload(tabToReload.id, { bypassCache: true });
+    if (browser.tabs.update) await browser.tabs.update(tabToReload.id, { active: true, url: this.BuildUniverseOverviewUrl(universeKey), });
+    else await browser.tabs.reload(tabToReload.id, { bypassCache: true });
   }
 
-  private readonly OnExtensionInstallation = (details: { reason: string }): void => {
-    debugger;
-    if (details.reason == 'install' || details.reason == 'update') {
-      this.ReconnectOpenOgameTabsAsync();
-    }
-  };
 
-  private readonly OnTabUpdated = (tabId: number, changeInfo: { status?: string; url?: string }, tab: chrome.tabs.Tab): void => {
+  private readonly OnTabUpdated = (tabId: number, changeInfo: { status?: string; url?: string }, tab: browser.Tabs.Tab): void => {
     const universeFromUrl = this.ExtractUniverseKeyFromUrl(changeInfo.url || tab.url);
 
     if (universeFromUrl) {
@@ -101,7 +91,7 @@ export class UniverseTabsService {
     this.universeByTabId.delete(tabId);
   };
 
-  private readonly OnTabCreated = (tab: chrome.tabs.Tab): void => {
+  private readonly OnTabCreated = (tab: browser.Tabs.Tab): void => {
     const universeKey = this.ExtractUniverseKeyFromTab(tab);
     if (!universeKey || typeof tab.id !== 'number') return;
 
@@ -109,13 +99,12 @@ export class UniverseTabsService {
   };
 
   public async RebuildOpenTabsStateAsync(): Promise<void> {
-    const chromeApi = (globalThis as { chrome?: typeof chrome }).chrome;
-    if (!chromeApi?.tabs?.query) return;
+    if (!browser?.tabs?.query) return;
 
-    const tabs = await chromeApi.tabs.query({ url: GlobalConstants.OGAME_URL_GAME_PATTERN });
+    const tabs = await browser.tabs.query({ url: GlobalConstants.OGAME_URL_GAME_PATTERN });
     const rebuilt = new Map<number, string>();
 
-    tabs.forEach((tab: chrome.tabs.Tab) => {
+    tabs.forEach((tab: browser.Tabs.Tab) => {
       if (typeof tab.id !== 'number') return;
       const universeKey = this.ExtractUniverseKeyFromTab(tab);
       if (!universeKey) return;
@@ -136,7 +125,7 @@ export class UniverseTabsService {
     return openTabsCountByUniverse;
   }
 
-  private ExtractUniverseKeyFromTab(tab: chrome.tabs.Tab): string | undefined {
+  private ExtractUniverseKeyFromTab(tab: browser.Tabs.Tab): string | undefined {
     return this.ExtractUniverseKeyFromUrl(tab.url);
   }
 

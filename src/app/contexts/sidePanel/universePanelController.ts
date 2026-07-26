@@ -1,8 +1,8 @@
 import { GlobalConstants } from '../../globalConstants';
 import { Localizator } from '../../localization/localizator';
+import { Logger } from '../../logging/logger';
 import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtocol';
 import { SidePanelUniverseStatus } from '../../model/sidePanel/sidePanelUniverseStatus';
-import { Logger } from '../../logging/logger';
 
 interface UniverseRowView {
   row: HTMLElement;
@@ -305,7 +305,7 @@ export class UniversePanelController {
     const displayOwnFleetCheckboxSetting = row.querySelector(`#indicator-fleet-own-display-setting-checkbox-${status.UniverseKey}`) as HTMLInputElement;
     const displayUnreadMailCheckboxSetting = row.querySelector(`#indicator-unread-mail-display-setting-checkbox-${status.UniverseKey}`) as HTMLInputElement;
     const displayUnreadChatCheckboxSetting = row.querySelector(`#indicator-unread-chat-display-setting-checkbox-${status.UniverseKey}`) as HTMLInputElement;
-    debugger;
+
     const rowView: UniverseRowView = {
       row,
       title: row.querySelector('.universe-title')!,

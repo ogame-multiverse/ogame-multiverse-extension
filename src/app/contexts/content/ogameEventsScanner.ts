@@ -1,17 +1,23 @@
 import $ from 'jquery';
-import { Logger } from '../../logging/logger';
-import { SidePanelUniverseCounters } from "../../model/sidePanel/sidePanelUniverseCounters";
-import { OgmContentContext } from "./ogmContentContext";
-import { Observer } from '../../dom/observer';
 import { Debouncer } from '../../async/debouncer';
 import { DomDelayer } from '../../async/domDelayer';
+import { Observer } from '../../dom/observer';
+import { Logger } from '../../logging/logger';
+import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtocol';
+import { SidePanelUniverseCounters } from "../../model/sidePanel/sidePanelUniverseCounters";
+import { UniverseDataNormalizer } from '../../universeDataNormalizer';
+import { OgameMetadatas } from './ogameMetadatas';
+import { OgmWindowUtils } from './ogmWindowUtils';
 
-export class OgameHeaderScanner {
+export class OgameEventsScanner {
   private observer: MutationObserver | undefined;
 
   constructor(private readonly logger: Logger) { }
 
   public async StartAsync(): Promise<void> {
+
+
+
     if (this.observer) {
       this.logger.warn("Start called but already observing.");
       return;
@@ -21,10 +27,11 @@ export class OgameHeaderScanner {
     $(document).on('visibilitychange.OgameHeaderScanner', () => {
       if (document.visibilityState === 'visible') {
         this.logger.debug("Tab became visible, syncing counters...");
-        OgameHeaderScanner.Sync();
+        this.Sync();
       }
     });
 
+    // Wait for the relevant DOM elements to be present before starting observation
     const watchedSelectors = ['#newmessagesindicatorcomponent', '#eventboxFilled'];
     try {
       await DomDelayer.WaitForAllQuerySelectors(watchedSelectors, 50, 5000);
@@ -38,7 +45,7 @@ export class OgameHeaderScanner {
           if (mutations.every(m => $(m.target).closest('#tempcounter').length > 0)) return;
 
           this.logger.debug("Detected relevant DOM changes, syncing counters...", mutations);
-          OgameHeaderScanner.Sync();
+          this.Sync();
         }
       );
       this.logger.debug("Started observing DOM changes for message and fleet counters.");
@@ -49,7 +56,7 @@ export class OgameHeaderScanner {
     finally {
       // Initial sync on start
       this.logger.debug("Performing initial sync of counters.");
-      OgameHeaderScanner.Sync();
+      this.Sync();
     }
   }
 
@@ -62,24 +69,26 @@ export class OgameHeaderScanner {
     }
   }
 
-  private static Sync(): void {
+  private async Sync(): Promise<void> {
     Debouncer.Debounce("OgameHeaderScanner.Sync", () => {
-      const { hostile, friendly, own } = OgameHeaderScanner.GetFleetCounters();
-      const { messages, chat } = OgameHeaderScanner.GetMessageCounters();
+      const universeKey = UniverseDataNormalizer.NormalizeUniverseKey(OgmWindowUtils.UNIVERSE_KEY);
+      if (universeKey === '') return;
 
-      OgmContentContext.Instance.UpdateUniverseStatusAsync(
-        new SidePanelUniverseCounters({
-          NewMessages: messages,
-          NewChatMessages: chat,
-          HostileFleetCount: hostile,
-          FriendlyFleetCount: friendly,
-          OwnFleetCount: own
-        })
-      );
+      const { hostile, friendly, own } = this.GetFleetCounters();
+      const { messages, chat } = this.GetMessageCounters();
+
+      serviceWorkerProtocolClient.UpdateUniverseStatusAsync(this.logger, universeKey, OgameMetadatas.UniverseName(), new SidePanelUniverseCounters({
+        NewMessages: messages,
+        NewChatMessages: chat,
+        HostileFleetCount: hostile,
+        FriendlyFleetCount: friendly,
+        OwnFleetCount: own
+      }));
+
     }, 100);
   }
 
-  private static GetFleetCounters(): { hostile: number; friendly: number; own: number } {
+  private GetFleetCounters(): { hostile: number; friendly: number; own: number } {
     let hostile = 0, friendly = 0, own = 0;
 
     const $root = $('#eventboxFilled');
@@ -100,7 +109,7 @@ export class OgameHeaderScanner {
     return { hostile, friendly, own };
   }
 
-  private static GetMessageCounters(): { messages: number; chat: number } {
+  private GetMessageCounters(): { messages: number; chat: number } {
     const $container = $('#newmessagesindicatorcomponent');
     const $root = $container.length > 0 ? $container : $(document.body);
 
