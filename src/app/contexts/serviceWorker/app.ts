@@ -73,8 +73,7 @@ class ServiceWorkerContextApp {
 
   private readonly OnExtensionInstallation = (details: { reason: string }): void => {
     if (details.reason == 'install' || details.reason == 'update') {
-      this.contextMenusManager.RegisterContextMenusAsync();
-      this.keyboardCommandsManager.RegisterKeyboardCommands();
+
       this.universeTabsService.ReconnectOpenOgameTabsAsync();
     }
   };
@@ -82,9 +81,14 @@ class ServiceWorkerContextApp {
   public async StartAsync(): Promise<void> {
     await browserInfo.InitAsync();
     Localizator.Init(browserInfo.Language);
+
+
     await this.universeManager.InitializeAsync();
     this.universeTabsService.Start();
     this.sidePanelManager.Start();
+
+    await this.contextMenusManager.RegisterContextMenusAsync();
+    this.keyboardCommandsManager.RegisterKeyboardCommands();
     this.logger.info('OGame Multiverse ✅ Started.');
   }
 }
