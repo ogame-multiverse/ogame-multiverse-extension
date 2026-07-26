@@ -1,11 +1,13 @@
 {
   "extends": "./tsconfig.app.base.json",
   "compilerOptions": {
+    "types": [ "chrome" ],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "outDir": "dist"
   },
   "include": [
+    "src/types/**/*",
     "src/app/contexts/serviceWorker.entry.ts",
     "src/app/contexts/serviceWorker/**/*.ts"
   ]

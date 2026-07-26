@@ -13,7 +13,7 @@ export interface ServiceWorkerProtocol {
   RemoveUniverse(universeKey: string): Promise<void>
   GetUniverseSidePanelOptions(universeKey: string): Promise<UniverseSidePanelOptions>
   SaveUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): Promise<void>
-  OpenSidePanel(): void
+  ToggleSidePanel(): void
 }
 
 const serviceWorkerMessenger = defineExtensionMessaging<ServiceWorkerProtocol>()
@@ -57,8 +57,8 @@ export class ServiceWorkerProtocolClient {
     return this.send(logger, 'SaveUniverseSidePanelOptions', { universeKey, options })
   }
 
-  public OpenSidePanel(logger: Logger) {
-    return this.send(logger, 'OpenSidePanel');
+  public ToggleSidePanel(logger: Logger) {
+    return this.send(logger, 'ToggleSidePanel');
   }
 }
 export class ServiceWorkerProtocolRegistrar {
@@ -97,8 +97,8 @@ export class ServiceWorkerProtocolRegistrar {
     this.listen(logger, 'SaveUniverseSidePanelOptions', handler);
   }
 
-  public OnOpenSidePanel(logger: Logger, handler: (data: void, sender: browser.Runtime.MessageSender) => void): void {
-    this.listen(logger, 'OpenSidePanel', handler);
+  public OnToggleSidePanel(logger: Logger, handler: (data: void, sender: browser.Runtime.MessageSender) => void): void {
+    this.listen(logger, 'ToggleSidePanel', handler);
   }
 }
 

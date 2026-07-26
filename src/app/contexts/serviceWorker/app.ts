@@ -50,8 +50,8 @@ class ServiceWorkerContextApp {
       this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options)
     );
 
-    serviceWorkerProtocolRegistrar.OnOpenSidePanel(this.logger, (_, sender) =>
-      this.sidePanelManager.OpenSidePanel(sender)
+    serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
+      this.sidePanelManager.ToggleSidePanel(sender)
       )
   }
 

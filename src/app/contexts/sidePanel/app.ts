@@ -1,13 +1,32 @@
 import { Localizator } from '../../localization/localizator';
+import browser from 'webextension-polyfill';
 import { UniversePanelController } from './universePanelController';
 import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
 
 class SidePanelContextApp {
+  private windowId: number | undefined;
+  private port: browser.Runtime.Port | undefined;
   private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
   private readonly supportedLanguages = new Set(['en', 'fr', 'es', 'de', 'tr', 'br']);
   private readonly universePanelController = new UniversePanelController(sidePanelLoggerFactory.CreateLogger('UniversePanelController'));
 
-  public Start(): void {
+  public async StartAsync(): Promise<void> {
+    const currentWindow = await browser.windows.getCurrent();
+    this.windowId = currentWindow.id;
+    if (this.windowId) {
+      this.port = browser.runtime.connect({ name: `sidepanel-${this.windowId}` });
+
+      this.port.onMessage.addListener((message: unknown) => {
+        const msg = message as { action?: string };
+
+        if (msg?.action === 'CLOSE') {
+          window.close();
+        }
+      });
+    } else {
+      this.logger.error("Failed to retrieve the current window ID.");
+    }
+
     const language = this.ResolveLanguage();
     document.documentElement.lang = language;
 
@@ -18,8 +37,7 @@ class SidePanelContextApp {
   }
 
   private ResolveLanguage(): string {
-    const chromeApi = (globalThis as { chrome?: { i18n?: { getUILanguage?: () => string } } }).chrome;
-    const browserLanguage = chromeApi?.i18n?.getUILanguage?.() || navigator.language || 'en';
+    const browserLanguage = browser?.i18n?.getUILanguage?.() || navigator.language || 'en';
     const languageCode = browserLanguage.split('-')[0].toLowerCase();
 
     if (languageCode === 'pt') return 'br';
@@ -57,12 +75,6 @@ class SidePanelContextApp {
     if (initialTab) activate(initialTab.id);
   }
 
-  private HandleContextInvalidated(): void {
-    this.universePanelController.StopSync();
-    window.setTimeout(() => {
-      window.location.reload();
-    }, 50);
-  }
 }
 
-new SidePanelContextApp().Start();
+new SidePanelContextApp().StartAsync();

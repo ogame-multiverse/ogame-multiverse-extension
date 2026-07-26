@@ -17,7 +17,7 @@ export class SidebarManager {
 
     $('.ogm-sidebar .ogm-sidebar-header .ogm-sidebar-header-button').off('click').on('click', (e) => {
       e.preventDefault();
-      serviceWorkerProtocolClient.OpenSidePanel(this.logger);
+      serviceWorkerProtocolClient.ToggleSidePanel(this.logger);
     });
   }
 
