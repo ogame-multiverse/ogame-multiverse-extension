@@ -50,7 +50,7 @@ class ServiceWorkerContextApp {
           this.logger.error(`Failed to broadcast RegisterUniverse for universeKey ${data.universeKey}`, error);
         }
       }
-      else this.logger.debug(`No active side panel ports to broadcast RegisterUniverse for universeKey ${data.universeKey}`);
+      else this.logger.warn(`No active side panel ports to broadcast RegisterUniverse for universeKey ${data.universeKey}`);
     });
 
     serviceWorkerProtocolRegistrar.OnUpdateUniverseStatus(this.logger, async (data: { universeKey: string, universeName: string, universeCounters: any }) => {
@@ -63,7 +63,7 @@ class ServiceWorkerContextApp {
           this.logger.error(`Failed to broadcast UpdateUniverseStatus for universeKey ${data.universeKey}`, error);
         }
       }
-      else this.logger.debug(`No active side panel ports to broadcast UpdateUniverseStatus for universeKey ${data.universeKey}`);
+      else this.logger.warn(`No active side panel ports to broadcast UpdateUniverseStatus for universeKey ${data.universeKey}`);
     });
 
     serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(this.logger, () =>
@@ -85,7 +85,7 @@ class ServiceWorkerContextApp {
           this.logger.error(`Failed to broadcast RemoveUniverse for universeKey ${data}`, error);
         }
       }
-      else this.logger.debug(`No active side panel ports to broadcast RemoveUniverse for universeKey ${data}`);
+      else this.logger.warn(`No active side panel ports to broadcast RemoveUniverse for universeKey ${data}`);
     });
 
     serviceWorkerProtocolRegistrar.OnGetUniverseSidePanelOptions(this.logger, (data: string) =>
@@ -102,7 +102,7 @@ class ServiceWorkerContextApp {
           this.logger.error(`Failed to broadcast UpdateUniverseSidePanelOptions for universeKey ${data.universeKey}`, error);
         }
       }
-      else this.logger.debug(`No active side panel ports to broadcast UpdateUniverseSidePanelOptions for universeKey ${data.universeKey}`);
+      else this.logger.warn(`No active side panel ports to broadcast UpdateUniverseSidePanelOptions for universeKey ${data.universeKey}`);
     });
 
     serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
