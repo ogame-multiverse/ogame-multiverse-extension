@@ -73,7 +73,7 @@ class ServiceWorkerContextApp {
 
   private readonly OnExtensionInstallation = (details: { reason: string }): void => {
     if (details.reason == 'install' || details.reason == 'update') {
-      this.contextMenusManager.RegisterContextMenus();
+      this.contextMenusManager.RegisterContextMenusAsync();
       this.keyboardCommandsManager.RegisterKeyboardCommands();
       this.universeTabsService.ReconnectOpenOgameTabsAsync();
     }
