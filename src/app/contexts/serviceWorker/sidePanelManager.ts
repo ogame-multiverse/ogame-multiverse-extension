@@ -42,7 +42,7 @@ export class SidePanelManager {
     }
   }
 
-  public OpenSidePanel(windowId: number): void {
+  private OpenSidePanel(windowId: number): void {
 
     if (browserInfo.IsFirefox) {
       (browserPolyfill as any).sidebarAction.open()

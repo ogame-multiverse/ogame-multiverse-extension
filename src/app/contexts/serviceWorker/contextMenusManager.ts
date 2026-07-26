@@ -17,19 +17,19 @@ export class ContextMenusManager {
     const cmdName = browserInfo.IsFirefox ? "_execute_sidebar_action" : "toggle_side_panel";
     const actionCmd = commands.find(c => c.name === cmdName);
     const shortcutHint = actionCmd?.shortcut ? `  (${actionCmd.shortcut})` : "";
-    const title = `${Localizator.Translate("ContextMenuOpenSidePanel")}${shortcutHint}`;
+    const title = `${Localizator.Translate("ContextMenuToggleSidePanel")}${shortcutHint}`;
 
     this.logger.debug("Registering context menu items for OGame Multiverse extension");
     contextMenus.create({
-      id: "open-ogame-sidebar",
+      id: "toggle_side_panel",
       title: title,
       contexts: ["all"]
     })
 
     this.logger.debug("Adding click listener for context menu items");
     contextMenus.onClicked.addListener(async (info, tab) => {
-      if (info.menuItemId !== "open-ogame-sidebar") return;
-      this.sidePanelManager.OpenSidePanel(tab.windowId);
+      if (info.menuItemId !== "toggle_side_panel") return;
+      this.sidePanelManager.ToggleSidePanel(tab.windowId);
     });
   }
 }
