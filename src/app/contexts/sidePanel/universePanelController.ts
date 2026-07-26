@@ -6,6 +6,7 @@ import { sidePanelBroadcastProtocolRegistrar } from '../../messaging/sidePanelBr
 import { SidePanelUniverseStatus } from '../../model/sidePanel/sidePanelUniverseStatus';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
 import { Debouncer } from '../../async/debouncer';
+import { SidePanelUniverseCounters } from '../../model/sidePanel/sidePanelUniverseCounters';
 
 interface UniverseRowView {
   row: HTMLElement;
@@ -52,18 +53,35 @@ export class UniversePanelController {
   private readonly lastSecondByUniverseKey = new Map<string, number>();
 
   constructor(private readonly logger: Logger) {
-    const refreshCallback = async () => this.RefreshAsync();
+    // new universe -> Refresh the list to add it to the DOM
+    sidePanelBroadcastProtocolRegistrar.OnRegisterUniverse(this.logger, () => this.Refresh());
 
-    sidePanelBroadcastProtocolRegistrar.OnRegisterUniverse(this.logger, refreshCallback);
-    sidePanelBroadcastProtocolRegistrar.OnRemoveUniverse(this.logger, refreshCallback);
-    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseStatus(this.logger, refreshCallback);
-    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseSidePanelOptions(this.logger, refreshCallback);
+    // universe removed -> remove it from the DOM
+    sidePanelBroadcastProtocolRegistrar.OnRemoveUniverse(this.logger, (universeKey: string) => {
+      this.RemoveSingleUniverse(universeKey);
+    });
+
+    // update of an existing universe -> update its name and counters in the DOM
+    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseStatus(
+      this.logger,
+      (data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters }) => {
+        this.UpdateSingleUniverseStatus(data);
+      }
+    );
+
+    // update of an existing universe's options -> update its options in the DOM
+    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseSidePanelOptions(
+      this.logger,
+      (data: { universeKey: string; options: UniverseSidePanelOptions }) => {
+        this.UpdateSingleUniverseOptions(data.universeKey, data.options);
+      }
+    );
   }
 
   public Activate(): void {
     if (!this.loaded) {
       this.loaded = true;
-      void this.RefreshAsync();
+      this.Refresh();
     }
     this.StartAnimationLoop();
   }
@@ -75,8 +93,7 @@ export class UniversePanelController {
     }
   }
 
-  public RefreshAsync() {
-
+  public Refresh(): void {
     Debouncer.Debounce('universe-panel-refresh', async () => {
       const container = document.getElementById('universe-list');
       if (!container) return;
@@ -96,6 +113,85 @@ export class UniversePanelController {
 
       this.SyncUniverseRows(container, universeStatuses);
     }, 100, false);
+  }
+
+
+  /**
+   * Update the status of a single universe in the DOM, if it exists. If it doesn't exist, refresh the entire list.
+   * @param data
+   * @returns
+   */
+  public UpdateSingleUniverseStatus(data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters }): void {
+    if (!data?.universeKey) return;
+
+    const universeKey = this.NormalizeUniverseKey(data.universeKey);
+    const existingRow = this.universeRowsByKey.get(universeKey);
+
+    if (existingRow) {
+      existingRow.currentStatus.UniverseDisplayName = data.universeName;
+      if (data.universeCounters) {
+        existingRow.currentStatus.SidePanelUniverseCounters = data.universeCounters;
+      }
+      this.UpdateUniverseRow(existingRow, existingRow.currentStatus);
+    } else {
+      // Si la ligne n'est pas encore présente dans la vue, on recharge la liste
+      this.Refresh();
+    }
+  }
+
+  /**
+   * Remove a single universe from the DOM, if it exists. If it doesn't exist, do nothing.
+   */
+  public RemoveSingleUniverse(universeKey: string): void {
+    if (!universeKey) return;
+
+    const key = this.NormalizeUniverseKey(universeKey);
+    const existingRow = this.universeRowsByKey.get(key);
+
+    if (existingRow) {
+      existingRow.row.remove();
+      this.universeRowsByKey.delete(key);
+      this.lastSecondByUniverseKey.delete(key);
+
+      const container = document.getElementById('universe-list');
+      if (container && this.universeRowsByKey.size === 0) {
+        container.replaceChildren();
+        const empty = document.createElement('div');
+        empty.className = 'universe-empty';
+        empty.textContent = Localizator.Translate('SidePanelNoUniverses');
+        container.appendChild(empty);
+      }
+    }
+  }
+
+  /**
+   * Update the options of a single universe in the DOM, if it exists. If it doesn't exist, do nothing.
+   */
+  public UpdateSingleUniverseOptions(universeKey: string, options: UniverseSidePanelOptions): void {
+    if (!universeKey || !options) return;
+
+    const key = this.NormalizeUniverseKey(universeKey);
+    const existingRow = this.universeRowsByKey.get(key);
+
+    if (!existingRow) return;
+
+    existingRow.currentStatus.SidePanelOptions = options;
+
+    const thresholdSelect = existingRow.row.querySelector('.universe-threshold-select') as HTMLSelectElement;
+    if (thresholdSelect && options.WarningThresholdMinutes !== undefined) {
+      thresholdSelect.value = String(options.WarningThresholdMinutes);
+    }
+
+    INDICATOR_BINDINGS.forEach(({ checkboxIdSuffix, attributeName, optionKey }) => {
+      const checkbox = existingRow.row.querySelector(`#${checkboxIdSuffix}-${existingRow.currentStatus.UniverseKey}`) as HTMLInputElement;
+      const value = Boolean(options[optionKey]);
+      if (checkbox) {
+        checkbox.checked = value;
+      }
+      existingRow.row.setAttribute(attributeName, String(value));
+    });
+
+    existingRow.updateWarningState();
   }
 
   private StartAnimationLoop(): void {
@@ -282,7 +378,7 @@ export class UniversePanelController {
       await action();
     } finally {
       try {
-        await this.RefreshAsync();
+        this.Refresh();
       } finally {
         button.disabled = false;
       }

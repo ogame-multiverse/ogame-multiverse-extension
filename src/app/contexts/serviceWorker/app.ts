@@ -44,7 +44,7 @@ class ServiceWorkerContextApp {
       await this.universeManager.RegisterUniverseAsync(data.universeKey, data.universeDomain, data.lastRefreshDate);
       if (sidePanelProtocolClient.HasAnyActivePort()) {
         try {
-          await sidePanelBroadcastProtocolClient.RegisterUniverseAsync(this.logger, data.universeKey, data.universeDomain, data.lastRefreshDate);
+          sidePanelBroadcastProtocolClient.RegisterUniverse(this.logger, data.universeKey, data.universeDomain, data.lastRefreshDate);
         }
         catch (error) {
           this.logger.error(`Failed to broadcast RegisterUniverse for universeKey ${data.universeKey}`, error);
@@ -57,7 +57,7 @@ class ServiceWorkerContextApp {
       await this.universeManager.UpdateUniverseStatusAsync(data.universeKey, data.universeName, data.universeCounters);
       if (sidePanelProtocolClient.HasAnyActivePort()) {
         try {
-          await sidePanelBroadcastProtocolClient.UpdateUniverseStatusAsync(this.logger, data.universeKey, data.universeName, data.universeCounters);
+          sidePanelBroadcastProtocolClient.UpdateUniverseStatus(this.logger, data.universeKey, data.universeName, data.universeCounters);
         }
         catch (error) {
           this.logger.error(`Failed to broadcast UpdateUniverseStatus for universeKey ${data.universeKey}`, error);
@@ -79,7 +79,7 @@ class ServiceWorkerContextApp {
 
       if (sidePanelProtocolClient.HasAnyActivePort()) {
         try {
-          await sidePanelBroadcastProtocolClient.RemoveUniverseAsync(this.logger, data);
+          sidePanelBroadcastProtocolClient.RemoveUniverse(this.logger, data);
         }
         catch (error) {
           this.logger.error(`Failed to broadcast RemoveUniverse for universeKey ${data}`, error);
@@ -96,7 +96,7 @@ class ServiceWorkerContextApp {
       this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options)
       if (sidePanelProtocolClient.HasAnyActivePort()) {
         try {
-          await sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptionsAsync(this.logger, data.universeKey);
+          sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptions(this.logger, data.universeKey, data.options);
         }
         catch (error) {
           this.logger.error(`Failed to broadcast UpdateUniverseSidePanelOptions for universeKey ${data.universeKey}`, error);

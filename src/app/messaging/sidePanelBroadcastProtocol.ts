@@ -1,12 +1,13 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import { Logger } from '../logging/logger';
 import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters';
+import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOptions';
 
 export interface SidePanelBroadcastProtocol {
-  RegisterUniverse(data: { universeKey: string, universeDomain: string, lastRefreshDate: number }): Promise<void>
-  UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters }): Promise<void>
-  UpdateUniverseSidePanelOptions(data: { universeKey: string }): Promise<void>
-  RemoveUniverse(universeKey: string): Promise<void>
+  RegisterUniverse(data: { universeKey: string, universeDomain: string, lastRefreshDate: number }): void
+  UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters }): void
+  UpdateUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): void
+  RemoveUniverse(universeKey: string): void
 }
 
 const sidePanelBroadcastMessenger = defineExtensionMessaging<SidePanelBroadcastProtocol>()
@@ -22,17 +23,17 @@ export class SidePanelBroadcastProtocolClient {
     return sidePanelBroadcastMessenger.sendMessage(key as any, args[0]) as any
   }
 
-  public RegisterUniverseAsync(logger: Logger, universeKey: string, universeDomain: string, lastRefreshDate: number) {
+  public RegisterUniverse(logger: Logger, universeKey: string, universeDomain: string, lastRefreshDate: number) {
     return this.send(logger, 'RegisterUniverse', { universeKey, universeDomain, lastRefreshDate })
   }
 
-  public UpdateUniverseStatusAsync(logger: Logger, universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters) {
+  public UpdateUniverseStatus(logger: Logger, universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters) {
     return this.send(logger, 'UpdateUniverseStatus', { universeKey, universeName, universeCounters })
   }
-  public UpdateUniverseSidePanelOptionsAsync(logger: Logger, universeKey: string) {
-    return this.send(logger, 'UpdateUniverseSidePanelOptions', { universeKey })
+  public UpdateUniverseSidePanelOptions(logger: Logger, universeKey: string, options: UniverseSidePanelOptions) {
+    return this.send(logger, 'UpdateUniverseSidePanelOptions', { universeKey, options })
   }
-  public RemoveUniverseAsync(logger: Logger, universeKey: string) {
+  public RemoveUniverse(logger: Logger, universeKey: string) {
     return this.send(logger, 'RemoveUniverse', universeKey)
   }
 }
