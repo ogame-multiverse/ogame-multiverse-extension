@@ -1,19 +1,16 @@
 import browser from 'webextension-polyfill';
 import { Logger } from '../logging/logger';
 
-// 1. Contrat des messages envoyés au SidePanel
 export interface SidePanelProtocol {
   ClosePanel(): void;
   RefreshData(data: { universeKey: string }): void;
 }
 
-// Helper interne pour typer les messages transitant sur le Port
 export interface SidePanelPortMessage<K extends keyof SidePanelProtocol = keyof SidePanelProtocol> {
   action: K;
   payload?: any;
 }
 
-// 2. Le Client (utilisé côté Service Worker)
 export class SidePanelProtocolClient {
   private activePorts = new Map<number, browser.Runtime.Port>();
 
@@ -25,6 +22,13 @@ export class SidePanelProtocolClient {
   public UnregisterPort(logger: Logger, windowId: number): void {
     this.activePorts.delete(windowId);
     logger.debug(`Unregistered port for windowId ${windowId}`);
+  }
+
+  public HasAnyActivePort(windowId?: number | undefined): boolean {
+    if (windowId !== undefined) {
+      return this.IsOpen(windowId);
+    }
+    return this.activePorts.size > 0;
   }
 
   public IsOpen(windowId: number): boolean {

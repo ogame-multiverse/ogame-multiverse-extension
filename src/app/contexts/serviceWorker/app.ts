@@ -13,6 +13,9 @@ import { UniverseManager } from './universeManager';
 import { UniverseTabsService } from './universeTabsManager';
 import { Localizator } from '../../localization/localizator';
 
+import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
+import { sidePanelProtocolClient } from '../../messaging/sidePanelProtocol';
+
 class ServiceWorkerContextApp {
   private readonly universeManager: UniverseManager;
   private readonly universeTabsService: UniverseTabsService;
@@ -37,37 +40,74 @@ class ServiceWorkerContextApp {
   }
 
   private RegisterServiceWorkerEvents(): void {
-    serviceWorkerProtocolRegistrar.OnRegisterUniverse(this.logger, (data: { universeKey: string, universeDomain: string, lastRefreshDate: number }) =>
-      this.universeManager.RegisterUniverseAsync(data.universeKey, data.universeDomain, data.lastRefreshDate)
-    )
+    serviceWorkerProtocolRegistrar.OnRegisterUniverse(this.logger, async (data: { universeKey: string, universeDomain: string, lastRefreshDate: number }) => {
+      await this.universeManager.RegisterUniverseAsync(data.universeKey, data.universeDomain, data.lastRefreshDate);
+      if (sidePanelProtocolClient.HasAnyActivePort()) {
+        try {
+          sidePanelBroadcastProtocolClient.RegisterUniverse(this.logger, data.universeKey, data.universeDomain, data.lastRefreshDate);
+        }
+        catch (error) {
+          this.logger.error(`Failed to broadcast RegisterUniverse for universeKey ${data.universeKey}`, error);
+        }
+      }
+      else this.logger.warn(`No active side panel ports to broadcast RegisterUniverse for universeKey ${data.universeKey}`);
+    });
 
-    serviceWorkerProtocolRegistrar.OnUpdateUniverseStatus(this.logger, (data: { universeKey: string, universeName: string, universeCounters: any }) =>
-      this.universeManager.UpdateUniverseStatusAsync(data.universeKey, data.universeName, data.universeCounters)
-    )
+    serviceWorkerProtocolRegistrar.OnUpdateUniverseStatus(this.logger, async (data: { universeKey: string, universeName: string, universeCounters: any }) => {
+      await this.universeManager.UpdateUniverseStatusAsync(data.universeKey, data.universeName, data.universeCounters);
+      if (sidePanelProtocolClient.HasAnyActivePort()) {
+        try {
+          sidePanelBroadcastProtocolClient.UpdateUniverseStatus(this.logger, data.universeKey, data.universeName, data.universeCounters);
+        }
+        catch (error) {
+          this.logger.error(`Failed to broadcast UpdateUniverseStatus for universeKey ${data.universeKey}`, error);
+        }
+      }
+      else this.logger.warn(`No active side panel ports to broadcast UpdateUniverseStatus for universeKey ${data.universeKey}`);
+    });
 
     serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(this.logger, () =>
       this.universeManager.ListUniverseStatusesAsync()
-    )
+    );
 
     serviceWorkerProtocolRegistrar.OnReloadUniverseTab(this.logger, (data: string) =>
       this.universeTabsService.ReloadUniverseTabAsync(data)
-    )
+    );
 
-    serviceWorkerProtocolRegistrar.OnRemoveUniverse(this.logger, (data: string) =>
-      this.universeManager.RemoveUniverseAsync(data)
-    )
+    serviceWorkerProtocolRegistrar.OnRemoveUniverse(this.logger, async (data: string) => {
+      await this.universeManager.RemoveUniverseAsync(data);
+
+      if (sidePanelProtocolClient.HasAnyActivePort()) {
+        try {
+          sidePanelBroadcastProtocolClient.RemoveUniverse(this.logger, data);
+        }
+        catch (error) {
+          this.logger.error(`Failed to broadcast RemoveUniverse for universeKey ${data}`, error);
+        }
+      }
+      else this.logger.warn(`No active side panel ports to broadcast RemoveUniverse for universeKey ${data}`);
+    });
 
     serviceWorkerProtocolRegistrar.OnGetUniverseSidePanelOptions(this.logger, (data: string) =>
       this.saveManager.GetUniverseSidePanelOptionsAsync(data)
-    )
-
-    serviceWorkerProtocolRegistrar.OnSaveUniverseSidePanelOptions(this.logger, (data: { universeKey: string, options: UniverseSidePanelOptions }) =>
-      this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options)
     );
+
+    serviceWorkerProtocolRegistrar.OnSaveUniverseSidePanelOptions(this.logger, async (data: { universeKey: string, options: UniverseSidePanelOptions }) => {
+      this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options)
+      if (sidePanelProtocolClient.HasAnyActivePort()) {
+        try {
+          sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptions(this.logger, data.universeKey, data.options);
+        }
+        catch (error) {
+          this.logger.error(`Failed to broadcast UpdateUniverseSidePanelOptions for universeKey ${data.universeKey}`, error);
+        }
+      }
+      else this.logger.warn(`No active side panel ports to broadcast UpdateUniverseSidePanelOptions for universeKey ${data.universeKey}`);
+    });
 
     serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
       this.sidePanelManager.ToggleSidePanel(sender)
-    )
+    );
   }
 
 
