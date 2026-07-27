@@ -68,10 +68,14 @@ export class UniversePanelController {
     // update of an existing universe -> update its name and counters in the DOM
     sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseStatus(
       this.logger,
-      (data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters }) => {
+      (data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean }) => {
         this.UpdateSingleUniverseStatus(data);
       }
     );
+
+    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseOpenState(this.logger, (data: { universeKey: string; isOpen: boolean }) => {
+      this.UpdateUniverseOpenState(data.universeKey, data.isOpen);
+    });
 
     // update of an existing universe's options -> update its options in the DOM
     sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseSidePanelOptions(
@@ -134,19 +138,23 @@ export class UniversePanelController {
     }, 100, false);
   }
 
-  /**
-   * Check if an active syncable OGame tab is open, and update the banner indicator.
-   */
+  private UpdateUniverseOpenState(universeKey: string, isOpen: boolean): void {
+    const key = this.NormalizeUniverseKey(universeKey);
+    const existingRow = this.universeRowsByKey.get(key);
+
+    if (existingRow) {
+      existingRow.currentStatus.IsOpen = isOpen;
+      this.UpdateUniverseRow(existingRow, existingRow.currentStatus);
+    }
+  }
+
   public async CheckSyncStateAsync(): Promise<void> {
     const hasActiveTab = await this.HasActiveSyncableTabAsync();
     this.syncSuspended = !hasActiveTab;
     this.SetSyncPausedIndicator(this.syncSuspended);
   }
 
-  /**
-   * Update the status of a single universe in the DOM, if it exists. If it doesn't exist, refresh the entire list.
-   */
-  public UpdateSingleUniverseStatus(data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters }): void {
+  public UpdateSingleUniverseStatus(data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean }): void {
     if (!data?.universeKey) return;
 
     const universeKey = this.NormalizeUniverseKey(data.universeKey);
@@ -154,6 +162,7 @@ export class UniversePanelController {
 
     if (existingRow) {
       existingRow.currentStatus.UniverseDisplayName = data.universeName;
+      existingRow.currentStatus.IsOpen = data.isOpen;
       if (data.universeCounters) {
         existingRow.currentStatus.SidePanelUniverseCounters = data.universeCounters;
       }
@@ -163,9 +172,6 @@ export class UniversePanelController {
     }
   }
 
-  /**
-   * Remove a single universe from the DOM, if it exists. If it doesn't exist, do nothing.
-   */
   public RemoveSingleUniverse(universeKey: string): void {
     if (!universeKey) return;
 
@@ -188,9 +194,6 @@ export class UniversePanelController {
     }
   }
 
-  /**
-   * Update the options of a single universe in the DOM, if it exists. If it doesn't exist, do nothing.
-   */
   public UpdateSingleUniverseOptions(universeKey: string, options: UniverseSidePanelOptions): void {
     if (!universeKey || !options) return;
 
@@ -218,10 +221,6 @@ export class UniversePanelController {
     existingRow.updateWarningState();
   }
 
-  /**
-   * Start the animation loop to update the rendered universe rows every frame. This is used to update the last refresh time and warning state of each row.
-   * @returns
-   */
   private StartAnimationLoop(): void {
     if (this.rafId !== undefined) return;
 
@@ -232,13 +231,9 @@ export class UniversePanelController {
     this.rafId = requestAnimationFrame(loop);
   }
 
-  /**
-   * Tick the rendered universe rows to update their last refresh time and warning state. This is called on each animation frame. 
-   */
   private TickRenderedRows(): void {
     const now = Date.now();
 
-    // Check tab sync state every second
     if (now - this.lastSyncCheckTime >= 1000) {
       this.lastSyncCheckTime = now;
       void this.CheckSyncStateAsync();
@@ -266,10 +261,6 @@ export class UniversePanelController {
     });
   }
 
-  /**
-   * Check if there is an active OGame tab that matches the syncable URLs. If the Chrome API is not available, assume there is an active tab. 
-   * @returns
-   */
   private async HasActiveSyncableTabAsync(): Promise<boolean> {
     const chromeApi = (globalThis as { chrome?: any }).chrome;
     if (!chromeApi?.tabs?.query) return true;
@@ -286,20 +277,12 @@ export class UniversePanelController {
     }
   }
 
-  /**
-   * Check if a given tab matches the syncable URLs defined in GlobalConstants.SYNC_TABS_URLS_REGEXPS. If no regexps are defined, return true.
-   * @param tab
-   * @returns
-   */
   private IsKeepSyncTab(tab: any): boolean {
     if (GlobalConstants.SYNC_TABS_URLS_REGEXPS.length === 0) return true;
     const url = typeof tab?.url === 'string' ? tab.url : typeof tab?.pendingUrl === 'string' ? tab.pendingUrl : '';
     return GlobalConstants.SYNC_TABS_URLS_REGEXPS.some((regexp) => regexp.test(url));
   }
 
-  /**
-   * Set the sync paused indicator in the DOM. If paused is true, show the indicator. If paused is false, remove the indicator.
-   */
   private SetSyncPausedIndicator(paused: boolean): void {
     const container = document.getElementById('universe-list');
     if (!container) return;
@@ -327,9 +310,6 @@ export class UniversePanelController {
     this.syncIndicatorEl = el;
   }
 
-  /**
-   * Build a universe row element from the given status. This creates the DOM elements and sets up event listeners for the row. It does not add the row to the DOM; that is done by SyncUniverseRows. 
-   */
   private BuildUniverseRow(status: SidePanelUniverseStatus): UniverseRowView {
     const tempContainer = document.createElement('div');
     tempContainer.innerHTML = this.GetUniverseRowTemplate(status.UniverseKey);

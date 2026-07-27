@@ -23,6 +23,14 @@ export class SidePanelManager {
       const windowId = parseInt(port.name.split('-')[1], 10);
       sidePanelProtocolClient.RegisterPort(this.logger, windowId, port);
 
+      // Ignore PING messages to keep the port alive
+      port.onMessage.addListener((message) => {
+        this.logger.debug(`Received message from side panel port for windowId ${windowId}`, message);
+        if ((message as { type?: string })?.type === 'PING') {
+          return;
+        }
+      });
+
       port.onDisconnect.addListener(() => {
         sidePanelProtocolClient.UnregisterPort(this.logger, windowId);
       });

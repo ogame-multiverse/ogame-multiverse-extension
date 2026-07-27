@@ -2,10 +2,12 @@ import { defineExtensionMessaging } from '@webext-core/messaging';
 import { Logger } from '../logging/logger';
 import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters';
 import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOptions';
+import { sidePanelProtocolClient } from './sidePanelProtocol';
 
 export interface SidePanelBroadcastProtocol {
   RegisterUniverse(data: { universeKey: string, universeDomain: string, lastRefreshDate: number }): void
-  UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters }): void
+  UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters, isOpen: boolean }): void
+  UpdateUniverseOpenState(data: { universeKey: string, isOpen: boolean }): void
   UpdateUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): void
   RemoveUniverse(universeKey: string): void
 }
@@ -18,17 +20,24 @@ export class SidePanelBroadcastProtocolClient {
     logger: Logger,
     key: K,
     ...args: Parameters<SidePanelBroadcastProtocol[K]>
-  ): ReturnType<SidePanelBroadcastProtocol[K]> {
-    logger.debug(`Sending message for SidePanelBroadcastProtocol.${key}`, args[0]);
-    return sidePanelBroadcastMessenger.sendMessage(key as any, args[0]) as any
+  ): void {
+    if (sidePanelProtocolClient.HasAnyActivePort()) {
+      logger.debug(`Sending message for SidePanelBroadcastProtocol.${key}`, args[0]);
+      sidePanelBroadcastMessenger.sendMessage(key as any, args[0])
+    }
+    else {
+      logger.debug(`No active side panel ports to send message for SidePanelBroadcastProtocol.${key}`);
+    }
   }
 
   public RegisterUniverse(logger: Logger, universeKey: string, universeDomain: string, lastRefreshDate: number) {
     return this.send(logger, 'RegisterUniverse', { universeKey, universeDomain, lastRefreshDate })
   }
-
-  public UpdateUniverseStatus(logger: Logger, universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters) {
-    return this.send(logger, 'UpdateUniverseStatus', { universeKey, universeName, universeCounters })
+  public UpdateUniverseStatus(logger: Logger, universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters, isOpen: boolean) {
+    return this.send(logger, 'UpdateUniverseStatus', { universeKey, universeName, universeCounters, isOpen });
+  }
+  public UpdateUniverseOpenState(logger: Logger, universeKey: string, isOpen: boolean) {
+    return this.send(logger, 'UpdateUniverseOpenState', { universeKey, isOpen });
   }
   public UpdateUniverseSidePanelOptions(logger: Logger, universeKey: string, options: UniverseSidePanelOptions) {
     return this.send(logger, 'UpdateUniverseSidePanelOptions', { universeKey, options })
@@ -52,7 +61,9 @@ export class SidePanelBroadcastProtocolRegistrar {
   public OnUpdateUniverseStatus(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseStatus']): void {
     this.listen(logger, 'UpdateUniverseStatus', handler);
   }
-
+  public OnUpdateUniverseOpenState(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseOpenState']): void {
+    this.listen(logger, 'UpdateUniverseOpenState', handler);
+  }
   public OnUpdateUniverseSidePanelOptions(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseSidePanelOptions']): void {
     this.listen(logger, 'UpdateUniverseSidePanelOptions', handler);
   }
