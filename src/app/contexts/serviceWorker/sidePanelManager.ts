@@ -62,15 +62,23 @@ export class SidePanelManager {
   public ToggleSidePanel(sender: browser.Runtime.MessageSender): void;
   public ToggleSidePanel(windowId: number): void;
   public ToggleSidePanel(senderOrWindowId: browser.Runtime.MessageSender | number): void {
+
+    this.logger.debug('SidePanelManager.ToggleSidePanel called', senderOrWindowId);
+
     const windowId = typeof senderOrWindowId === 'number'
       ? senderOrWindowId
       : senderOrWindowId?.tab?.windowId;
 
-    if (!windowId) return;
+    if (!windowId) {
+      this.logger.error('SidePanelManager.ToggleSidePanel failed: windowId is undefined', senderOrWindowId);
+      return;
+    }
 
     if (sidePanelProtocolClient.IsOpen(windowId)) {
+      this.logger.debug(`SidePanelManager.ToggleSidePanel: closing side panel for windowId ${windowId}`);
       sidePanelProtocolClient.ClosePanel(this.logger, windowId);
     } else {
+      this.logger.debug(`SidePanelManager.ToggleSidePanel: opening side panel for windowId ${windowId}`);
       this.OpenSidePanel(windowId);
     }
   }
