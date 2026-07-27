@@ -1,4 +1,3 @@
-
 import browser from 'webextension-polyfill';
 import { Logger } from '../../logging/logger';
 
@@ -41,14 +40,18 @@ class BaseExtensionStorageService {
  * T is the type of the stored value (e.g., string, number, MySettingsObject).
  */
 export class ExtensionStorageService extends BaseExtensionStorageService {
-  private storageArea: browser.Storage.StorageArea;
 
-  constructor(
-    private readonly logger: Logger,
-    private area: StorageArea
-  ) {
+  constructor(private readonly logger: Logger) {
     super();
-    this.storageArea = browser.storage[area];
+  }
+
+  /**
+   * Returns the appropriate storage area object based on the provided StorageArea enum.
+   * @param area The storage area to retrieve (Local, Sync, or Session).
+   * @returns The corresponding browser.Storage.StorageArea object.
+   */
+  private getArea(area: StorageArea): browser.Storage.StorageArea {
+    return browser.storage[area];
   }
 
   /**
@@ -56,17 +59,17 @@ export class ExtensionStorageService extends BaseExtensionStorageService {
    * @param key The key to retrieve.
    * @returns A Promise resolved with the value (T) or null if the key does not exist.
    */
-  public async Get<T>(key: string): Promise<T | null> {
+  public async Get<T>(area: StorageArea, key: string): Promise<T | null> {
     try {
       // Request the specific key; the API returns {key: value}
-      const result = await this.storageArea.get(key);
+      const result = await this.getArea(area).get(key);
 
       // If the key is not found, 'result' is an empty object or the object lacks the key.
       if (result && key in result) {
-        this.logger.debug(`✅ Successfully retrieved key '${key}' from '${this.area}' storage`);
+        this.logger.debug(`✅ Successfully retrieved key '${key}' from '${area}' storage`);
         return result[key] as T;
       }
-      this.logger.warn(`⚠️ Key '${key}' not found in '${this.area}' storage`);
+      this.logger.warn(`⚠️ Key '${key}' not found in '${area}' storage`);
       return null;
     } catch (error) {
       this.logger.error(`⚠️ Error retrieving key '${key}':`, error);
@@ -80,28 +83,25 @@ export class ExtensionStorageService extends BaseExtensionStorageService {
    * @param value The value to save (must match type T).
    * @returns An empty Promise.
    */
-  public async Set<T>(key: string, value: T): Promise<void> {
-    const sizeInBytes = BaseExtensionStorageService.GetByteSize(value);
-    this.logger.debug(`💾 About to save ${sizeInBytes} bytes into ${this.area} storage with key '${key}'`);
+  public async Set<T>(area: StorageArea, key: string, value: T): Promise<void> {
+    this.logger.debug(`💾 About to save key '${key}' into ${area} storage`);
     try {
-      await this.storageArea.set({ [key]: value });
-      this.logger.debug(`✅ Successfully saved key '${key}' to '${this.area}' storage`);
+      await this.getArea(area).set({ [key]: value });
+      this.logger.debug(`✅ Successfully saved key '${key}' to '${area}' storage`);
     } catch (error) {
       this.logger.error(`⚠️ Error saving key '${key}':`, error);
     }
   }
 
-  public async GetSizeInBytes(key: string): Promise<number> {
+  public async GetSizeInBytes(area: StorageArea, key: string): Promise<number> {
     try {
-      const result = await this.storageArea.get(key);
+      const result = await this.getArea(area).get(key);
       if (result && key in result) {
-        const value = result[key];
-        const jsonString = JSON.stringify(value);
-        const sizeInBytes = new TextEncoder().encode(jsonString).length;
-        this.logger.debug(`✅ Size of key '${key}' in '${this.area}' storage: ${sizeInBytes} bytes`);
+        const sizeInBytes = BaseExtensionStorageService.GetByteSize(result[key]);
+        this.logger.debug(`✅ Size of key '${key}' in '${area}' storage: ${sizeInBytes} bytes`);
         return sizeInBytes;
       }
-      this.logger.warn(`⚠️ Key '${key}' not found in '${this.area}' storage`);
+      this.logger.warn(`⚠️ Key '${key}' not found in '${area}' storage`);
       return 0;
     } catch (error) {
       this.logger.error(`⚠️ Error getting size of key '${key}':`, error);
@@ -114,10 +114,10 @@ export class ExtensionStorageService extends BaseExtensionStorageService {
    * @param key The key to remove.
    * @returns An empty Promise.
    */
-  public async Remove(key: string): Promise<void> {
+  public async Remove(area: StorageArea, key: string): Promise<void> {
     try {
-      await this.storageArea.remove(key);
-      this.logger.debug(`✅ Successfully removed key '${key}' from '${this.area}' storage`);
+      await this.getArea(area).remove(key);
+      this.logger.debug(`✅ Successfully removed key '${key}' from '${area}' storage`);
     } catch (error) {
       this.logger.error(`⚠️ Error removing key '${key}':`, error);
     }
@@ -128,10 +128,10 @@ export class ExtensionStorageService extends BaseExtensionStorageService {
    * @param typeGuard Optional type guard function to filter values of type T.
    * @returns A Promise resolved with a record of key-value pairs, filtered by the type guard if provided.
    */
-  public async GetAll<T = any>(typeGuard?: (value: unknown) => value is T
+  public async GetAll<T = any>(area: StorageArea, typeGuard?: (value: unknown) => value is T
   ): Promise<Record<string, T>> {
     try {
-      const result = (await this.storageArea.get(null)) ?? {};
+      const result = (await this.getArea(area).get(null)) ?? {};
 
       // If no predicate is provided, return all entries as-is
       if (!typeGuard) return result as Record<string, T>;
@@ -146,23 +146,24 @@ export class ExtensionStorageService extends BaseExtensionStorageService {
 
       return filtered;
     } catch (error) {
-      this.logger.error(`⚠️ Error reading all keys from '${this.area}' storage:`, error);
+      this.logger.error(`⚠️ Error reading all keys from '${area}' storage:`, error);
       return {};
     }
   }
   /**
    * Returns the total size in bytes of the whole storage area.
    */
-  public async GetAllSizeInBytes(): Promise<number> {
+  public async GetAllSizeInBytes(area: StorageArea): Promise<number> {
     try {
-      if (typeof this.storageArea.getBytesInUse === 'function') {
-        return await this.storageArea.getBytesInUse(null);
+      const storageArea = this.getArea(area);
+      if (typeof storageArea.getBytesInUse === 'function') {
+        return await storageArea.getBytesInUse(null);
       }
 
-      const allValues = await this.GetAll();
+      const allValues = await this.GetAll(area);
       return BaseExtensionStorageService.GetByteSize(allValues);
     } catch (error) {
-      this.logger.error(`⚠️ Error getting total size from '${this.area}' storage:`, error);
+      this.logger.error(`⚠️ Error getting total size from '${area}' storage:`, error);
       return 0;
     }
   }
@@ -170,12 +171,12 @@ export class ExtensionStorageService extends BaseExtensionStorageService {
   /**
    * Clears all keys from the storage area.
    */
-  public async Clear(): Promise<void> {
+  public async Clear(area: StorageArea): Promise<void> {
     try {
-      await this.storageArea.clear();
-      this.logger.debug(`✅ Successfully cleared '${this.area}' storage`);
+      await this.getArea(area).clear();
+      this.logger.debug(`✅ Successfully cleared '${area}' storage`);
     } catch (error) {
-      this.logger.error(`⚠️ Error clearing '${this.area}' storage:`, error);
+      this.logger.error(`⚠️ Error clearing '${area}' storage:`, error);
     }
   }
 }

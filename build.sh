@@ -80,7 +80,7 @@ compile_scss() {
     local CSS_OUT_DIR=$(dirname "$CSS_TARGET")
     mkdir -p "$CSS_OUT_DIR"
 
-    if ./node_modules/.bin/sass "$SCSS_SOURCE":"$CSS_TARGET" --style=expanded --no-source-map --quiet; then
+    if ./node_modules/.bin/sass "$SCSS_SOURCE":"$CSS_TARGET" --load-path=node_modules --style=expanded --no-source-map --quiet; then
         echo "✅ SCSS Compilation successful."
     else
         echo "❌ SCSS Compilation failed."
@@ -88,10 +88,12 @@ compile_scss() {
     fi
 }
 
-# 1. Dependencies & Type checking
-npm i -D
-
+# 1. Type checking
 echo "▶️ Type checking..."
+if ! npx tsc --noEmit -p tsconfig.app.page.json; then
+    echo "❌ Type checking failed for page app."
+    exit 1
+fi
 if ! npx tsc --noEmit -p tsconfig.app.content.json; then
     echo "❌ Type checking failed for content app."
     exit 1
@@ -151,6 +153,7 @@ for TARGET in chrome firefox; do
     fi
 
     # JS bundling from TEMP
+    bundle_ts "$TMP_DIR/app/contexts/page.entry.ts" "$OUT_DIR/app.page.js" --minify
     bundle_ts "$TMP_DIR/app/contexts/content.entry.ts" "$OUT_DIR/app.content.js" --minify
     bundle_ts "$TMP_DIR/app/contexts/serviceWorker.entry.ts" "$OUT_DIR/app.worker.js" --minify
     bundle_ts "$TMP_DIR/app/contexts/sidePanel.entry.ts" "$OUT_DIR/app.sidepanel.js" --minify
@@ -178,4 +181,4 @@ rm -rf "$TMP_DIR"
 # Cleanup of build directory
 rm -rf "$BUILD_DIR"
 
-echo "🎉 All builds complete. $CHROME_DIR (Chrome) and $FIREFOX_DIR (Firefox) are ready."
+echo "✅ $(date '+%Y-%m-%d %H:%M:%S'): All builds complete. $CHROME_DIR (Chrome) and $FIREFOX_DIR (Firefox) are ready."

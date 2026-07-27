@@ -9,10 +9,26 @@
 <body>
     <div id="app">
         <nav class="tabs" aria-label="Sidepanel tabs">
-            <button id="tab-universe" class="tab" type="button" role="tab" aria-controls="panel-universe" aria-selected="true" oga-data-i18n="SidePanelUniverse"></button>
+            <button id="tab-universe" class="tab" type="button" role="tab" aria-controls="panel-universe" aria-selected="true">
+                <span class="material-symbols-outlined">public</span>
+                <span class="tab-label" oga-data-i18n="SidePanelUniverse"></span>
+            </button>
+            <button id="tab-events" class="tab" type="button" role="tab" aria-controls="panel-events" aria-selected="false">
+                <span class="material-symbols-outlined">event_upcoming</span>
+                <span class="tab-label" oga-data-i18n="SidePanelEvents"></span>
+            </button>
         </nav>
 
         <section id="panel-universe" class="panel" role="tabpanel" aria-labelledby="tab-universe" data-active="true">
+        </section>
+        <section id="panel-events" class="panel" role="tabpanel" aria-labelledby="tab-events" data-active="false">
+            <div class="events-toolbar">
+                <label class="events-timeline-toggle">
+                    <input type="checkbox" id="events-timeline-toggle-checkbox" checked />
+                    <span oga-data-i18n="ShowTimeline"></span>
+                </label>
+            </div>
+            <div id="events-render-target"></div>
         </section>
     </div>
     <script src="../app.sidepanel.js"></script>

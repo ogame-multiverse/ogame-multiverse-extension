@@ -24,7 +24,7 @@
   "web_accessible_resources": [
     {
       "matches": [ "<all_urls>" ],
-      "resources": [ "assets/images/*", "views/*" ]
+      "resources": [ "app.page.js", "assets/images/*", "views/*" ]
     }
   ],
   "commands": {
