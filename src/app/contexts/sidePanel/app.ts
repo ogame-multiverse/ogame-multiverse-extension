@@ -4,11 +4,13 @@ import { browserInfo } from '../../dom/browserInfos';
 import { UniversePanelController } from './universePanelController';
 import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
 import { sidePanelProtocolRegistrar } from '../../messaging/sidePanelProtocol';
+import { GlobalConstants } from '../../globalConstants';
 
 class SidePanelContextApp {
   private windowId: number | undefined;
   private activePort: browser.Runtime.Port | null = null;
   private reconnectTimeoutId: number | undefined;
+  private pingIntervalId: number | undefined;
 
   private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
   private readonly universePanelController = new UniversePanelController(
@@ -52,26 +54,53 @@ class SidePanelContextApp {
       this.reconnectTimeoutId = undefined;
     }
 
-    // Disconnect the existing port if it exists
+    // Cleanup any existing ping interval
+    if (this.pingIntervalId !== undefined) {
+      window.clearInterval(this.pingIntervalId);
+      this.pingIntervalId = undefined;
+    }
+
+    // Disconnect the existing port safely without triggering onDisconnect
     if (this.activePort) {
+      const oldPort = this.activePort;
+      this.activePort = null;
       try {
-        this.activePort.disconnect();
+        oldPort.disconnect();
       } catch {
         // Ignore any errors during disconnection
       }
-      this.activePort = null;
     }
 
     // Open a new port and connect it
     this.logger.debug(`Opening side panel port for windowId ${this.windowId}`);
-    this.activePort = sidePanelProtocolRegistrar.OpenPort(this.logger, this.windowId);
+    const newPort = sidePanelProtocolRegistrar.OpenPort(this.logger, this.windowId);
+    this.activePort = newPort;
 
-    sidePanelProtocolRegistrar.Connect(this.logger, this.activePort);
+    sidePanelProtocolRegistrar.Connect(this.logger, newPort);
+
+    // 🔄 Ping Keep-Alive toutes les 20s pour éviter la coupure Chrome au bout de 30s
+    this.pingIntervalId = window.setInterval(() => {
+      if (this.activePort === newPort) {
+        try {
+          newPort.postMessage({ type: 'PING' });
+        } catch {
+          // Ignorer si le port s'est fermé
+        }
+      }
+    }, GlobalConstants.SIDE_PANEL_PING_SERVICE_WORKER_INTERVAL_MS);
 
     // Handle port disconnection and attempt to reconnect after a delay
-    this.activePort.onDisconnect.addListener(() => {
+    newPort.onDisconnect.addListener(() => {
+      // Ignorer si le port a déjà été nettoyé ou remplacé
+      if (this.activePort !== newPort) return;
+
       this.logger.warn("Side panel port disconnected. Attempting to reconnect...");
       this.activePort = null;
+
+      if (this.pingIntervalId !== undefined) {
+        window.clearInterval(this.pingIntervalId);
+        this.pingIntervalId = undefined;
+      }
 
       this.reconnectTimeoutId = window.setTimeout(() => {
         this.ConnectPort();

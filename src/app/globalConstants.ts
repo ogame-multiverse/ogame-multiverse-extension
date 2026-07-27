@@ -13,4 +13,7 @@ export class GlobalConstants {
   public static readonly SYNC_TABS_URLS_REGEXPS: RegExp[] = [    
    /^https:\/\/[^/]+\.ogame\.gameforge\.com\/game\//i, // OGame game pages
   ];
+
+  /* Interval for pinging the side panel service worker to keep the connection alive. */
+  public static readonly SIDE_PANEL_PING_SERVICE_WORKER_INTERVAL_MS: number = 10000; // 10 seconds
 }
