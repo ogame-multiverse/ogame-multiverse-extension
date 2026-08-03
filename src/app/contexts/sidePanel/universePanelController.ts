@@ -11,7 +11,7 @@ import { SidePanelUniverseCounters } from '../../model/sidePanel/sidePanelUniver
 interface UniverseRowView {
   row: HTMLElement;
   title: HTMLElement;
-  openStateBadge: HTMLElement;
+  badgesContainer: HTMLElement;
   lastRefresh: HTMLElement;
   unreadMessagesValue: HTMLElement;
   unreadChatMessagesValue: HTMLElement;
@@ -53,19 +53,20 @@ export class UniversePanelController {
   private readonly lastSecondByUniverseKey = new Map<string, number>();
   private lastSyncCheckTime = 0;
 
-  private readonly onTabActivated = () => { void this.CheckSyncStateAsync(); };
-  private readonly onTabUpdated = () => { void this.CheckSyncStateAsync(); };
+  private currentWindowId?: number;
+  private readonly localTabIds = new Set<number>();
+  private readonly activeLocalTabIds = new Set<number>();
+
+  private readonly onTabActivated = () => { void this.CheckSyncStateAsync(); void this.Refresh(); };
+  private readonly onTabUpdated = () => { void this.CheckSyncStateAsync(); void this.Refresh(); };
 
   constructor(private readonly logger: Logger) {
-    // new universe -> Refresh the list to add it to the DOM
     sidePanelBroadcastProtocolRegistrar.OnRegisterUniverse(this.logger, () => this.Refresh());
 
-    // universe removed -> remove it from the DOM
     sidePanelBroadcastProtocolRegistrar.OnRemoveUniverse(this.logger, (universeKey: string) => {
       this.RemoveSingleUniverse(universeKey);
     });
 
-    // update of an existing universe -> update its name and counters in the DOM
     sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseStatus(
       this.logger,
       (data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean }) => {
@@ -77,7 +78,6 @@ export class UniversePanelController {
       this.UpdateUniverseOpenState(data.universeKey, data.isOpen);
     });
 
-    // update of an existing universe's options -> update its options in the DOM
     sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseSidePanelOptions(
       this.logger,
       (data: { universeKey: string; options: UniverseSidePanelOptions }) => {
@@ -86,9 +86,10 @@ export class UniversePanelController {
     );
   }
 
-  public Activate(): void {
+  public async ActivateAsync(): Promise<void> {
     if (!this.loaded) {
       this.loaded = true;
+      await this.InitCurrentWindowIdAsync();
       this.Refresh();
     }
     this.StartAnimationLoop();
@@ -114,12 +115,51 @@ export class UniversePanelController {
     }
   }
 
+  private async InitCurrentWindowIdAsync(): Promise<void> {
+    const chromeApi = (globalThis as { chrome?: any }).chrome;
+    if (chromeApi?.windows?.getCurrent) {
+      try {
+        const win = await chromeApi.windows.getCurrent();
+        this.currentWindowId = win?.id;
+      } catch (error) {
+        this.logger.error('Failed to get current window ID', error);
+      }
+    }
+  }
+
+  private async UpdateLocalTabIdsAsync(): Promise<void> {
+    if (this.currentWindowId === undefined) {
+      await this.InitCurrentWindowIdAsync();
+    }
+    if (this.currentWindowId === undefined) return;
+
+    const chromeApi = (globalThis as { chrome?: any }).chrome;
+    if (chromeApi?.tabs?.query) {
+      try {
+        const tabs = await chromeApi.tabs.query({ windowId: this.currentWindowId });
+        this.localTabIds.clear();
+        this.activeLocalTabIds.clear();
+        tabs.forEach((tab: any) => {
+          if (typeof tab.id === 'number') {
+            this.localTabIds.add(tab.id);
+            if (tab.active) {
+              this.activeLocalTabIds.add(tab.id);
+            }
+          }
+        });
+      } catch (error) {
+        this.logger.error('Failed to query tabs for current window', error);
+      }
+    }
+  }
+
   public Refresh(): void {
     Debouncer.Debounce('universe-panel-refresh', async () => {
       const container = document.getElementById('universe-list');
       if (!container) return;
 
       void this.CheckSyncStateAsync();
+      await this.UpdateLocalTabIdsAsync();
 
       const universeStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger);
       if (!universeStatuses.length) {
@@ -204,11 +244,14 @@ export class UniversePanelController {
 
     existingRow.currentStatus.SidePanelOptions = options;
 
+    // Update the threshold select value based on the new options
     const thresholdSelect = existingRow.row.querySelector('.universe-threshold-select') as HTMLSelectElement;
     if (thresholdSelect && options.WarningThresholdMinutes !== undefined) {
       thresholdSelect.value = String(options.WarningThresholdMinutes);
     }
+    existingRow.updateWarningState();
 
+    // Update the indicator checkboxes and attributes based on the new options
     INDICATOR_BINDINGS.forEach(({ checkboxIdSuffix, attributeName, optionKey }) => {
       const checkbox = existingRow.row.querySelector(`#${checkboxIdSuffix}-${existingRow.currentStatus.UniverseKey}`) as HTMLInputElement;
       const value = Boolean(options[optionKey]);
@@ -218,7 +261,6 @@ export class UniversePanelController {
       existingRow.row.setAttribute(attributeName, String(value));
     });
 
-    existingRow.updateWarningState();
   }
 
   private StartAnimationLoop(): void {
@@ -316,10 +358,19 @@ export class UniversePanelController {
     const row = tempContainer.firstElementChild as HTMLElement;
 
     const thresholdSelect = row.querySelector('.universe-threshold-select') as HTMLSelectElement;
-    const refreshButton = row.querySelector('.universe-refresh-button') as HTMLButtonElement;
+    const refreshButton = row.querySelector('#universe-refresh-button') as HTMLButtonElement;
     const settingsButton = row.querySelector('.universe-settings-button') as HTMLButtonElement;
     const removeButton = row.querySelector('.universe-remove-button') as HTMLButtonElement;
     const lastRefresh = row.querySelector('.universe-last-refresh') as HTMLElement;
+    const badgesContainer = row.querySelector('.universe-status-badges') as HTMLElement;
+
+    badgesContainer.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      const badge = target.closest('.universe-status-badge');
+      if (badge) {
+        void this.HandleTabIconClickAsync(rowView.currentStatus, badge as HTMLElement);
+      }
+    });
 
     const updateWarningState = (thresholdMinutes: number) => {
       const shouldWarn = this.ShouldShowRefreshWarning(rowView.currentStatus, thresholdMinutes);
@@ -330,7 +381,7 @@ export class UniversePanelController {
     const rowView: UniverseRowView = {
       row,
       title: row.querySelector('.universe-title')!,
-      openStateBadge: row.querySelector('.universe-status-badge')!,
+      badgesContainer,
       lastRefresh,
       unreadMessagesValue: row.querySelector('.unread-mail')!,
       unreadChatMessagesValue: row.querySelector('.unread-chat')!,
@@ -366,7 +417,9 @@ export class UniversePanelController {
       updateWarningState(selectedMinutes);
     });
 
-    refreshButton.addEventListener('click', () => this.ExecuteRowAction(refreshButton, () => serviceWorkerProtocolClient.ReloadUniverseTabAsync(this.logger, status.UniverseKey)));
+    refreshButton.addEventListener('click', () =>
+      this.HandleTabIconClickAsync(status, refreshButton)
+    );
     removeButton.addEventListener('click', () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, status.UniverseKey)));
 
     settingsButton.addEventListener('click', () => {
@@ -391,6 +444,36 @@ export class UniversePanelController {
 
     this.UpdateUniverseRow(rowView, status);
     return rowView;
+  }
+
+  private async HandleTabIconClickAsync(status: SidePanelUniverseStatus, badge: HTMLElement): Promise<void> {
+    if (badge.classList.contains('activate-tab')) {
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'activate',
+        this.currentWindowId
+      );
+    } else if (badge.classList.contains('close-tab')) {
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'close',
+        this.currentWindowId
+      );
+      this.Refresh();
+    } else if (badge.classList.contains('move-tab')) {
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'move',
+        this.currentWindowId
+      );
+      this.Refresh();
+    } else if (badge.classList.contains('refresh-tab')) {
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'refresh',
+        this.currentWindowId
+      );
+    }
   }
 
   private async SaveOption<K extends keyof UniverseSidePanelOptions>(universeKey: string, key: K, value: UniverseSidePanelOptions[K]): Promise<void> {
@@ -443,24 +526,57 @@ export class UniversePanelController {
   private UpdateUniverseRow(rowView: UniverseRowView, status: SidePanelUniverseStatus): void {
     rowView.currentStatus = status;
 
+    const tabIds = status.TabIds || [];
+    const hasLocalTabs = tabIds.some((tabId) => this.localTabIds.has(tabId));
+    const hasRemoteTabs = tabIds.some((tabId) => !this.localTabIds.has(tabId));
+
+    const isGlobalOpen = tabIds.length > 0;
+    const isOpenInCurrentWindow = isGlobalOpen && hasLocalTabs;
+    const isOpenInOtherWindow = isGlobalOpen && hasRemoteTabs;
+    const isActiveInCurrentWindow = tabIds.some((tabId) => this.activeLocalTabIds.has(tabId));
+
+    // Helper local pour générer un badge avec un contrôle fin des classes et des icônes
+    const renderBadge = (customClasses: string, defaultIcon: string, hoverIcon?: string) => `
+  <span class="universe-status-badge ${customClasses}" aria-hidden="true">
+    <span class="material-symbols-outlined ${hoverIcon ? 'icon-default' : ''}">${defaultIcon}</span>
+    ${hoverIcon ? `<span class="material-symbols-outlined icon-hover">${hoverIcon}</span>` : ''}
+  </span>
+`.trim();
+
+    const badges: string[] = [];
+
+    if (hasLocalTabs) {
+      if (isActiveInCurrentWindow) badges.push(renderBadge('is-active-current-window', 'check_circle'));
+      else badges.push(renderBadge('is-open activate-tab', 'check_circle', 'visibility'));
+    }
+
+    if (hasRemoteTabs) {
+      const actionClass = hasLocalTabs ? 'close-tab' : 'move-tab';
+      const hoverIcon = hasLocalTabs ? 'close' : 'input';
+      badges.push(renderBadge(`is-other-window ${actionClass}`, 'tab', hoverIcon));
+    }
+
+    if (!hasLocalTabs && !hasRemoteTabs) {
+      badges.push(renderBadge('is-closed', 'cancel'));
+    }
+
+    const badgesHtml = badges.join('');
+
     const nextTitle = status.UniverseDisplayName ? `${status.UniverseDisplayName} (${status.UniverseKey})` : status.UniverseKey;
     if (rowView.title.textContent !== nextTitle) {
       rowView.title.textContent = nextTitle;
     }
 
-    rowView.row.setAttribute('data-universe-open', String(status.IsOpen));
+    rowView.row.setAttribute('data-universe-open', String(isGlobalOpen));
 
-    const nextBadgeClass = `universe-status-badge ${status.IsOpen ? 'is-open' : 'is-closed'}`;
-    if (rowView.openStateBadge.className !== nextBadgeClass) {
-      rowView.openStateBadge.className = nextBadgeClass;
-    }
+    rowView.row.setAttribute('data-universe-open-current-window', String(isOpenInCurrentWindow));
 
-    const nextIcon = status.IsOpen ? 'check_circle' : 'cancel';
-    const currentIconSpan = rowView.openStateBadge.querySelector('.material-symbols-outlined');
-    if (!currentIconSpan) {
-      rowView.openStateBadge.innerHTML = `<span class="material-symbols-outlined">${nextIcon}</span>`;
-    } else if (currentIconSpan.textContent !== nextIcon) {
-      currentIconSpan.textContent = nextIcon;
+    rowView.row.setAttribute('data-universe-open-other-window', String(isOpenInOtherWindow));
+
+    rowView.row.setAttribute('data-universe-active-current-window', String(isActiveInCurrentWindow));
+
+    if (rowView.badgesContainer.innerHTML !== badgesHtml) {
+      rowView.badgesContainer.innerHTML = badgesHtml;
     }
 
     const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefreshWithState(status)}`;
@@ -539,9 +655,7 @@ export class UniversePanelController {
         <div class="universe-item">
           <div class="universe-details">
             <div class="universe-head">
-              <span class="universe-status-badge" aria-hidden="true">
-                <span class="material-symbols-outlined"></span>
-              </span>
+              <div class="universe-status-badges" aria-hidden="true"></div>
               <div class="universe-title"></div>
             </div>
             <div class="universe-last-refresh"></div>
@@ -577,7 +691,7 @@ export class UniversePanelController {
               </span>
             </div>
           </div>
-          <button type="button" class="universe-refresh-button" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
+          <button type="button" id="universe-refresh-button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
           </button>
           <button type="button" class="universe-settings-button" title="${Localizator.Translate('SidePanelSettingsUniverse')}" aria-label="${Localizator.Translate('SidePanelSettingsUniverse')}">

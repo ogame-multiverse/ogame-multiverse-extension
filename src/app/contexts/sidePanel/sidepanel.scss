@@ -3,6 +3,7 @@
 $ogm-color-green: #99cc00;
 $ogm-color-orange: #ff9600;
 $ogm-color-red: #d43635;
+$ogm-color-blue: #00aaff;
 $ogm-sidepanel-color: #0d1014;
 $ogm-background-color: #0c0f14;
 $ogm-background-color-lighter: #171d24;
@@ -145,7 +146,10 @@ body {
         background: $ogm-surface-color;
         border: 1px solid $ogm-border-color;
         border-radius: 6px;
-        padding: 8px;
+        padding-left: 12px;
+        padding-right: 8px;
+        padding-top: 8px;
+        padding-bottom: 8px;
 
 
         .universe-details {
@@ -157,21 +161,73 @@ body {
           gap: 2px;
 
           .universe-head {
+            display: flex;
+            flex-flow: row;
+            column-gap: 10px;
 
-            .universe-status-badge {
+            .universe-status-badges {
               display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              vertical-align: bottom;
 
-              &.is-open {
-                opacity: 1;
-                color: $ogm-color-green;
-              }
+              .universe-status-badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                vertical-align: bottom;
 
-              &.is-closed {
-                opacity: 0.8;
-                color: $ogm-color-red;
+                &.is-active-current-window {
+                  color: $ogm-color-green;
+                }
+
+                &.is-open {
+                  color: $ogm-color-green;
+                  cursor: pointer;
+
+                  .icon-hover {
+                    display: none;
+                  }
+
+                  &:hover {
+                    .icon-default {
+                      display: none;
+                    }
+
+                    .icon-hover {
+                      display: inline-flex;
+                    }
+                  }
+                }
+
+
+                &.is-closed {
+                  color: $ogm-color-red;
+                }
+
+                &.is-other-window {
+                  color: $ogm-color-blue;
+                  cursor: pointer;
+
+                  .icon-hover {
+                    display: none;
+                  }
+
+                  &:hover {
+                    &.close-tab {
+                      color: $ogm-color-red;
+                    }
+
+                    &.move-tab {
+                      color: $ogm-color-green;
+                    }
+
+                    .icon-default {
+                      display: none;
+                    }
+
+                    .icon-hover {
+                      display: inline-flex;
+                    }
+                  }
+                }
               }
             }
 
@@ -445,16 +501,39 @@ body {
           }
         }
       }
+      // Highlight the universe item when it is the active one in the current window
+      &[data-universe-active-current-window='true'] {
+        .universe-item {
+          background-color: color.adjust($ogm-surface-color, $lightness: 1.5%);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+          position: relative;
+          overflow: hidden;
+          // Barre biseautée adoucie
+          &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 6px;
+            bottom: 6px;
+            width: 3px;
+            background-color: color.adjust($ogm-color-green, $lightness: -5%);
+            box-shadow: 0 0 5px color.adjust($ogm-color-green, $alpha: -0.5);
+            clip-path: polygon(0 0, 100% 4px, 100% calc(100% - 4px), 0 100%);
+          }
+        }
+      }
       // Hide the remove button when the universe is open
       &[data-universe-open='true'] {
         .universe-remove-button {
           display: none !important;
         }
       }
-      // Hide the indicators when the universe is closed
-      &[data-universe-open='false'] {
-        .universe-indicators {
-          display: none !important;
+      // Hide the refresh button when the universe is open, but not in the current window
+      &[data-universe-open='true'] {
+        &[data-universe-open-current-window='false'] {
+          #universe-refresh-button {
+            display: none !important;
+          }
         }
       }
 

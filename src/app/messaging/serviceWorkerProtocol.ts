@@ -9,7 +9,7 @@ export interface ServiceWorkerProtocol {
   RegisterUniverse(data: { universeKey: string, universeDomain: string, lastRefreshDate: number }): Promise<void>
   UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters }): Promise<void>
   GetUniversesStatuses(): Promise<SidePanelUniverseStatus[]>
-  ReloadUniverseTab(universeKey: string): Promise<void>
+  ActionOnUniverseTab(data: { universeKey: string, action: 'activate' | 'move' | 'close' | 'refresh', windowId: number }): Promise<void>
   RemoveUniverse(universeKey: string): Promise<void>
   GetUniverseSidePanelOptions(universeKey: string): Promise<UniverseSidePanelOptions>
   SaveUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): Promise<void>
@@ -41,8 +41,8 @@ export class ServiceWorkerProtocolClient {
     return this.send(logger, 'GetUniversesStatuses')
   }
 
-  public ReloadUniverseTabAsync(logger: Logger, universeKey: string) {
-    return this.send(logger, 'ReloadUniverseTab', universeKey)
+  public ActionOnUniverseTabAsync(logger: Logger, universeKey: string, action: 'activate' | 'move' | 'close' | 'refresh', windowId: number) {
+    return this.send(logger, 'ActionOnUniverseTab', { universeKey, action, windowId })
   }
 
   public RemoveUniverseAsync(logger: Logger, universeKey: string) {
@@ -81,8 +81,8 @@ export class ServiceWorkerProtocolRegistrar {
     this.listen(logger, 'GetUniversesStatuses', handler);
   }
 
-  public OnReloadUniverseTab(logger: Logger, handler: ServiceWorkerProtocol['ReloadUniverseTab']): void {
-    this.listen(logger, 'ReloadUniverseTab', handler);
+  public OnActionOnUniverseTab(logger: Logger, handler: ServiceWorkerProtocol['ActionOnUniverseTab']): void {
+    this.listen(logger, 'ActionOnUniverseTab', handler);
   }
 
   public OnRemoveUniverse(logger: Logger, handler: ServiceWorkerProtocol['RemoveUniverse']): void {
