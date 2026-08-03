@@ -1,21 +1,35 @@
 name: Release Build & Package
 
 on:
-  push:
-    branches:
-      - 'release/**'
-  workflow_dispatch: # Allows manual triggering of the workflow
+  workflow_dispatch:
+    inputs:
+      rc_suffix:
+        description: 'Optional suffix (e.g., -rc.1 or leave empty)'
+        required: false
+        type: string
+      create_release:
+        description: 'Create a GitHub Release ?'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write # Autorise la création de Releases et de Tags
+      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Check Branch
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^release/ ]]; then
+            echo "❌ Error: The workflow must be executed from a release/ branch (Current branch: ${GITHUB_REF_NAME})"
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -33,25 +47,35 @@ jobs:
             exit 1
           fi
 
+          FULL_VERSION="$VERSION${{ inputs.rc_suffix }}"
+
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "🏷️ extracted version: $VERSION"
+          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "🏷️ extracted version: $VERSION (Full target: $FULL_VERSION)"
 
       - name: Build & Package
         run: |
           chmod +x ./build.sh
           ./build.sh release package version ${{ env.VERSION }}
 
+      - name: Rename Zips with Full Version
+        run: |
+          cd dist
+          mv ogame-multiverse_chrome.zip ogame-multiverse_chrome-${{ env.FULL_VERSION }}.zip
+          mv ogame-multiverse_firefox.zip ogame-multiverse_firefox-${{ env.FULL_VERSION }}.zip
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ogame-multiverse-v${{ env.VERSION }}
+          name: ogame-multiverse-${{ env.FULL_VERSION }}
           path: dist/*.zip
 
       - name: Create GitHub Release
+        if: ${{ inputs.create_release == true }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
-          name: Release ${{ env.VERSION }}
+          tag_name: v${{ env.FULL_VERSION }}
+          name: Release v${{ env.FULL_VERSION }}
           files: dist/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
