@@ -244,11 +244,14 @@ export class UniversePanelController {
 
     existingRow.currentStatus.SidePanelOptions = options;
 
+    // Update the threshold select value based on the new options
     const thresholdSelect = existingRow.row.querySelector('.universe-threshold-select') as HTMLSelectElement;
     if (thresholdSelect && options.WarningThresholdMinutes !== undefined) {
       thresholdSelect.value = String(options.WarningThresholdMinutes);
     }
+    existingRow.updateWarningState();
 
+    // Update the indicator checkboxes and attributes based on the new options
     INDICATOR_BINDINGS.forEach(({ checkboxIdSuffix, attributeName, optionKey }) => {
       const checkbox = existingRow.row.querySelector(`#${checkboxIdSuffix}-${existingRow.currentStatus.UniverseKey}`) as HTMLInputElement;
       const value = Boolean(options[optionKey]);
@@ -258,7 +261,6 @@ export class UniversePanelController {
       existingRow.row.setAttribute(attributeName, String(value));
     });
 
-    existingRow.updateWarningState();
   }
 
   private StartAnimationLoop(): void {
