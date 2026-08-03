@@ -4,7 +4,7 @@ import { Logger } from '../../logging/logger';
 import { UniverseDataNormalizer } from '../../universeDataNormalizer';
 import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
 
-export class UniverseTabsService {
+export class UniverseTabsManager {
   private readonly universeByTabId = new Map<number, string>();
   private started = false;
 
@@ -30,6 +30,16 @@ export class UniverseTabsService {
 
   private BuildUniverseOverviewUrl(universeKey: string): string {
     return `https://${universeKey}.${GlobalConstants.OGAME_DOMAIN}/game/index.php?page=ingame&component=overview`;
+  }
+
+  public GetTabsMapByUniverse(): Map<string, number[]> {
+    const map = new Map<string, number[]>();
+    this.universeByTabId.forEach((universeKey, tabId) => {
+      const list = map.get(universeKey) || [];
+      list.push(tabId);
+      map.set(universeKey, list);
+    });
+    return map;
   }
 
 

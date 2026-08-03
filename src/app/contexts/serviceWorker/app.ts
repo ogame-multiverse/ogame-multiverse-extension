@@ -12,11 +12,11 @@ import { KeyboardCommandsManager } from './keyboardCommandsManager';
 import { SaveManager } from './saveManager';
 import { SidePanelManager } from './sidePanelManager';
 import { UniverseManager } from './universeManager';
-import { UniverseTabsService } from './universeTabsManager';
+import { UniverseTabsManager } from './universeTabsManager';
 
 class ServiceWorkerContextApp {
   private readonly universeManager: UniverseManager;
-  private readonly universeTabsService: UniverseTabsService;
+  private readonly universeTabsManager: UniverseTabsManager;
   private readonly sidePanelManager: SidePanelManager;
   private readonly contextMenusManager: ContextMenusManager;
   private readonly keyboardCommandsManager: KeyboardCommandsManager
@@ -25,9 +25,9 @@ class ServiceWorkerContextApp {
 
   constructor() {
     this.saveManager = new SaveManager(new ExtensionStorageService<ExtensionLocalData>(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
-    this.universeTabsService = new UniverseTabsService(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
+    this.universeTabsManager = new UniverseTabsManager(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
     this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
-    this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsService);
+    this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsManager);
     this.contextMenusManager = new ContextMenusManager(serviceWorkerLoggerFactory.CreateLogger("ContextMenusManager"), this.sidePanelManager);
     this.keyboardCommandsManager = new KeyboardCommandsManager(serviceWorkerLoggerFactory.CreateLogger("KeyboardCommandsManager"), this.sidePanelManager);
 
@@ -45,7 +45,7 @@ class ServiceWorkerContextApp {
 
     serviceWorkerProtocolRegistrar.OnUpdateUniverseStatus(this.logger, async (data: { universeKey: string, universeName: string, universeCounters: any }) => {
       await this.universeManager.UpdateUniverseStatusAsync(data.universeKey, data.universeName, data.universeCounters);
-      const isOpen = this.universeTabsService.HasOpenTabForUniverse(data.universeKey);
+      const isOpen = this.universeTabsManager.HasOpenTabForUniverse(data.universeKey);
       sidePanelBroadcastProtocolClient.UpdateUniverseStatus(this.logger, data.universeKey, data.universeName, data.universeCounters, isOpen);
     });
 
@@ -54,7 +54,7 @@ class ServiceWorkerContextApp {
     );
 
     serviceWorkerProtocolRegistrar.OnReloadUniverseTab(this.logger, (data: string) =>
-      this.universeTabsService.ReloadUniverseTabAsync(data)
+      this.universeTabsManager.ReloadUniverseTabAsync(data)
     );
 
     serviceWorkerProtocolRegistrar.OnRemoveUniverse(this.logger, async (data: string) => {
@@ -79,7 +79,7 @@ class ServiceWorkerContextApp {
 
   private readonly OnExtensionInstallation = (details: { reason: string }): void => {
     if (details.reason === 'install' || details.reason === 'update') {
-      void this.universeTabsService.RebuildOpenTabsStateAsync();
+      void this.universeTabsManager.RebuildOpenTabsStateAsync();
     }
   };
 
@@ -89,7 +89,7 @@ class ServiceWorkerContextApp {
 
 
     await this.universeManager.InitializeAsync();
-    this.universeTabsService.Start();
+    this.universeTabsManager.Start();
     this.sidePanelManager.Start();
 
     await this.contextMenusManager.RegisterContextMenusAsync();

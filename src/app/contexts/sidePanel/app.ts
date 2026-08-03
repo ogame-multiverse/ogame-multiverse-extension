@@ -33,7 +33,7 @@ class SidePanelContextApp {
     document.documentElement.lang = browserInfo.Language;
 
     this.InitializeSidePanelProtocol();
-    this.InitializeTabs('tab-universe');
+    await this.InitializeTabsAsync('tab-universe');
   }
 
   private InitializeSidePanelProtocol(): void {
@@ -110,11 +110,11 @@ class SidePanelContextApp {
     });
   }
 
-  private InitializeTabs(defaultTabId: string): void {
+  private async InitializeTabsAsync(defaultTabId: string): Promise<void> {
     const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
     const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel'));
 
-    const activate = (tabId: string): void => {
+    const activateAsync = async (tabId: string): Promise<void> => {
       tabs.forEach((tab) => {
         const active = tab.id === tabId;
         tab.setAttribute('aria-selected', String(active));
@@ -126,21 +126,21 @@ class SidePanelContextApp {
       });
 
       if (tabId === 'tab-universe') {
-        this.universePanelController.Activate();
+        await this.universePanelController.ActivateAsync();
       } else {
         this.universePanelController.Deactivate();
       }
     };
 
     tabs.forEach((tab) => {
-      tab.addEventListener('click', () => activate(tab.id));
+      tab.addEventListener('click', () => activateAsync(tab.id));
     });
 
     const initialTab =
       tabs.find((tab) => tab.id === defaultTabId) ||
       tabs.find((tab) => tab.getAttribute('aria-selected') === 'true');
 
-    if (initialTab) activate(initialTab.id);
+    if (initialTab) activateAsync(initialTab.id);
   }
 }
 

@@ -3,6 +3,7 @@
 $ogm-color-green: #99cc00;
 $ogm-color-orange: #ff9600;
 $ogm-color-red: #d43635;
+$ogm-color-blue: #00aaff;
 $ogm-sidepanel-color: #0d1014;
 $ogm-background-color: #0c0f14;
 $ogm-background-color-lighter: #171d24;
@@ -157,21 +158,66 @@ body {
           gap: 2px;
 
           .universe-head {
+            .universe-status-badges {
+              .universe-status-badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                vertical-align: bottom;
 
-            .universe-status-badge {
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              vertical-align: bottom;
+                &.is-open {
+                  opacity: 1;
+                  color: $ogm-color-green;
+                  cursor: pointer;
 
-              &.is-open {
-                opacity: 1;
-                color: $ogm-color-green;
-              }
+                  .icon-hover {
+                    display: none;
+                  }
 
-              &.is-closed {
-                opacity: 0.8;
-                color: $ogm-color-red;
+                  &:hover {
+                    .icon-default {
+                      display: none;
+                    }
+
+                    .icon-hover {
+                      display: inline-flex;
+                    }
+                  }
+                }
+
+
+                &.is-closed {
+                  opacity: 0.8;
+                  color: $ogm-color-red;
+                }
+
+                &.is-other-window {
+                  opacity: 0.8;
+                  color: $ogm-color-blue;
+                  cursor: pointer;
+
+                  .icon-hover {
+                    display: none;
+                  }
+
+                  &:hover {
+                    &.close-tab {
+                      color: $ogm-color-red;
+                    }
+
+                    &.move-tab {
+                      color: $ogm-color-green;
+                    }
+
+                    .icon-default {
+                      display: none;
+                    }
+
+                    .icon-hover {
+                      display: inline-flex;
+                    }
+                  }
+                }
               }
             }
 

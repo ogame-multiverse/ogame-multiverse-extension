@@ -4,7 +4,7 @@ import { SidePanelUniverseStatus } from "../../model/sidePanel/sidePanelUniverse
 import { UniverseSidePanelOptions } from "../../model/sidePanel/universeSidePanelOptions";
 import { UniverseDataNormalizer } from "../../universeDataNormalizer";
 import { SaveManager } from "./saveManager";
-import { UniverseTabsService } from "./universeTabsManager";
+import { UniverseTabsManager } from "./universeTabsManager";
 import { Logger } from "../../logging/logger";
 export class UniverseManager {
 
@@ -13,7 +13,7 @@ export class UniverseManager {
 
   constructor(private readonly logger: Logger,
     private readonly saveManager: SaveManager,
-    private readonly universeTabsService: UniverseTabsService) { }
+    private readonly universeTabsManager: UniverseTabsManager) { }
 
   public async InitializeAsync(): Promise<void> {
     try {
@@ -61,16 +61,23 @@ export class UniverseManager {
 
   public async ListUniverseStatusesAsync(): Promise<SidePanelUniverseStatus[]> {
     const allUniverseKeys = Array.from(this.savesByUniverse.keys());
-    await this.universeTabsService.RebuildOpenTabsStateAsync();
-    const openTabsCountByUniverse = this.universeTabsService.GetOpenTabsCountByUniverse(allUniverseKeys);
+    await this.universeTabsManager.RebuildOpenTabsStateAsync();
+    const openTabsCountByUniverse = this.universeTabsManager.GetOpenTabsCountByUniverse(allUniverseKeys);
+
+    // Add universe keys from the tabs map that are not already in the savesByUniverse map
+    const tabsMapByUniverse = this.universeTabsManager.GetTabsMapByUniverse();
+    // This ensures that we include universes that have open tabs but may not have a saved state yet
+    tabsMapByUniverse.forEach((_, key) => {
+      if (!allUniverseKeys.includes(key)) allUniverseKeys.push(key);
+    });
 
     return Array.from(allUniverseKeys)
       .sort((a, b) => a.localeCompare(b))
-      .map((universeKey) => this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), openTabsCountByUniverse));
+      .map((universeKey) => this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), tabsMapByUniverse));
   }
 
-  private BuildUniverseStatus(universeKey: string, universe: ExtensionLocalData | undefined, openTabsCountByUniverse: Map<string, number>): SidePanelUniverseStatus {
-    const openTabsCount = openTabsCountByUniverse.get(universeKey) || 0;
+  private BuildUniverseStatus(universeKey: string, universe: ExtensionLocalData | undefined, tabsMapByUniverse: Map<string, number[]>): SidePanelUniverseStatus {
+    const tabIds = tabsMapByUniverse.get(universeKey) || [];
     const lastRefreshAtMs = universe?.LastRefreshDate;
 
     const universeData = this.universeDataByUniverse.get(universeKey);
@@ -79,8 +86,8 @@ export class UniverseManager {
     return new SidePanelUniverseStatus({
       UniverseKey: universeKey,
       UniverseDisplayName: detectedDisplayName || UniverseDataNormalizer.ToUniverseDisplayName(universeKey),
-      IsOpen: openTabsCount > 0,
-      OpenTabsCount: openTabsCount,
+      IsOpen: tabIds.length > 0,
+      TabIds: tabIds, // <--- On passe directement les IDs ici
       LastRefreshAtIso: typeof lastRefreshAtMs === 'number' ? new Date(lastRefreshAtMs).toISOString() : undefined,
       SidePanelOptions: universe?.SidePanelOptions || new UniverseSidePanelOptions({}),
       SidePanelUniverseCounters: universeData?.universeCounters || new SidePanelUniverseCounters({})
