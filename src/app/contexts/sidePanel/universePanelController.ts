@@ -55,6 +55,7 @@ export class UniversePanelController {
 
   private currentWindowId?: number;
   private readonly localTabIds = new Set<number>();
+  private readonly activeLocalTabIds = new Set<number>();
 
   private readonly onTabActivated = () => { void this.CheckSyncStateAsync(); void this.Refresh(); };
   private readonly onTabUpdated = () => { void this.CheckSyncStateAsync(); void this.Refresh(); };
@@ -137,9 +138,13 @@ export class UniversePanelController {
       try {
         const tabs = await chromeApi.tabs.query({ windowId: this.currentWindowId });
         this.localTabIds.clear();
+        this.activeLocalTabIds.clear();
         tabs.forEach((tab: any) => {
           if (typeof tab.id === 'number') {
             this.localTabIds.add(tab.id);
+            if (tab.active) {
+              this.activeLocalTabIds.add(tab.id);
+            }
           }
         });
       } catch (error) {
@@ -357,7 +362,6 @@ export class UniversePanelController {
     const lastRefresh = row.querySelector('.universe-last-refresh') as HTMLElement;
     const badgesContainer = row.querySelector('.universe-status-badges') as HTMLElement;
 
-    // Gestion du clic sur le badge en se basant sur l'élément cliqué
     badgesContainer.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
       const badge = target.closest('.universe-status-badge');
@@ -524,51 +528,50 @@ export class UniversePanelController {
     const hasLocalTabs = tabIds.some((tabId) => this.localTabIds.has(tabId));
     const hasRemoteTabs = tabIds.some((tabId) => !this.localTabIds.has(tabId));
 
-    let badgesHtml = '';
+    const isGlobalOpen = tabIds.length > 0;
+    const isOpenInCurrentWindow = isGlobalOpen && hasLocalTabs;
+    const isOpenInOtherWindow = isGlobalOpen && hasRemoteTabs;
+    const isActiveInCurrentWindow = tabIds.some((tabId) => this.activeLocalTabIds.has(tabId));
 
-    if (hasLocalTabs && hasRemoteTabs) {
-      badgesHtml += `<span class="universe-status-badge is-open activate-tab" aria-hidden="true">
-          <span class="material-symbols-outlined icon-default">check_circle</span>
-          <span class="material-symbols-outlined icon-hover">visibility</span>
-        </span>`;
-      badgesHtml += `
-        <span class="universe-status-badge is-other-window close-tab" aria-hidden="true">
-          <span class="material-symbols-outlined icon-default">tab</span>
-          <span class="material-symbols-outlined icon-hover">close</span>
-        </span>
-      `;
+    // Helper local pour générer un badge avec un contrôle fin des classes et des icônes
+    const renderBadge = (customClasses: string, defaultIcon: string, hoverIcon?: string) => `
+  <span class="universe-status-badge ${customClasses}" aria-hidden="true">
+    <span class="material-symbols-outlined ${hoverIcon ? 'icon-default' : ''}">${defaultIcon}</span>
+    ${hoverIcon ? `<span class="material-symbols-outlined icon-hover">${hoverIcon}</span>` : ''}
+  </span>
+`.trim();
+
+    const badges: string[] = [];
+
+    if (hasLocalTabs) {
+      if (isActiveInCurrentWindow) badges.push(renderBadge('is-active-current-window', 'check_circle'));
+      else badges.push(renderBadge('is-open activate-tab', 'check_circle', 'visibility'));
     }
-    else if (hasLocalTabs) {
-      badgesHtml += `<span class="universe-status-badge is-open activate-tab" aria-hidden="true">
-          <span class="material-symbols-outlined icon-default">check_circle</span>
-          <span class="material-symbols-outlined icon-hover">visibility</span>
-        </span>`;
+
+    if (hasRemoteTabs) {
+      const actionClass = hasLocalTabs ? 'close-tab' : 'move-tab';
+      const hoverIcon = hasLocalTabs ? 'close' : 'input';
+      badges.push(renderBadge(`is-other-window ${actionClass}`, 'tab', hoverIcon));
     }
-    else if (hasRemoteTabs) {
-      badgesHtml += `
-        <span class="universe-status-badge is-other-window move-tab" aria-hidden="true">
-          <span class="material-symbols-outlined icon-default">tab</span>
-          <span class="material-symbols-outlined icon-hover">input</span>
-        </span>
-      `;
+
+    if (!hasLocalTabs && !hasRemoteTabs) {
+      badges.push(renderBadge('is-closed', 'cancel'));
     }
-    else {
-      badgesHtml += `<span class="universe-status-badge is-closed" aria-hidden="true"><span class="material-symbols-outlined">cancel</span></span>`;
-    }
+
+    const badgesHtml = badges.join('');
 
     const nextTitle = status.UniverseDisplayName ? `${status.UniverseDisplayName} (${status.UniverseKey})` : status.UniverseKey;
     if (rowView.title.textContent !== nextTitle) {
       rowView.title.textContent = nextTitle;
     }
 
-    const isGlobalOpen = tabIds.length > 0;
     rowView.row.setAttribute('data-universe-open', String(isGlobalOpen));
 
-    const isOpenInCurrentWindow = isGlobalOpen && tabIds.some((tabId) => this.localTabIds.has(tabId));
     rowView.row.setAttribute('data-universe-open-current-window', String(isOpenInCurrentWindow));
 
-    const isOpenInOtherWindow = isGlobalOpen && tabIds.some((tabId) => !this.localTabIds.has(tabId));
     rowView.row.setAttribute('data-universe-open-other-window', String(isOpenInOtherWindow));
+
+    rowView.row.setAttribute('data-universe-active-current-window', String(isActiveInCurrentWindow));
 
     if (rowView.badgesContainer.innerHTML !== badgesHtml) {
       rowView.badgesContainer.innerHTML = badgesHtml;
