@@ -351,7 +351,7 @@ export class UniversePanelController {
     const row = tempContainer.firstElementChild as HTMLElement;
 
     const thresholdSelect = row.querySelector('.universe-threshold-select') as HTMLSelectElement;
-    const refreshButton = row.querySelector('.universe-refresh-button') as HTMLButtonElement;
+    const refreshButton = row.querySelector('#universe-refresh-button') as HTMLButtonElement;
     const settingsButton = row.querySelector('.universe-settings-button') as HTMLButtonElement;
     const removeButton = row.querySelector('.universe-remove-button') as HTMLButtonElement;
     const lastRefresh = row.querySelector('.universe-last-refresh') as HTMLElement;
@@ -411,7 +411,9 @@ export class UniversePanelController {
       updateWarningState(selectedMinutes);
     });
 
-    refreshButton.addEventListener('click', () => this.ExecuteRowAction(refreshButton, () => serviceWorkerProtocolClient.ReloadUniverseTabAsync(this.logger, status.UniverseKey)));
+    refreshButton.addEventListener('click', () =>
+      this.HandleTabIconClickAsync(status, refreshButton)
+    );
     removeButton.addEventListener('click', () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, status.UniverseKey)));
 
     settingsButton.addEventListener('click', () => {
@@ -439,56 +441,32 @@ export class UniversePanelController {
   }
 
   private async HandleTabIconClickAsync(status: SidePanelUniverseStatus, badge: HTMLElement): Promise<void> {
-    const chromeApi = (globalThis as { chrome?: any }).chrome;
-    if (!chromeApi?.tabs) return;
-
-    const tabIds = status.TabIds || [];
-    const localTabIds = tabIds.filter((tabId) => this.localTabIds.has(tabId));
-    const remoteTabIds = tabIds.filter((tabId) => !this.localTabIds.has(tabId));
-
     if (badge.classList.contains('activate-tab')) {
-      if (localTabIds.length > 0) {
-        try {
-          const targetTabId = localTabIds[0];
-          const tab = await chromeApi.tabs.get(targetTabId);
-          if (tab?.windowId) {
-            await chromeApi.windows.update(tab.windowId, { focused: true });
-          }
-          await chromeApi.tabs.update(targetTabId, { active: true });
-        } catch (error) {
-          this.logger.error('Failed to activate tab', error);
-        }
-      }
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'activate',
+        this.currentWindowId
+      );
     } else if (badge.classList.contains('close-tab')) {
-      if (remoteTabIds.length > 0) {
-        try {
-          await chromeApi.tabs.remove(remoteTabIds);
-          this.Refresh();
-        } catch (error) {
-          this.logger.error('Failed to close remote universe tabs', error);
-        }
-      }
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'close',
+        this.currentWindowId
+      );
+      this.Refresh();
     } else if (badge.classList.contains('move-tab')) {
-      if (this.currentWindowId === undefined) {
-        await this.InitCurrentWindowIdAsync();
-      }
-      if (this.currentWindowId === undefined) return;
-
-      if (remoteTabIds.length > 0) {
-        try {
-          const movedTabs = await chromeApi.tabs.move(remoteTabIds, { windowId: this.currentWindowId, index: -1 });
-          const firstMovedTabId = Array.isArray(movedTabs) ? movedTabs[0]?.id : movedTabs?.id;
-          if (firstMovedTabId) {
-            await chromeApi.tabs.update(firstMovedTabId, { active: true });
-          } else if (remoteTabIds.length > 0) {
-            await chromeApi.tabs.update(remoteTabIds[0], { active: true });
-          }
-          await chromeApi.windows.update(this.currentWindowId, { focused: true });
-          this.Refresh();
-        } catch (error) {
-          this.logger.error('Failed to move and activate universe tabs', error);
-        }
-      }
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'move',
+        this.currentWindowId
+      );
+      this.Refresh();
+    } else if (badge.classList.contains('refresh-tab')) {
+      await serviceWorkerProtocolClient.ActionOnUniverseTabAsync(this.logger,
+        status.UniverseKey,
+        'refresh',
+        this.currentWindowId
+      );
     }
   }
 
@@ -585,6 +563,12 @@ export class UniversePanelController {
 
     const isGlobalOpen = tabIds.length > 0;
     rowView.row.setAttribute('data-universe-open', String(isGlobalOpen));
+
+    const isOpenInCurrentWindow = isGlobalOpen && tabIds.some((tabId) => this.localTabIds.has(tabId));
+    rowView.row.setAttribute('data-universe-open-current-window', String(isOpenInCurrentWindow));
+
+    const isOpenInOtherWindow = isGlobalOpen && tabIds.some((tabId) => !this.localTabIds.has(tabId));
+    rowView.row.setAttribute('data-universe-open-other-window', String(isOpenInOtherWindow));
 
     if (rowView.badgesContainer.innerHTML !== badgesHtml) {
       rowView.badgesContainer.innerHTML = badgesHtml;
@@ -702,7 +686,7 @@ export class UniversePanelController {
               </span>
             </div>
           </div>
-          <button type="button" class="universe-refresh-button" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
+          <button type="button" id="universe-refresh-button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
           </button>
           <button type="button" class="universe-settings-button" title="${Localizator.Translate('SidePanelSettingsUniverse')}" aria-label="${Localizator.Translate('SidePanelSettingsUniverse')}">

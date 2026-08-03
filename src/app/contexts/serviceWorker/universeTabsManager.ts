@@ -42,6 +42,63 @@ export class UniverseTabsManager {
     return map;
   }
 
+  public async ActionOnUniverseTabAsync(
+    universeKey: string,
+    action: 'activate' | 'move' | 'close' | 'refresh',
+    eventSourceWindowId: number
+  ): Promise<void> {
+    if (!browser?.tabs?.query) return;
+
+    const tabs = await browser.tabs.query({ url: GlobalConstants.OGAME_URL_GAME_PATTERN });
+    const matchingTabs = tabs.filter((tab) => this.ExtractUniverseKeyFromTab(tab) === universeKey && typeof tab.id === 'number');
+
+    // If no matching tabs are found, create a new tab if the action is 'refresh'
+    if (matchingTabs.length === 0) {
+      if (action === 'refresh') {
+        await browser.tabs.create({
+          url: this.BuildUniverseOverviewUrl(universeKey),
+          active: true,
+          windowId: eventSourceWindowId
+        });
+      }
+      return;
+    }
+
+    for (const tab of matchingTabs) {
+      const tabId = tab.id!;
+      const isSameWindow = tab.windowId === eventSourceWindowId;
+
+      if (isSameWindow) {
+        // If the tab is in the same window, we can activate or refresh it
+        if (action === 'activate' || action === 'refresh') {
+          if (browser.tabs.update) {
+            await browser.tabs.update(tabId, { active: true });
+          }
+
+          if (action === 'activate' && browser.windows?.update) {
+            // If the action is 'activate', we also want to focus the window
+            await browser.windows.update(eventSourceWindowId, { focused: true });
+          }
+          if (action === 'refresh' && browser.tabs.reload) {
+            // If the action is 'refresh', we want to reload the tab
+            await browser.tabs.reload(tabId, { bypassCache: true });
+          }
+        }
+      } else {
+        // If the tab is in a different window, we can move or close it
+        if (action === 'close' && browser.tabs.remove) {
+          // Close the tab if the action is 'close'
+          await browser.tabs.remove(tabId);
+        } else if (action === 'move' && browser.tabs.move) {
+          // Move the tab to the event source window if the action is 'move'
+          await browser.tabs.move(tabId, { windowId: eventSourceWindowId, index: -1 });
+          if (browser.tabs.update) {
+            await browser.tabs.update(tabId, { active: true });
+          }
+        }
+      }
+    }
+  }
 
   public async ReloadUniverseTabAsync(universeKey: string): Promise<void> {
     if (!browser?.tabs?.query || !browser.tabs.reload) return;

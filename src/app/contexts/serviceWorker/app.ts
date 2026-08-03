@@ -53,9 +53,9 @@ class ServiceWorkerContextApp {
       this.universeManager.ListUniverseStatusesAsync()
     );
 
-    serviceWorkerProtocolRegistrar.OnReloadUniverseTab(this.logger, (data: string) =>
-      this.universeTabsManager.ReloadUniverseTabAsync(data)
-    );
+    serviceWorkerProtocolRegistrar.OnActionOnUniverseTab(this.logger, async (data) => {
+      await this.universeTabsManager.ActionOnUniverseTabAsync(data.universeKey, data.action, data.windowId);
+    });
 
     serviceWorkerProtocolRegistrar.OnRemoveUniverse(this.logger, async (data: string) => {
       await this.universeManager.RemoveUniverseAsync(data);

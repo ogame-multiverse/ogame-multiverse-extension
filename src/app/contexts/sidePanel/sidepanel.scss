@@ -158,7 +158,13 @@ body {
           gap: 2px;
 
           .universe-head {
+            display: flex;
+            flex-flow: row;
+            column-gap: 10px;
+
             .universe-status-badges {
+              display: inline-flex;
+
               .universe-status-badge {
                 display: inline-flex;
                 align-items: center;
@@ -497,10 +503,13 @@ body {
           display: none !important;
         }
       }
-      // Hide the indicators when the universe is closed
-      &[data-universe-open='false'] {
-        .universe-indicators {
-          display: none !important;
+
+      // Hide the refresh button when the universe is open, but not in the current window
+      &[data-universe-open='true'] {
+        &[data-universe-open-current-window='false'] {
+          #universe-refresh-button {
+            display: none !important;
+          }
         }
       }
 
