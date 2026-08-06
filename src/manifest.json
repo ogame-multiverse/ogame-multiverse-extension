@@ -30,7 +30,7 @@
   "commands": {
     "toggle_side_panel": {
       "suggested_key": {
-        "default": "Alt+Shift+M"
+        "default": "Ctrl+Space"
       },
       "description": "Open Side Panel"
     }
