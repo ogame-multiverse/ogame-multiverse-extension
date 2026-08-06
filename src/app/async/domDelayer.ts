@@ -8,9 +8,9 @@ export class DomDelayer {
   public static WaitForQuerySelector(
     selector: string,
     checkIntervals = 10,
-    timeout = 5000
+    abortSignal: AbortSignal
   ): Promise<JQuery<HTMLElement> | null> {
-    return Delayer.WaitFor(() => $(selector).length > 0, checkIntervals, timeout).then(() => {
+    return Delayer.WaitFor(() => $(selector).length > 0, checkIntervals, abortSignal).then(() => {
       return $(selector) ?? null;
     });
   }
@@ -21,7 +21,7 @@ export class DomDelayer {
   public static WaitForAllQuerySelectors(
     selectors: string[],
     checkIntervals = 10,
-    timeout = 5000
+    abortSignal: AbortSignal
   ): Promise<JQuery<HTMLElement>[]> {
     if (!selectors || selectors.length === 0) {
       return Promise.resolve([]);
@@ -30,7 +30,7 @@ export class DomDelayer {
     return Delayer.WaitFor(
       () => selectors.every((selector) => $(selector).length > 0),
       checkIntervals,
-      timeout
+      abortSignal
     ).then(() => selectors.map((selector) => $(selector)));
   }
 
@@ -41,7 +41,7 @@ export class DomDelayer {
   public static WaitForAnyQuerySelector(
     selectors: string[],
     checkIntervals = 10,
-    timeout = 5000
+    abortSignal: AbortSignal
   ): Promise<JQuery<HTMLElement> | null> {
     if (!selectors || selectors.length === 0) {
       return Promise.resolve(null);
@@ -50,7 +50,7 @@ export class DomDelayer {
     return Delayer.WaitFor(
       () => selectors.some((selector) => $(selector).length > 0),
       checkIntervals,
-      timeout
+      abortSignal
     ).then(() => {
       const matchedSelector = selectors.find((selector) => $(selector).length > 0);
       return matchedSelector ? $(matchedSelector) : null;

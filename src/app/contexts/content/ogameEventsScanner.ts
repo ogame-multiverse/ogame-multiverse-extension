@@ -34,7 +34,7 @@ export class OgameEventsScanner {
     // Wait for the relevant DOM elements to be present before starting observation
     const watchedSelectors = ['#newmessagesindicatorcomponent', '#eventboxFilled'];
     try {
-      await DomDelayer.WaitForAllQuerySelectors(watchedSelectors, 50, 5000);
+      await DomDelayer.WaitForAllQuerySelectors(watchedSelectors, 50, AbortSignal.timeout(5000));
       // Change detection for message and fleet counters
       this.observer = Observer.Observe(
         [{ element: $(watchedSelectors.join(', ')), options: { childList: true, subtree: true } }],

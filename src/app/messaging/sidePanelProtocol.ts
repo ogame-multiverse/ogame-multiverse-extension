@@ -1,4 +1,5 @@
 import browser from 'webextension-polyfill';
+import { GlobalConstants } from '../globalConstants';
 import { Logger } from '../logging/logger';
 
 export interface SidePanelProtocol {
@@ -47,7 +48,7 @@ export class SidePanelProtocolClient {
       return;
     }
 
-    logger.debug(`Sending ${action} via Port to windowId ${windowId}`, payload);
+    if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) logger.debug(`Sending ${action} via Port to windowId ${windowId}`, payload);
     const message: SidePanelPortMessage<K> = { action, payload };
     port.postMessage(message);
   }
@@ -79,7 +80,7 @@ export class SidePanelProtocolRegistrar {
 
       const handler = this.handlers.get(msg.action);
       if (handler) {
-        logger.debug(`Received message for SidePanelProtocol.${msg.action}`, msg.payload);
+        if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) logger.debug(`Received message for SidePanelProtocol.${msg.action}`, msg.payload);
         handler(msg.payload);
       }
     });

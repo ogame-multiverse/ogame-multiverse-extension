@@ -1,9 +1,10 @@
+import { defineExtensionMessaging } from '@webext-core/messaging';
 import browser from 'webextension-polyfill';
-import { defineExtensionMessaging } from '@webext-core/messaging'
-import { Logger } from '../logging/logger'
-import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters'
-import { SidePanelUniverseStatus } from '../model/sidePanel/sidePanelUniverseStatus'
-import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOptions'
+import { GlobalConstants } from '../globalConstants';
+import { Logger } from '../logging/logger';
+import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters';
+import { SidePanelUniverseStatus } from '../model/sidePanel/sidePanelUniverseStatus';
+import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOptions';
 
 export interface ServiceWorkerProtocol {
   RegisterUniverse(data: { universeKey: string, universeDomain: string, lastRefreshDate: number }): Promise<void>
@@ -25,7 +26,7 @@ export class ServiceWorkerProtocolClient {
     key: K,
     ...args: Parameters<ServiceWorkerProtocol[K]>
   ): ReturnType<ServiceWorkerProtocol[K]> {
-    logger.debug(`Sending message for ServiceWorkerProtocol.${key}`, args[0]);
+    if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) logger.debug(`Sending message for ServiceWorkerProtocol.${key}`, args[0]);
     return serviceWorkerMessenger.sendMessage(key as any, args[0]) as any
   }
 
@@ -64,7 +65,7 @@ export class ServiceWorkerProtocolClient {
 export class ServiceWorkerProtocolRegistrar {
   private listen(logger: Logger, key: string, handler: Function): void {
     serviceWorkerMessenger.onMessage(key as any, ({ data, sender }: any) => {
-      logger.debug(`Received message for ServiceWorkerProtocol.${key}`, data);
+      if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) logger.debug(`Received message for ServiceWorkerProtocol.${key}`, data);
       return handler(data, sender);
     });
   }
