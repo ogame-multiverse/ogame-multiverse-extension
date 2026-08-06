@@ -28,8 +28,7 @@
   "commands": {
     "_execute_sidebar_action": {
       "suggested_key": {
-        "default": "Alt+Shift+M",
-        "mac": "Alt+Shift+M"
+        "default": "Ctrl+Space"
       },
       "description": "Open Side Panel"
     }
