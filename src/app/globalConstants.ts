@@ -16,4 +16,8 @@ export class GlobalConstants {
 
   /* Interval for pinging the side panel service worker to keep the connection alive. */
   public static readonly SIDE_PANEL_PING_SERVICE_WORKER_INTERVAL_MS: number = 10000; // 10 seconds
+
+
+  /* Flag to enable or disable protocol logging for debugging purposes. */
+  public static readonly PROTOCOL_LOGGING_ENABLED: boolean = false;
 }

@@ -1,4 +1,5 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
+import { GlobalConstants } from '../globalConstants';
 import { Logger } from '../logging/logger';
 import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters';
 import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOptions';
@@ -22,11 +23,11 @@ export class SidePanelBroadcastProtocolClient {
     ...args: Parameters<SidePanelBroadcastProtocol[K]>
   ): void {
     if (sidePanelProtocolClient.HasAnyActivePort()) {
-      logger.debug(`Sending message for SidePanelBroadcastProtocol.${key}`, args[0]);
+      if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) logger.debug(`Sending message for SidePanelBroadcastProtocol.${key}`, args[0]);
       sidePanelBroadcastMessenger.sendMessage(key as any, args[0])
     }
     else {
-      logger.debug(`No active side panel ports to send message for SidePanelBroadcastProtocol.${key}`);
+      if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) logger.debug(`No active side panel ports to send message for SidePanelBroadcastProtocol.${key}`);
     }
   }
 
@@ -49,7 +50,7 @@ export class SidePanelBroadcastProtocolClient {
 export class SidePanelBroadcastProtocolRegistrar {
   private listen(logger: Logger, key: string, handler: Function): void {
     sidePanelBroadcastMessenger.onMessage(key as any, ({ data, sender }: any) => {
-      logger.debug(`Received message for SidePanelBroadcastProtocol.${key}`, data);
+      if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) logger.debug(`Received message for SidePanelBroadcastProtocol.${key}`, data);
       return handler(data, sender);
     });
   }

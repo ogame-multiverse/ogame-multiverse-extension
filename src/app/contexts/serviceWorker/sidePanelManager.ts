@@ -2,6 +2,7 @@ import browser from 'webextension-polyfill';
 import { browserInfo } from '../../dom/browserInfos';
 import { Logger } from '../../logging/logger';
 import { sidePanelProtocolClient } from '../../messaging/sidePanelProtocol';
+import { GlobalConstants } from '../../globalConstants';
 
 const browserPolyfill = browser as typeof browser & {
   sidePanel: typeof chrome.sidePanel;
@@ -25,7 +26,7 @@ export class SidePanelManager {
 
       // Ignore PING messages to keep the port alive
       port.onMessage.addListener((message) => {
-        this.logger.debug(`Received message from side panel port for windowId ${windowId}`, message);
+        if (GlobalConstants.PROTOCOL_LOGGING_ENABLED) this.logger.debug(`Received message from side panel port for windowId ${windowId}`, message);
         if ((message as { type?: string })?.type === 'PING') {
           return;
         }
