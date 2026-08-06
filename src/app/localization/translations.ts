@@ -74,12 +74,12 @@ export const Localizations = [
     br: 'Nunca',
   }),
   new I18nValue('SidePanelSyncPaused', {
-    en: 'Tab synchronization impossible — waiting for an active OGame tab.',
-    fr: "Synchronisation des onglets impossible — En attente d'un onglet OGame actif.",
-    es: 'Sincronización de pestañas imposible — esperando una pestaña OGame activa.',
-    de: 'Tabsynchronisierung nicht möglich — Warte auf einen aktiven OGame-Tab.',
-    tr: 'Sekme eşitlemesi başarısız — aktif bir OGame sekmesi bekleniyor.',
-    br: 'Sincronização de abas impossível — aguardando uma aba OGame ativa.',
+    en: 'Tab synchronization deactivated — waiting for an active OGame tab in the current window.',
+    fr: "Synchronisation des onglets désactivée — En attente d'un onglet OGame actif dans la fenêtre actuelle.",
+    es: 'Sincronización de pestañas desactivada — esperando una pestaña activa de OGame en la ventana actual.',
+    de: 'Tab-Synchronisierung deaktiviert — Warten auf einen aktiven OGame-Tab im aktuellen Fenster.',
+    tr: 'Sekme senkronizasyonu devre dışı bırak — mevcut pencerede aktif bir OGame sekmesi bekleniyor.',
+    br: 'Sincronização de abas desativada — aguardando uma aba ativa do OGame na janela atual.',
   }),
   new I18nValue('SidePanelReloadUniverseTab', {
     en: 'Reload universe tab',

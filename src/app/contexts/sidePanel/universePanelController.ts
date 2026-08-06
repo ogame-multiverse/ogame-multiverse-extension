@@ -57,8 +57,7 @@ export class UniversePanelController {
   private readonly localTabIds = new Set<number>();
   private readonly activeLocalTabIds = new Set<number>();
 
-  private readonly onTabActivated = () => { void this.CheckSyncStateAsync(); void this.Refresh(); };
-  private readonly onTabUpdated = () => { void this.CheckSyncStateAsync(); void this.Refresh(); };
+  private readonly onTabChanged = () => { void this.Refresh(); };
 
   constructor(private readonly logger: Logger) {
     sidePanelBroadcastProtocolRegistrar.OnRegisterUniverse(this.logger, () => this.Refresh());
@@ -86,6 +85,9 @@ export class UniversePanelController {
     );
   }
 
+  /**
+   * Activates the universe panel controller by initializing the current window ID, refreshing the panel, and starting the animation loop.
+   */
   public async ActivateAsync(): Promise<void> {
     if (!this.loaded) {
       this.loaded = true;
@@ -93,15 +95,18 @@ export class UniversePanelController {
       this.Refresh();
     }
     this.StartAnimationLoop();
-    void this.CheckSyncStateAsync();
 
     const chromeApi = (globalThis as { chrome?: any }).chrome;
     if (chromeApi?.tabs) {
-      chromeApi.tabs.onActivated?.addListener(this.onTabActivated);
-      chromeApi.tabs.onUpdated?.addListener(this.onTabUpdated);
+      chromeApi.tabs.onActivated?.addListener(this.onTabChanged);
+      chromeApi.tabs.onUpdated?.addListener(this.onTabChanged);
+      chromeApi.tabs.onRemoved?.addListener(this.onTabChanged);
     }
   }
 
+  /**
+   * Deactivates the universe panel controller by canceling the animation loop and removing event listeners for tab changes.
+   */
   public Deactivate(): void {
     if (this.rafId !== undefined) {
       cancelAnimationFrame(this.rafId);
@@ -110,8 +115,9 @@ export class UniversePanelController {
 
     const chromeApi = (globalThis as { chrome?: any }).chrome;
     if (chromeApi?.tabs) {
-      chromeApi.tabs.onActivated?.removeListener(this.onTabActivated);
-      chromeApi.tabs.onUpdated?.removeListener(this.onTabUpdated);
+      chromeApi.tabs.onActivated?.removeListener(this.onTabChanged);
+      chromeApi.tabs.onUpdated?.removeListener(this.onTabChanged);
+      chromeApi.tabs.onRemoved?.removeListener(this.onTabChanged);
     }
   }
 
@@ -153,13 +159,17 @@ export class UniversePanelController {
     }
   }
 
+  /**
+   * Refreshes the universe panel by fetching the latest universe statuses and updating the UI accordingly.
+   * This method is debounced to prevent excessive updates within a short time frame.
+   */
   public Refresh(): void {
     Debouncer.Debounce('universe-panel-refresh', async () => {
       const container = document.getElementById('universe-list');
       if (!container) return;
 
-      void this.CheckSyncStateAsync();
       await this.UpdateLocalTabIdsAsync();
+      await this.CheckSyncStateAsync();
 
       const universeStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger);
       if (!universeStatuses.length) {
@@ -244,14 +254,12 @@ export class UniversePanelController {
 
     existingRow.currentStatus.SidePanelOptions = options;
 
-    // Update the threshold select value based on the new options
     const thresholdSelect = existingRow.row.querySelector('.universe-threshold-select') as HTMLSelectElement;
     if (thresholdSelect && options.WarningThresholdMinutes !== undefined) {
       thresholdSelect.value = String(options.WarningThresholdMinutes);
     }
     existingRow.updateWarningState();
 
-    // Update the indicator checkboxes and attributes based on the new options
     INDICATOR_BINDINGS.forEach(({ checkboxIdSuffix, attributeName, optionKey }) => {
       const checkbox = existingRow.row.querySelector(`#${checkboxIdSuffix}-${existingRow.currentStatus.UniverseKey}`) as HTMLInputElement;
       const value = Boolean(options[optionKey]);
@@ -260,7 +268,6 @@ export class UniversePanelController {
       }
       existingRow.row.setAttribute(attributeName, String(value));
     });
-
   }
 
   private StartAnimationLoop(): void {
@@ -303,19 +310,24 @@ export class UniversePanelController {
     });
   }
 
+  /**
+   * Checks if there is an active tab in the current window that matches the syncable OGame tab criteria.
+   * @returns A promise that resolves to true if there is an active syncable tab, false otherwise.
+   */
   private async HasActiveSyncableTabAsync(): Promise<boolean> {
     const chromeApi = (globalThis as { chrome?: any }).chrome;
     if (!chromeApi?.tabs?.query) return true;
 
+    if (this.currentWindowId === undefined) {
+      await this.InitCurrentWindowIdAsync();
+    }
+    if (this.currentWindowId === undefined) return false;
+
     try {
-      const queries = [{ active: true, currentWindow: true }, { active: true, lastFocusedWindow: true }, { active: true }];
-      for (const query of queries) {
-        const tabs = await chromeApi.tabs.query(query);
-        if (tabs.some((tab: any) => this.IsKeepSyncTab(tab))) return true;
-      }
-      return false;
+      const tabs = await chromeApi.tabs.query({ active: true, windowId: this.currentWindowId });
+      return tabs.some((tab: any) => this.IsKeepSyncTab(tab));
     } catch {
-      return true;
+      return false;
     }
   }
 
@@ -535,7 +547,6 @@ export class UniversePanelController {
     const isOpenInOtherWindow = isGlobalOpen && hasRemoteTabs;
     const isActiveInCurrentWindow = tabIds.some((tabId) => this.activeLocalTabIds.has(tabId));
 
-    // Helper local pour générer un badge avec un contrôle fin des classes et des icônes
     const renderBadge = (customClasses: string, defaultIcon: string, hoverIcon?: string) => `
   <span class="universe-status-badge ${customClasses}" aria-hidden="true">
     <span class="material-symbols-outlined ${hoverIcon ? 'icon-default' : ''}">${defaultIcon}</span>
@@ -568,11 +579,8 @@ export class UniversePanelController {
     }
 
     rowView.row.setAttribute('data-universe-open', String(isGlobalOpen));
-
     rowView.row.setAttribute('data-universe-open-current-window', String(isOpenInCurrentWindow));
-
     rowView.row.setAttribute('data-universe-open-other-window', String(isOpenInOtherWindow));
-
     rowView.row.setAttribute('data-universe-active-current-window', String(isActiveInCurrentWindow));
 
     if (rowView.badgesContainer.innerHTML !== badgesHtml) {

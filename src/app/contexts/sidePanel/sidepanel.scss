@@ -528,10 +528,12 @@ body {
           display: none !important;
         }
       }
-      // Hide the refresh button when the universe is open, but not in the current window
+      // Hide the refresh button, indicators, and settings button when the universe is open, but not in the current window
       &[data-universe-open='true'] {
         &[data-universe-open-current-window='false'] {
-          #universe-refresh-button {
+          #universe-refresh-button,
+          .universe-indicators,
+          .universe-settings-button {
             display: none !important;
           }
         }

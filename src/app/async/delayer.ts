@@ -1,56 +1,67 @@
 export class Delayer {
   /**
-   * Wait until a predicate returns true or times out.
+   * Wait until a predicate returns true or is aborted.
    * 
    * @param predicateCallback Synchronous or asynchronous condition check.
    * @param checkInterval Delay between checks in milliseconds (default: 50ms).
-   * @param timeout Maximum wait time in milliseconds (default: 5000ms).
-   * @returns Promise resolving to true when predicate passes.
+   * @param abortSignal AbortSignal for cancellation or timeout.
    */
   public static WaitFor(
     predicateCallback: () => boolean | Promise<boolean>,
     checkInterval = 50,
-    timeout = 5000
+    abortSignal: AbortSignal
   ): Promise<boolean> {
-    return new Promise(async (resolve, reject) => {
-      // Fast path: initial check
-      try {
-        if (await predicateCallback()) {
-          return resolve(true);
-        }
-      } catch (error) {
-        return reject(error);
+    return new Promise((resolve, reject) => {
+      if (abortSignal.aborted) {
+        return reject(abortSignal.reason);
       }
 
-      let timeoutId: number;
-      let intervalId: number;
+      let loopId: ReturnType<typeof setTimeout>;
 
       const cleanup = () => {
-        clearInterval(intervalId);
-        clearTimeout(timeoutId);
+        clearTimeout(loopId);
+        abortSignal.removeEventListener('abort', onAbort);
       };
 
-      intervalId = setTimeout(async function check() {
+      const onAbort = () => {
+        cleanup();
+        reject(abortSignal.reason);
+      };
+
+      abortSignal.addEventListener('abort', onAbort);
+
+      const check = async () => {
         try {
           if (await predicateCallback()) {
             cleanup();
-            resolve(true);
-            return;
+            return resolve(true);
           }
         } catch (error) {
           cleanup();
-          reject(error);
-          return;
+          return reject(error);
         }
+        loopId = setTimeout(check, checkInterval);
+      };
 
-        // Schedule next check
-        intervalId = setTimeout(check, checkInterval) as unknown as number;
-      }, checkInterval) as unknown as number;
-
-      timeoutId = setTimeout(() => {
-        cleanup();
-        reject(new Error(`waitFor timed out after ${timeout}ms`));
-      }, timeout) as unknown as number;
+      check();
     });
+  }
+
+  /**
+   * Waits for a specified duration in milliseconds.
+   */
+  public static Delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Executes a synchronous or asynchronous method after a specified delay.
+   */
+  public static async ExecuteAfter<T>(
+    callback: () => T | Promise<T>,
+    delayMs: number
+  ): Promise<T> {
+    await Delayer.Delay(delayMs);
+    return callback();
   }
 }
