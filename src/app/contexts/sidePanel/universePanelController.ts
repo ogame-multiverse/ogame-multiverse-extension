@@ -199,7 +199,7 @@ export class UniversePanelController {
   }
 
   public async CheckSyncStateAsync(): Promise<void> {
-    const hasActiveTab = await this.HasActiveSyncableTabAsync();
+    const hasActiveTab = await this.HasActiveOGameUniverseTabAsync();
     this.syncSuspended = !hasActiveTab;
     this.SetSyncPausedIndicator(this.syncSuspended);
   }
@@ -311,27 +311,30 @@ export class UniversePanelController {
   }
 
   /**
-   * Checks if there is an active tab in the current window that matches the syncable OGame tab criteria.
-   * @returns A promise that resolves to true if there is an active syncable tab, false otherwise.
+   * Checks if there is an active OGame tab.
+   * Since indicators are only updated for active OGame tabs (serving as reminders of elements seen by the player),
+   * the tab no longer strictly needs to be in the current window.
+   *
+   * @returns A promise that resolves to true if an active OGame tab exists, false otherwise.
    */
-  private async HasActiveSyncableTabAsync(): Promise<boolean> {
+  private async HasActiveOGameUniverseTabAsync(): Promise<boolean> {
     const chromeApi = (globalThis as { chrome?: any }).chrome;
     if (!chromeApi?.tabs?.query) return true;
 
-    if (this.currentWindowId === undefined) {
-      await this.InitCurrentWindowIdAsync();
-    }
-    if (this.currentWindowId === undefined) return false;
-
     try {
-      const tabs = await chromeApi.tabs.query({ active: true, windowId: this.currentWindowId });
-      return tabs.some((tab: any) => this.IsKeepSyncTab(tab));
+      const tabs = await chromeApi.tabs.query({ active: true });
+      return tabs.some((tab: any) => this.IsOGameUniverseTabab(tab));
     } catch {
       return false;
     }
   }
 
-  private IsKeepSyncTab(tab: any): boolean {
+  /**
+   * Determines if a given tab is an OGame universe tab based on its URL.
+   * @param tab
+   * @returns True if the tab is an OGame universe tab, false otherwise.
+   */
+  private IsOGameUniverseTabab(tab: any): boolean {
     if (GlobalConstants.SYNC_TABS_URLS_REGEXPS.length === 0) return true;
     const url = typeof tab?.url === 'string' ? tab.url : typeof tab?.pendingUrl === 'string' ? tab.pendingUrl : '';
     return GlobalConstants.SYNC_TABS_URLS_REGEXPS.some((regexp) => regexp.test(url));
