@@ -528,11 +528,18 @@ body {
           display: none !important;
         }
       }
-      // Hide the refresh button, indicators, and settings button when the universe is open, but not in the current window
+      //Hide the indicators when the universe is closed
+      &[data-universe-open='false'] {
+        .universe-indicators {
+          display: none !important;
+        }
+      }
+
+      // Hide the refresh button, and settings button when the universe is open, but not in the current window
+      // Indicators are still shown, since the are only updfated when the universe is open in an active tab
       &[data-universe-open='true'] {
         &[data-universe-open-current-window='false'] {
           #universe-refresh-button,
-          .universe-indicators,
           .universe-settings-button {
             display: none !important;
           }

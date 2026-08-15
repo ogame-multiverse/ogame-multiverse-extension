@@ -5,7 +5,7 @@ BUILD_DIR="./dist/build"
 CHROME_DIR="./dist/ogame-multiverse_chrome"
 FIREFOX_DIR="./dist/ogame-multiverse_firefox"
 
-# --- ANALYSE DES ARGUMENTS ---
+# --- ARGUMENT PARSING ---
 IS_RELEASE=false
 IS_PACKAGE=false
 VERSION_NUMBER=""
@@ -31,23 +31,29 @@ while [ $# -gt 0 ]; do
 done
 # ------------------------------
 
-# Nettoyage des builds précédents
+# Git hooks configuration if in a Git repository
+if [ -d ".git" ]; then
+    git config core.hooksPath .githooks
+    echo "🔗 Git hooks configured to .githooks"
+fi
+
+# Clean up previous builds
 rm -rf "$TMP_DIR" "$BUILD_DIR" "$CHROME_DIR" "$FIREFOX_DIR" ./dist/*.zip
 
-# Création des répertoires
+# Create output directories
 mkdir -p "$TMP_DIR"
 mkdir -p "$BUILD_DIR"
 mkdir -p "$CHROME_DIR"
 mkdir -p "$FIREFOX_DIR"
 
-# Copie des sources dans le dossier temporaire
-echo "📂 Copie des sources dans $TMP_DIR..."
+# Copy sources to temp directory
+echo "📂 Copying sources to $TMP_DIR..."
 cp -r src/* "$TMP_DIR/"
 
-# Définition du chemin vers le fichier globalConstants.ts
+# Define path to globalConstants.ts
 GLOBAL_CONSTANTS_FILE="$TMP_DIR/app/globalConstants.ts"
 
-# Fonction de compilation pour TypeScript
+# TypeScript bundling function
 bundle_ts() {
     local ENTRY_FILE="$1"
     local OUTPUT_FILE="$2"
@@ -64,7 +70,7 @@ bundle_ts() {
     fi
 }
 
-# Fonction de compilation pour SCSS
+# SCSS compilation function
 compile_scss() {
     local SCSS_SOURCE="$1"
     local CSS_TARGET="$2"
@@ -82,7 +88,7 @@ compile_scss() {
     fi
 }
 
-# 1. Dépendances & Vérification des types
+# 1. Dependencies & Type checking
 npm i -D
 
 echo "▶️ Type checking..."
@@ -99,25 +105,25 @@ if ! npx tsc --noEmit -p tsconfig.app.sidePanel.json; then
     exit 1
 fi
 
-# --- MODIFICATION DU NUMÉRO DE VERSION ---
+# --- VERSION NUMBER INJECTION ---
 if [ -n "$VERSION_NUMBER" ]; then
-    echo "🏷️ Version spécifiée : $VERSION_NUMBER"
+    echo "🏷️ Specified version: $VERSION_NUMBER"
 
-    # Remplacement dans les manifests
+    # Replace version in manifests
     sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_NUMBER\"/g" "$TMP_DIR/manifest.json"
     sed -i "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION_NUMBER\"/g" "$TMP_DIR/manifest_firefox.json"
 
-    # Remplacement dans le code TS
+    # Replace version in TS code
     if [ -f "$GLOBAL_CONSTANTS_FILE" ]; then
         sed -i "s/__VERSION__/$VERSION_NUMBER/g" "$GLOBAL_CONSTANTS_FILE"
-        echo "✅ Version injectée dans globalConstants.ts"
+        echo "✅ Version injected into globalConstants.ts"
     else
-        echo "⚠️ Avertissement : $GLOBAL_CONSTANTS_FILE introuvable."
+        echo "⚠️ Warning: $GLOBAL_CONSTANTS_FILE not found."
     fi
 fi
 # ------------------------------------------
 
-# 2. Boucle de build pour générer les deux dossiers
+# 2. Build loop for both target browsers
 for TARGET in chrome firefox; do
 
     OUT_DIR="$CHROME_DIR"
@@ -129,7 +135,7 @@ for TARGET in chrome firefox; do
 
     echo "🚀 Building extension for target: $TARGET into $OUT_DIR..."
 
-    # Utilisation des sources du dossier temporaire
+    # Use sources from temp directory
     mkdir -p "$OUT_DIR"
     cp -r "$TMP_DIR/assets" "$OUT_DIR/"
     cp -r "$TMP_DIR/views" "$OUT_DIR/"
@@ -144,32 +150,32 @@ for TARGET in chrome firefox; do
         exit 1
     fi
 
-    # Bundling JS depuis TEMP
+    # JS bundling from TEMP
     bundle_ts "$TMP_DIR/app/contexts/content.entry.ts" "$OUT_DIR/app.content.js" --minify
     bundle_ts "$TMP_DIR/app/contexts/serviceWorker.entry.ts" "$OUT_DIR/app.worker.js" --minify
     bundle_ts "$TMP_DIR/app/contexts/sidePanel.entry.ts" "$OUT_DIR/app.sidepanel.js" --minify
 
-    # Compilation CSS depuis TEMP
+    # CSS compilation from TEMP
     compile_scss "$TMP_DIR/app/app.scss" "$OUT_DIR/app.css"
     compile_scss "$TMP_DIR/app/contexts/sidePanel/sidepanel.scss" "$OUT_DIR/sidepanel.css"
 done
 
-# --- CREATION DES ARCHIVES ZIP (MODE PACKAGE) ---
+# --- ZIP ARCHIVE CREATION (PACKAGE MODE) ---
 if [ "$IS_PACKAGE" = true ]; then
-    echo "📦 Création de l'archive pour Chrome..."
+    echo "📦 Creating Chrome archive..."
     (cd "$CHROME_DIR" && zip -qr "../ogame-multiverse_chrome.zip" .)
     
-    echo "📦 Création de l'archive pour Firefox..."
+    echo "📦 Creating Firefox archive..."
     (cd "$FIREFOX_DIR" && zip -qr "../ogame-multiverse_firefox.zip" .)
     
-    echo "✅ Archives créées avec succès dans ./dist/"
+    echo "✅ Archives successfully created in ./dist/"
 fi
 # ------------------------------------------------
 
-# Nettoyage final du dossier temporaire
+# Final cleanup of temp directory
 rm -rf "$TMP_DIR"
 
-# Nettoyage du dossier de build
+# Cleanup of build directory
 rm -rf "$BUILD_DIR"
 
 echo "🎉 All builds complete. $CHROME_DIR (Chrome) and $FIREFOX_DIR (Firefox) are ready."

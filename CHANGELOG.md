@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-08-16
+
+### Added
+* **Compliance Rules Centralization**: `TolerationRules` (`tolerationRules.ts`) to centralize critical game compliance logic that determines the extension's official toleration status.
+* **Git Pre-commit Hook**: Automated check to detect and warn about changes affecting compliance rules or their consumption.
+* **Automated Hook Setup**: Automatic Git hooks path configuration (`core.hooksPath .githooks`) integrated into `build.sh`.
+
+### Changed
+* **Last Seen Indicators**: Fleet, message, and chat indicators now act as "last seen" snapshots that only update when you actively view a universe tab.
+* **Persistent Display**: Since indicators are now static snapshots, they remain displayed in the SidePanel whenever a universe tab is open—regardless of whether it is active, in the background, or in another window.
+
 ## [1.1.0.0] - 2026-08-07
 
 ### Added

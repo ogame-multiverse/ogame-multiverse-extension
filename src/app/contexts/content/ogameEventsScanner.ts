@@ -8,37 +8,55 @@ import { SidePanelUniverseCounters } from "../../model/sidePanel/sidePanelUniver
 import { UniverseDataNormalizer } from '../../universeDataNormalizer';
 import { OgameMetadatas } from './ogameMetadatas';
 import { OgmWindowUtils } from './ogmWindowUtils';
+import { tolerationRules } from './tolerationRules';
 
 export class OgameEventsScanner {
   private observer: MutationObserver | undefined;
+  private readonly watchedSelectors = ['#newmessagesindicatorcomponent', '#eventboxFilled'];
 
   constructor(private readonly logger: Logger) { }
 
   public async StartAsync(): Promise<void> {
+    // Clean up any previous event listeners to avoid duplicates
+    $(document).off('visibilitychange.OgameHeaderScanner');
 
-
-
-    if (this.observer) {
-      this.logger.warn("Start called but already observing.");
-      return;
-    }
-
-    // Listen for visibility changes to sync counters when the tab becomes visible
-    $(document).on('visibilitychange.OgameHeaderScanner', () => {
-      if (document.visibilityState === 'visible') {
-        this.logger.debug("Tab became visible, syncing counters...");
-        this.Sync();
+    // Listen for visibility changes to start/stop observation and sync counters when the tab becomes visible
+    $(document).on('visibilitychange.OgameHeaderScanner', async () => {
+      if (tolerationRules.EventsMonitoringIsEnabledForCurrentTab()) {
+        this.logger.debug("Tab became visible, syncing asnd starting observation...");
+        await this.Sync();
+        await this.StartObservingAsync();
+      } else {
+        this.logger.debug("Tab became hidden, stopping observation.");
+        this.StopObserving();
       }
     });
 
-    // Wait for the relevant DOM elements to be present before starting observation
-    const watchedSelectors = ['#newmessagesindicatorcomponent', '#eventboxFilled'];
+    //Initial sync and observation if the tab is already visible
+    if (tolerationRules.EventsMonitoringIsEnabledForCurrentTab()) {
+      await this.StartObservingAsync();
+      this.Sync();
+    }
+  }
+
+  public Stop(): void {
+    $(document).off('visibilitychange.OgameHeaderScanner');
+    this.StopObserving();
+  }
+
+  private async StartObservingAsync(): Promise<void> {
+    if (this.observer) return; // Already observing
+
     try {
-      await DomDelayer.WaitForAllQuerySelectors(watchedSelectors, 50, AbortSignal.timeout(5000));
-      // Change detection for message and fleet counters
+      await DomDelayer.WaitForAllQuerySelectors(this.watchedSelectors, 50, AbortSignal.timeout(5000));
+
+      // Vérification de sécurité si le tab s'est masqué pendant l'attente du DOM
+      if (!tolerationRules.EventsMonitoringIsEnabledForCurrentTab()) return;
+
       this.observer = Observer.Observe(
-        [{ element: $(watchedSelectors.join(', ')), options: { childList: true, subtree: true } }],
+        [{ element: $(this.watchedSelectors.join(', ')), options: { childList: true, subtree: true } }],
         (mutations) => {
+          if (!tolerationRules.EventsMonitoringIsEnabledForCurrentTab()) return;
           if (!mutations || mutations.length === 0) return;
 
           // Ignore les mutations liées au compteur temporaire au survol
@@ -51,26 +69,24 @@ export class OgameEventsScanner {
       this.logger.debug("Started observing DOM changes for message and fleet counters.");
     }
     catch (error) {
-      this.logger.error("Error waiting for DOM elements to observe:", { watchedSelectors, error });
-    }
-    finally {
-      // Initial sync on start
-      this.logger.debug("Performing initial sync of counters.");
-      this.Sync();
+      this.logger.error("Error waiting for DOM elements to observe:", { watchedSelectors: this.watchedSelectors, error });
     }
   }
 
-  public Stop(): void {
-    $(document).off('visibilitychange.OgameHeaderScanner');
+  private StopObserving(): void {
     if (this.observer) {
       this.observer.disconnect();
       this.observer = undefined;
-      this.logger.info("Observer disconnected.");
+      this.logger.debug("Observer disconnected.");
     }
   }
 
   private async Sync(): Promise<void> {
+    if (!tolerationRules.EventsMonitoringIsEnabledForCurrentTab()) return;
+
     Debouncer.Debounce("OgameHeaderScanner.Sync", () => {
+      if (!tolerationRules.EventsMonitoringIsEnabledForCurrentTab()) return;
+
       const universeKey = UniverseDataNormalizer.NormalizeUniverseKey(OgmWindowUtils.UNIVERSE_KEY);
       if (universeKey === '') return;
 
