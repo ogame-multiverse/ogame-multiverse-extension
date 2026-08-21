@@ -4,6 +4,11 @@
   "version": "0.0.0",
   "description": "OGame Multiverse is an extension helping you to play multiple universe at time.",
   "host_permissions": [ "https://*.ogame.gameforge.com/game/*" ],
+  "data_collection_permissions": {
+    "required": [
+      "none"
+    ]
+  },
   "permissions": [ "menus", "storage" ],
   "icons": {
     "512": "assets/images/logo.png",
