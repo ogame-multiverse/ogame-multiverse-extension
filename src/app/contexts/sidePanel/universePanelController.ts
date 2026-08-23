@@ -569,10 +569,19 @@ export class UniversePanelController {
       }
     });
 
-    // Reorder DOM to match the incoming statuses so remote reorderings propagate.
+    // Reorder only misplaced rows so untouched rows keep their DOM identity (avoids re-triggering CSS animations).
+    const desiredRows: HTMLElement[] = [];
     universeStatuses.forEach((status) => {
       const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(status.UniverseKey));
-      if (rowView) container.appendChild(rowView.row);
+      if (rowView) desiredRows.push(rowView.row);
+    });
+    let cursor: Element | null = container.firstElementChild;
+    desiredRows.forEach((row) => {
+      if (cursor === row) {
+        cursor = row.nextElementSibling;
+      } else {
+        container.insertBefore(row, cursor);
+      }
     });
   }
 
@@ -757,10 +766,18 @@ export class UniversePanelController {
   private ApplyUniverseOrder(order: string[]): void {
     const container = document.getElementById('universe-list');
     if (!container) return;
+    const desiredRows: HTMLElement[] = [];
     order.forEach((rawKey) => {
-      const key = this.NormalizeUniverseKey(rawKey);
-      const rowView = this.universeRowsByKey.get(key);
-      if (rowView) container.appendChild(rowView.row);
+      const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(rawKey));
+      if (rowView) desiredRows.push(rowView.row);
+    });
+    let cursor: Element | null = container.firstElementChild;
+    desiredRows.forEach((row) => {
+      if (cursor === row) {
+        cursor = row.nextElementSibling;
+      } else {
+        container.insertBefore(row, cursor);
+      }
     });
   }
 
