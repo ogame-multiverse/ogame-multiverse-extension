@@ -1,0 +1,55 @@
+name: Dev Build (any branch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Optional version tag injected into manifests (e.g. 0.0.0-dev). Leave empty for none.'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Compute artifact suffix
+        id: suffix
+        run: |
+          SAFE_BRANCH="$(echo "${GITHUB_REF_NAME}" | tr '/ ' '__' | tr -cd '[:alnum:]._-')"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "safe_branch=${SAFE_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "suffix=${SAFE_BRANCH}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & Package
+        run: |
+          chmod +x ./build.sh
+          if [ -n "${{ inputs.version_tag }}" ]; then
+            ./build.sh package version "${{ inputs.version_tag }}"
+          else
+            ./build.sh package
+          fi
+
+      - name: Rename Zips with branch + sha suffix
+        run: |
+          cd dist
+          mv ogame-multiverse_chrome.zip "ogame-multiverse_chrome-${{ steps.suffix.outputs.suffix }}.zip"
+          mv ogame-multiverse_firefox.zip "ogame-multiverse_firefox-${{ steps.suffix.outputs.suffix }}.zip"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogame-multiverse-dev-${{ steps.suffix.outputs.suffix }}
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
