@@ -193,6 +193,14 @@ export const Localizations = [
     tr: 'Evreni kaldır',
     br: 'Remover universo',
   }),
+  new I18nValue('SidePanelDragHandleTitle', {
+    en: 'Drag to reorder',
+    fr: 'Glisser pour réordonner',
+    es: 'Arrastrar para reordenar',
+    de: 'Zum Neuanordnen ziehen',
+    tr: 'Yeniden sıralamak için sürükleyin',
+    br: 'Arraste para reordenar',
+  }),
   new I18nValue('ContextMenuToggleSidePanel', {
     en: 'OGame Multiverse - Toggle side panel',
     fr: 'OGame Multiverse - Ouvrir ou fermer le panneau latéral',

@@ -37,6 +37,7 @@ export class UniverseManager {
   public async RegisterUniverseAsync(universeKey: string, universeDomain: string, lastRefreshDate: number): Promise<void> {
     const localSave = await this.saveManager.RegisterUniverseAsync(universeKey, universeDomain, lastRefreshDate);
     this.savesByUniverse.set(universeKey, localSave);
+    await this.saveManager.AppendToUniverseOrderAsync(universeKey);
   }
 
   public async RemoveUniverseAsync(universeKey: string): Promise<void> {
@@ -44,6 +45,7 @@ export class UniverseManager {
     await this.saveManager.RemoveUniverseAsync(universeKey);
     this.savesByUniverse.delete(universeKey);
     this.universeDataByUniverse.delete(universeKey);
+    await this.saveManager.RemoveFromUniverseOrderAsync(universeKey);
   }
 
   public async UpdateUniverseStatusAsync(universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters): Promise<void> {
@@ -71,9 +73,34 @@ export class UniverseManager {
       if (!allUniverseKeys.includes(key)) allUniverseKeys.push(key);
     });
 
-    return Array.from(allUniverseKeys)
-      .sort((a, b) => a.localeCompare(b))
-      .map((universeKey) => this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), tabsMapByUniverse));
+    const orderedKeys = await this.SortUniverseKeysByPersistedOrderAsync(allUniverseKeys);
+    return orderedKeys.map((universeKey) => this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), tabsMapByUniverse));
+  }
+
+  public async SetUniverseOrderAsync(order: string[]): Promise<string[]> {
+    const knownKeys = new Set(Array.from(this.savesByUniverse.keys()).map((k) => k.trim().toLowerCase()));
+    const filtered = (order || []).filter((k) => typeof k === 'string' && knownKeys.has(k.trim().toLowerCase()));
+    const missing = Array.from(knownKeys).filter((k) => !filtered.map((x) => x.trim().toLowerCase()).includes(k)).sort((a, b) => a.localeCompare(b));
+    return await this.saveManager.SaveUniverseOrderAsync([...filtered, ...missing]);
+  }
+
+  private async SortUniverseKeysByPersistedOrderAsync(allUniverseKeys: string[]): Promise<string[]> {
+    const persistedOrder = await this.saveManager.GetUniverseOrderAsync();
+    const keyByNormalized = new Map<string, string>();
+    allUniverseKeys.forEach((key) => keyByNormalized.set(key.trim().toLowerCase(), key));
+
+    const ordered: string[] = [];
+    const consumed = new Set<string>();
+    persistedOrder.forEach((normalized) => {
+      const original = keyByNormalized.get(normalized);
+      if (original && !consumed.has(normalized)) {
+        ordered.push(original);
+        consumed.add(normalized);
+      }
+    });
+
+    const remaining = allUniverseKeys.filter((k) => !consumed.has(k.trim().toLowerCase())).sort((a, b) => a.localeCompare(b));
+    return [...ordered, ...remaining];
   }
 
   private BuildUniverseStatus(universeKey: string, universe: ExtensionLocalData | undefined, tabsMapByUniverse: Map<string, number[]>): SidePanelUniverseStatus {
