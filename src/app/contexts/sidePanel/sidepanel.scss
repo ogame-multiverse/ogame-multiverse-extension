@@ -102,6 +102,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow-x: auto;
 
   .universe-list {
     flex: 1;
@@ -117,11 +118,12 @@ body {
     /* Grid mode : multiple columns, each 340px wide, with a gap of 8px */
     &[data-mode="grid"] {
       display: grid;
-      grid-template-columns: repeat(var(--grid-columns, 1), 340px);
+      grid-template-columns: repeat(min(var(--grid-columns, 1), 4), 340px);
       grid-auto-rows: max-content;
       align-content: start;
       gap: 8px;
-      width: 100%;
+      width: max-content; // Allow the grid to expand based on the number of columns
+      min-width: 100%;
     }
 
     .universe-column {

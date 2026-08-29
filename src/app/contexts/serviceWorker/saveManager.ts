@@ -45,11 +45,14 @@ export class SaveManager {
       const result = await browser.storage.local.get(UNIVERSE_GRID_STORAGE_KEY);
       const raw = result?.[UNIVERSE_GRID_STORAGE_KEY];
       if (!Array.isArray(raw)) return [];
-      return raw.filter((row): row is string[] => Array.isArray(row)).map((row) => row.filter((k): k is string => typeof k === 'string').map((k) => k.trim().toLowerCase()).filter(Boolean));
+      return raw
+        .filter((row): row is string[] => Array.isArray(row))
+        .map((row) => row.filter((k): k is string => typeof k === 'string').map((k) => k.trim().toLowerCase()).filter(Boolean))
+        .filter((row) => row.length > 0);
     }
     catch {
       return [];
-    }    
+    }
   }
 
   public async SaveUniverseGridAsync(grid: string[][]): Promise<string[][]> {
@@ -59,22 +62,46 @@ export class SaveManager {
   }
 
 
-  public async AppendToUniverseOrderAsync(universeKey: string): Promise<void> {
+  public async AppendToUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
     const key = (universeKey || '').trim().toLowerCase();
     if (!key) return;
+
+    // Add to order (1D)
     const order = await this.GetUniverseOrderAsync();
-    if (order.includes(key)) return;
-    order.push(key);
-    await this.SaveUniverseOrderAsync(order);
+    if (!order.includes(key)) {
+      order.push(key);
+      await this.SaveUniverseOrderAsync(order);
+    }
+
+    // Add to grid (2D)
+    const grid = await this.GetUniverseGridAsync();
+    const existsInGrid = grid.some((column) => column.includes(key));
+
+    if (!existsInGrid) {
+      if (grid.length === 0) {
+        grid.push([key]);
+      } else {
+        grid[grid.length - 1].push(key);
+      }
+      await this.SaveUniverseGridAsync(grid);
+    }
   }
 
-  public async RemoveFromUniverseOrderAsync(universeKey: string): Promise<void> {
+  public async RemoveFromUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
     const key = (universeKey || '').trim().toLowerCase();
     if (!key) return;
+
+    // Remove from order (1D)
     const order = await this.GetUniverseOrderAsync();
-    const next = order.filter((k) => k !== key);
-    if (next.length === order.length) return;
-    await this.SaveUniverseOrderAsync(next);
+    const nextOrder = order.filter((k) => k !== key);
+    if (nextOrder.length !== order.length) {
+      await this.SaveUniverseOrderAsync(nextOrder);
+    }
+
+    // Remove from grid (2D)
+    const grid = await this.GetUniverseGridAsync();
+    const nextGrid = grid.map((column) => column.filter((k) => k !== key));
+    await this.SaveUniverseGridAsync(nextGrid);
   }
 
   private ProcessRow(items: string[], seen: Set<string>): string[] {
@@ -97,7 +124,8 @@ export class SaveManager {
     const seen = new Set<string>();
     return (grid || [])
       .filter((column) => Array.isArray(column))
-      .map((column) => this.ProcessRow(column, seen));
+      .map((column) => this.ProcessRow(column, seen))
+      .filter((column) => column.length > 0);
   }
 
   public async GetExtensionLocalDataAsync(universeKey: string): Promise<ExtensionLocalData> {

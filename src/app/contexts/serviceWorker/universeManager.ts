@@ -37,7 +37,7 @@ export class UniverseManager {
   public async RegisterUniverseAsync(universeKey: string, universeDomain: string, lastRefreshDate: number): Promise<void> {
     const localSave = await this.saveManager.RegisterUniverseAsync(universeKey, universeDomain, lastRefreshDate);
     this.savesByUniverse.set(universeKey, localSave);
-    await this.saveManager.AppendToUniverseOrderAsync(universeKey);
+    await this.saveManager.AppendToUniverseOrderAndGridAsync(universeKey);
   }
 
   public async RemoveUniverseAsync(universeKey: string): Promise<void> {
@@ -45,7 +45,7 @@ export class UniverseManager {
     await this.saveManager.RemoveUniverseAsync(universeKey);
     this.savesByUniverse.delete(universeKey);
     this.universeDataByUniverse.delete(universeKey);
-    await this.saveManager.RemoveFromUniverseOrderAsync(universeKey);
+    await this.saveManager.RemoveFromUniverseOrderAndGridAsync(universeKey);
   }
 
   public async UpdateUniverseStatusAsync(universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters): Promise<void> {

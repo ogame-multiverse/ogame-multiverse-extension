@@ -875,25 +875,34 @@ export class UniversePanelController {
         const lastColItems = colMap.get(sortedLefts[sortedLefts.length - 1])!;
         const lastColRect = lastColItems[0].getBoundingClientRect();
 
-        // Check if the cursor is far left or far right of the columns to indicate a new column drop
-        const isFarLeft = event.clientX < firstColRect.left + 15;
-        const isFarRight = event.clientX > lastColRect.right - 15;
+        // Determine if we can create a new column (max 4 columns allowed)
+        const canCreateNewColumn = sortedLefts.length < 4;
+
+        // Check if the cursor is far left or far right to indicate a new column
+        const isFarLeft = canCreateNewColumn && (event.clientX < firstColRect.left + 25);
+        const isFarRight = canCreateNewColumn && (event.clientX > containerRect.right - 35 || event.clientX > lastColRect.right - 25);
 
         if (isFarLeft) {
+          const firstColBottom = colMap.get(sortedLefts[0])!.slice(-1)[0].getBoundingClientRect().bottom;
+          const colHeight = firstColBottom - firstColRect.top;
+
           indicator.style.top = `${firstColRect.top - containerRect.top}px`;
           indicator.style.left = `${firstColRect.left - containerRect.left - 4}px`;
           indicator.style.width = '4px';
-          indicator.style.height = `${containerRect.height - 10}px`;
+          indicator.style.height = `${colHeight}px`;
           indicator.style.display = 'block';
           dropTargetState = { type: 'new-col-first' };
           return;
         }
 
         if (isFarRight) {
+          const lastColBottom = lastColItems[lastColItems.length - 1].getBoundingClientRect().bottom;
+          const colHeight = lastColBottom - lastColRect.top;
+
           indicator.style.top = `${lastColRect.top - containerRect.top}px`;
           indicator.style.left = `${lastColRect.right - containerRect.left + 2}px`;
           indicator.style.width = '4px';
-          indicator.style.height = `${containerRect.height - 10}px`;
+          indicator.style.height = `${colHeight}px`;
           indicator.style.display = 'block';
           dropTargetState = { type: 'new-col-last' };
           return;
