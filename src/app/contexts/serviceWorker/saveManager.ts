@@ -1,11 +1,66 @@
+import browser from 'webextension-polyfill';
 import { ExtensionLocalData } from '../../model/save/extensionLocalData';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
 import { ExtensionStorageService } from './extensionStorageService';
 
+// Reserved storage key holding the user-defined universe display order.
+export const UNIVERSE_ORDER_STORAGE_KEY = '__ogm_universe_order';
+
 export class SaveManager {
   constructor(private readonly extensionStorageService: ExtensionStorageService<ExtensionLocalData>) { }
   public async GetAllExtensionLocalDataAsync(): Promise<Record<string, ExtensionLocalData>> {
-    return await this.extensionStorageService.GetAll();
+    const all = await this.extensionStorageService.GetAll();
+    // Strip reserved keys so callers only see per-universe data.
+    delete (all as Record<string, unknown>)[UNIVERSE_ORDER_STORAGE_KEY];
+    return all;
+  }
+
+  public async GetUniverseOrderAsync(): Promise<string[]> {
+    try {
+      const result = await browser.storage.local.get(UNIVERSE_ORDER_STORAGE_KEY);
+      const raw = result?.[UNIVERSE_ORDER_STORAGE_KEY];
+      if (!Array.isArray(raw)) return [];
+      return raw.filter((k): k is string => typeof k === 'string').map((k) => k.trim().toLowerCase()).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  public async SaveUniverseOrderAsync(order: string[]): Promise<string[]> {
+    const normalized = this.NormalizeOrder(order);
+    await browser.storage.local.set({ [UNIVERSE_ORDER_STORAGE_KEY]: normalized });
+    return normalized;
+  }
+
+  public async AppendToUniverseOrderAsync(universeKey: string): Promise<void> {
+    const key = (universeKey || '').trim().toLowerCase();
+    if (!key) return;
+    const order = await this.GetUniverseOrderAsync();
+    if (order.includes(key)) return;
+    order.push(key);
+    await this.SaveUniverseOrderAsync(order);
+  }
+
+  public async RemoveFromUniverseOrderAsync(universeKey: string): Promise<void> {
+    const key = (universeKey || '').trim().toLowerCase();
+    if (!key) return;
+    const order = await this.GetUniverseOrderAsync();
+    const next = order.filter((k) => k !== key);
+    if (next.length === order.length) return;
+    await this.SaveUniverseOrderAsync(next);
+  }
+
+  private NormalizeOrder(order: string[]): string[] {
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+    for (const raw of order || []) {
+      if (typeof raw !== 'string') continue;
+      const key = raw.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      normalized.push(key);
+    }
+    return normalized;
   }
 
   public async GetExtensionLocalDataAsync(universeKey: string): Promise<ExtensionLocalData> {

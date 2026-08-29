@@ -71,6 +71,12 @@ class ServiceWorkerContextApp {
       sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptions(this.logger, data.universeKey, data.options);
     });
 
+    serviceWorkerProtocolRegistrar.OnSaveUniverseOrder(this.logger, async (order: string[]) => {
+      const normalized = await this.universeManager.SetUniverseOrderAsync(order);
+      sidePanelBroadcastProtocolClient.UpdateUniverseOrder(this.logger, normalized);
+      return normalized;
+    });
+
     serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
       this.sidePanelManager.ToggleSidePanel(sender)
     );

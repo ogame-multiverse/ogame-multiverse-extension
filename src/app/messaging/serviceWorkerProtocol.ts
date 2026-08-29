@@ -14,6 +14,7 @@ export interface ServiceWorkerProtocol {
   RemoveUniverse(universeKey: string): Promise<void>
   GetUniverseSidePanelOptions(universeKey: string): Promise<UniverseSidePanelOptions>
   SaveUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): Promise<void>
+  SaveUniverseOrder(order: string[]): Promise<string[]>
   ToggleSidePanel(): void
 }
 
@@ -58,6 +59,10 @@ export class ServiceWorkerProtocolClient {
     return this.send(logger, 'SaveUniverseSidePanelOptions', { universeKey, options })
   }
 
+  public SaveUniverseOrderAsync(logger: Logger, order: string[]) {
+    return this.send(logger, 'SaveUniverseOrder', order)
+  }
+
   public ToggleSidePanel(logger: Logger) {
     return this.send(logger, 'ToggleSidePanel');
   }
@@ -96,6 +101,10 @@ export class ServiceWorkerProtocolRegistrar {
 
   public OnSaveUniverseSidePanelOptions(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseSidePanelOptions']): void {
     this.listen(logger, 'SaveUniverseSidePanelOptions', handler);
+  }
+
+  public OnSaveUniverseOrder(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseOrder']): void {
+    this.listen(logger, 'SaveUniverseOrder', handler);
   }
 
   public OnToggleSidePanel(logger: Logger, handler: (data: void, sender: browser.Runtime.MessageSender) => void): void {

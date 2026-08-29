@@ -10,6 +10,7 @@ export interface SidePanelBroadcastProtocol {
   UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters, isOpen: boolean }): void
   UpdateUniverseOpenState(data: { universeKey: string, isOpen: boolean }): void
   UpdateUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): void
+  UpdateUniverseOrder(data: { order: string[] }): void
   RemoveUniverse(universeKey: string): void
 }
 
@@ -43,6 +44,9 @@ export class SidePanelBroadcastProtocolClient {
   public UpdateUniverseSidePanelOptions(logger: Logger, universeKey: string, options: UniverseSidePanelOptions) {
     return this.send(logger, 'UpdateUniverseSidePanelOptions', { universeKey, options })
   }
+  public UpdateUniverseOrder(logger: Logger, order: string[]) {
+    return this.send(logger, 'UpdateUniverseOrder', { order })
+  }
   public RemoveUniverse(logger: Logger, universeKey: string) {
     return this.send(logger, 'RemoveUniverse', universeKey)
   }
@@ -67,6 +71,10 @@ export class SidePanelBroadcastProtocolRegistrar {
   }
   public OnUpdateUniverseSidePanelOptions(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseSidePanelOptions']): void {
     this.listen(logger, 'UpdateUniverseSidePanelOptions', handler);
+  }
+
+  public OnUpdateUniverseOrder(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseOrder']): void {
+    this.listen(logger, 'UpdateUniverseOrder', handler);
   }
 
   public OnRemoveUniverse(logger: Logger, handler: SidePanelBroadcastProtocol['RemoveUniverse']): void {

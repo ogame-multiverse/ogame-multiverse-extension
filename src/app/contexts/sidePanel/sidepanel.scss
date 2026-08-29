@@ -135,6 +135,18 @@ body {
       break-inside: avoid;
       margin-bottom: 5px;
 
+      &.dragging {
+        opacity: 0.4;
+      }
+
+      &.drop-before {
+        box-shadow: inset 0 2px 0 0 $ogm-color-orange;
+      }
+
+      &.drop-after {
+        box-shadow: inset 0 -2px 0 0 $ogm-color-orange;
+      }
+
 
 
       .universe-item {
@@ -164,6 +176,23 @@ body {
             display: flex;
             flex-flow: row;
             column-gap: 10px;
+
+            .universe-drag-handle {
+              display: inline-flex;
+              align-items: center;
+              opacity: 0.5;
+              cursor: grab;
+              user-select: none;
+              font-size: 20px;
+
+              &:hover {
+                opacity: 1;
+              }
+
+              &:active {
+                cursor: grabbing;
+              }
+            }
 
             .universe-status-badges {
               display: inline-flex;

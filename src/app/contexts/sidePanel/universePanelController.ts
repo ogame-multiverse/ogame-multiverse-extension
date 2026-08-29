@@ -57,6 +57,8 @@ export class UniversePanelController {
   private readonly localTabIds = new Set<number>();
   private readonly activeLocalTabIds = new Set<number>();
 
+  private containerDnDListenersAttached = false;
+
   private readonly onTabChanged = () => { void this.Refresh(); };
 
   constructor(private readonly logger: Logger) {
@@ -83,6 +85,10 @@ export class UniversePanelController {
         this.UpdateSingleUniverseOptions(data.universeKey, data.options);
       }
     );
+
+    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseOrder(this.logger, (data: { order: string[] }) => {
+      this.ApplyUniverseOrder(data?.order || []);
+    });
   }
 
   /**
@@ -372,6 +378,31 @@ export class UniversePanelController {
     tempContainer.innerHTML = this.GetUniverseRowTemplate(status.UniverseKey);
     const row = tempContainer.firstElementChild as HTMLElement;
 
+    row.setAttribute('data-universe-key', status.UniverseKey);
+    row.setAttribute('draggable', 'false');
+
+    const dragHandle = row.querySelector('.universe-drag-handle') as HTMLElement | null;
+    if (dragHandle) {
+      dragHandle.addEventListener('mousedown', () => row.setAttribute('draggable', 'true'));
+      dragHandle.addEventListener('mouseup', () => row.setAttribute('draggable', 'false'));
+      dragHandle.addEventListener('mouseleave', () => {
+        if (!row.classList.contains('dragging')) row.setAttribute('draggable', 'false');
+      });
+    }
+
+    row.addEventListener('dragstart', (event) => {
+      if (!event.dataTransfer) return;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', status.UniverseKey);
+      row.classList.add('dragging');
+    });
+
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      row.setAttribute('draggable', 'false');
+      this.ClearDropIndicators();
+    });
+
     const thresholdSelect = row.querySelector('.universe-threshold-select') as HTMLSelectElement;
     const refreshButton = row.querySelector('#universe-refresh-button') as HTMLButtonElement;
     const settingsButton = row.querySelector('.universe-settings-button') as HTMLButtonElement;
@@ -513,6 +544,7 @@ export class UniversePanelController {
 
   private SyncUniverseRows(container: HTMLElement, universeStatuses: SidePanelUniverseStatus[]): void {
     container.querySelector('.universe-empty')?.remove();
+    this.EnsureContainerDnDListeners(container);
     const nextUniverseKeys = new Set<string>();
 
     universeStatuses.forEach((status) => {
@@ -534,6 +566,21 @@ export class UniversePanelController {
         rowView.row.remove();
         this.universeRowsByKey.delete(key);
         this.lastSecondByUniverseKey.delete(key);
+      }
+    });
+
+    // Reorder only misplaced rows so untouched rows keep their DOM identity (avoids re-triggering CSS animations).
+    const desiredRows: HTMLElement[] = [];
+    universeStatuses.forEach((status) => {
+      const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(status.UniverseKey));
+      if (rowView) desiredRows.push(rowView.row);
+    });
+    let cursor: Element | null = container.firstElementChild;
+    desiredRows.forEach((row) => {
+      if (cursor === row) {
+        cursor = row.nextElementSibling;
+      } else {
+        container.insertBefore(row, cursor);
       }
     });
   }
@@ -660,12 +707,87 @@ export class UniversePanelController {
     return (universeKey || '').trim().toLowerCase();
   }
 
+  private EnsureContainerDnDListeners(container: HTMLElement): void {
+    if (this.containerDnDListenersAttached) return;
+    this.containerDnDListenersAttached = true;
+
+    container.addEventListener('dragover', (event) => {
+      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
+      const dragging = container.querySelector('.universe-item-box.dragging') as HTMLElement | null;
+      if (!dragging) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      if (!target || target === dragging) {
+        this.ClearDropIndicators();
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      const before = event.clientY < rect.top + rect.height / 2;
+      this.ClearDropIndicators();
+      target.classList.add(before ? 'drop-before' : 'drop-after');
+    });
+
+    container.addEventListener('dragleave', (event) => {
+      if (event.target === container) this.ClearDropIndicators();
+    });
+
+    container.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const dragging = container.querySelector('.universe-item-box.dragging') as HTMLElement | null;
+      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
+      this.ClearDropIndicators();
+      if (!dragging) return;
+      if (target && target !== dragging) {
+        const rect = target.getBoundingClientRect();
+        const before = event.clientY < rect.top + rect.height / 2;
+        target.parentElement?.insertBefore(dragging, before ? target : target.nextSibling);
+      }
+      const newOrder = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'))
+        .map((el) => el.getAttribute('data-universe-key') || '')
+        .filter(Boolean);
+      void this.PersistUniverseOrderAsync(newOrder);
+    });
+  }
+
+  private ClearDropIndicators(): void {
+    document.querySelectorAll('.universe-item-box.drop-before, .universe-item-box.drop-after')
+      .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+  }
+
+  private async PersistUniverseOrderAsync(order: string[]): Promise<void> {
+    try {
+      await serviceWorkerProtocolClient.SaveUniverseOrderAsync(this.logger, order);
+    } catch (error) {
+      this.logger.error('Failed to persist universe order', error);
+      this.Refresh();
+    }
+  }
+
+  private ApplyUniverseOrder(order: string[]): void {
+    const container = document.getElementById('universe-list');
+    if (!container) return;
+    const desiredRows: HTMLElement[] = [];
+    order.forEach((rawKey) => {
+      const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(rawKey));
+      if (rowView) desiredRows.push(rowView.row);
+    });
+    let cursor: Element | null = container.firstElementChild;
+    desiredRows.forEach((row) => {
+      if (cursor === row) {
+        cursor = row.nextElementSibling;
+      } else {
+        container.insertBefore(row, cursor);
+      }
+    });
+  }
+
   private GetUniverseRowTemplate(universeKey: string): string {
     return `
       <div class="universe-item-box">
         <div class="universe-item">
           <div class="universe-details">
             <div class="universe-head">
+              <span class="universe-drag-handle material-symbols-outlined" aria-hidden="true" title="${Localizator.Translate('SidePanelDragHandleTitle')}">drag_indicator</span>
               <div class="universe-status-badges" aria-hidden="true"></div>
               <div class="universe-title"></div>
             </div>
