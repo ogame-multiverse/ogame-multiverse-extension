@@ -40,7 +40,7 @@ class BaseExtensionStorageService {
  * Generic base class to manage an extension storage area.
  * T is the type of the stored value (e.g., string, number, MySettingsObject).
  */
-export class ExtensionStorageService<T> extends BaseExtensionStorageService {
+export class ExtensionStorageService extends BaseExtensionStorageService {
   private storageArea: browser.Storage.StorageArea;
 
   constructor(
@@ -56,7 +56,7 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
    * @param key The key to retrieve.
    * @returns A Promise resolved with the value (T) or null if the key does not exist.
    */
-  public async Get(key: string): Promise<T | null> {
+  public async Get<T>(key: string): Promise<T | null> {
     try {
       // Request the specific key; the API returns {key: value}
       const result = await this.storageArea.get(key);
@@ -80,7 +80,7 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
    * @param value The value to save (must match type T).
    * @returns An empty Promise.
    */
-  public async Set(key: string, value: T): Promise<void> {
+  public async Set<T>(key: string, value: T): Promise<void> {
     const sizeInBytes = BaseExtensionStorageService.GetByteSize(value);
     this.logger.debug(`💾 About to save ${sizeInBytes} bytes into ${this.area} storage with key '${key}'`);
     try {
@@ -124,19 +124,32 @@ export class ExtensionStorageService<T> extends BaseExtensionStorageService {
   }
 
   /**
-     * Returns all key/value pairs from the storage area.
-     */
-  public async GetAll(): Promise<Record<string, T | null>> {
+   * Retrieves all key-value pairs from the storage area.
+   * @param typeGuard Optional type guard function to filter values of type T.
+   * @returns A Promise resolved with a record of key-value pairs, filtered by the type guard if provided.
+   */
+  public async GetAll<T = any>(typeGuard?: (value: unknown) => value is T
+  ): Promise<Record<string, T>> {
     try {
-      const result = await this.storageArea.get(null);
-      // 🔧 Correction : Cast explicite du résultat vers le type attendu
-      return (result ?? {}) as Record<string, T | null>;
+      const result = (await this.storageArea.get(null)) ?? {};
+
+      // If no predicate is provided, return all entries as-is
+      if (!typeGuard) return result as Record<string, T>;
+
+      // Strict runtime filtering: keep only entries matching the type predicate
+      const filtered: Record<string, T> = {};
+      for (const [key, value] of Object.entries(result)) {
+        if (typeGuard(value)) {
+          filtered[key] = value;
+        }
+      }
+
+      return filtered;
     } catch (error) {
       this.logger.error(`⚠️ Error reading all keys from '${this.area}' storage:`, error);
       return {};
     }
   }
-
   /**
    * Returns the total size in bytes of the whole storage area.
    */

@@ -7,12 +7,20 @@ import { ExtensionStorageService } from './extensionStorageService';
 export const UNIVERSE_ORDER_STORAGE_KEY = '__ogm_universe_order';
 
 export class SaveManager {
-  constructor(private readonly extensionStorageService: ExtensionStorageService<ExtensionLocalData>) { }
+  constructor(private readonly extensionStorageService: ExtensionStorageService) { }
+  private IsExtensionLocalData(val: unknown): val is ExtensionLocalData {
+    return (
+      typeof val === 'object' &&
+      val !== null &&
+      !Array.isArray(val) &&
+      ('UniverseKey' in val || 'LastRefreshDate' in val)
+    );
+  }
+
   public async GetAllExtensionLocalDataAsync(): Promise<Record<string, ExtensionLocalData>> {
-    const all = await this.extensionStorageService.GetAll();
-    // Strip reserved keys so callers only see per-universe data.
-    delete (all as Record<string, unknown>)[UNIVERSE_ORDER_STORAGE_KEY];
-    return all;
+    return await this.extensionStorageService.GetAll<ExtensionLocalData>(
+      (val): val is ExtensionLocalData => this.IsExtensionLocalData(val)
+    );
   }
 
   public async GetUniverseOrderAsync(): Promise<string[]> {
@@ -93,7 +101,7 @@ export class SaveManager {
   }
 
   public async RegisterUniverseAsync(universeKey: string, universeDomain: string, lastRefreshDate: number): Promise<ExtensionLocalData> {
-    let localSave = await this.extensionStorageService.Get(universeKey)
+    let localSave = await this.extensionStorageService.Get<ExtensionLocalData>(universeKey)
     if (!localSave) {
       localSave = new ExtensionLocalData({
         UniverseKey: universeKey,

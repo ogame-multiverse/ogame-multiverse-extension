@@ -24,7 +24,7 @@ class ServiceWorkerContextApp {
   private readonly logger = serviceWorkerLoggerFactory.CreateLogger("ServiceWorkerContextApp");
 
   constructor() {
-    this.saveManager = new SaveManager(new ExtensionStorageService<ExtensionLocalData>(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
+    this.saveManager = new SaveManager(new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
     this.universeTabsManager = new UniverseTabsManager(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
     this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
     this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsManager);
