@@ -5,6 +5,7 @@ import { ExtensionStorageService } from './extensionStorageService';
 
 // Reserved storage key holding the user-defined universe display order.
 export const UNIVERSE_ORDER_STORAGE_KEY = '__ogm_universe_order';
+export const UNIVERSE_GRID_STORAGE_KEY = '__ogm_universe_grid';
 
 export class SaveManager {
   constructor(private readonly extensionStorageService: ExtensionStorageService) { }
@@ -25,10 +26,9 @@ export class SaveManager {
 
   public async GetUniverseOrderAsync(): Promise<string[]> {
     try {
-      const result = await browser.storage.local.get(UNIVERSE_ORDER_STORAGE_KEY);
-      const raw = result?.[UNIVERSE_ORDER_STORAGE_KEY];
-      if (!Array.isArray(raw)) return [];
-      return raw.filter((k): k is string => typeof k === 'string').map((k) => k.trim().toLowerCase()).filter(Boolean);
+      const result = await this.extensionStorageService.Get<string[]>(UNIVERSE_ORDER_STORAGE_KEY);
+      if (!Array.isArray(result)) return [];
+      return result.filter((k): k is string => typeof k === 'string').map((k) => k.trim().toLowerCase()).filter(Boolean);
     } catch {
       return [];
     }
@@ -39,6 +39,25 @@ export class SaveManager {
     await browser.storage.local.set({ [UNIVERSE_ORDER_STORAGE_KEY]: normalized });
     return normalized;
   }
+
+  public async GetUniverseGridAsync(): Promise<string[][]> {
+    try {
+      const result = await browser.storage.local.get(UNIVERSE_GRID_STORAGE_KEY);
+      const raw = result?.[UNIVERSE_GRID_STORAGE_KEY];
+      if (!Array.isArray(raw)) return [];
+      return raw.filter((row): row is string[] => Array.isArray(row)).map((row) => row.filter((k): k is string => typeof k === 'string').map((k) => k.trim().toLowerCase()).filter(Boolean));
+    }
+    catch {
+      return [];
+    }    
+  }
+
+  public async SaveUniverseGridAsync(grid: string[][]): Promise<string[][]> {
+    const normalized = this.NormalizeGrid(grid);
+    await browser.storage.local.set({ [UNIVERSE_GRID_STORAGE_KEY]: normalized });
+    return normalized;
+  }
+
 
   public async AppendToUniverseOrderAsync(universeKey: string): Promise<void> {
     const key = (universeKey || '').trim().toLowerCase();
@@ -58,17 +77,27 @@ export class SaveManager {
     await this.SaveUniverseOrderAsync(next);
   }
 
-  private NormalizeOrder(order: string[]): string[] {
-    const seen = new Set<string>();
-    const normalized: string[] = [];
-    for (const raw of order || []) {
+  private ProcessRow(items: string[], seen: Set<string>): string[] {
+    const result: string[] = [];
+    for (const raw of items || []) {
       if (typeof raw !== 'string') continue;
       const key = raw.trim().toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      normalized.push(key);
+      result.push(key);
     }
-    return normalized;
+    return result;
+  }
+
+  private NormalizeOrder(order: string[]): string[] {
+    return this.ProcessRow(order, new Set<string>());
+  }
+
+  private NormalizeGrid(grid: string[][]): string[][] {
+    const seen = new Set<string>();
+    return (grid || [])
+      .filter((column) => Array.isArray(column))
+      .map((column) => this.ProcessRow(column, seen));
   }
 
   public async GetExtensionLocalDataAsync(universeKey: string): Promise<ExtensionLocalData> {

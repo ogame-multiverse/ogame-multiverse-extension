@@ -61,20 +61,34 @@ export class UniverseManager {
   }
 
 
-  public async ListUniverseStatusesAsync(): Promise<SidePanelUniverseStatus[]> {
+  public async ListUniverseStatusesAsync(mode: 'list' | 'grid'): Promise<SidePanelUniverseStatus[][]> {
     const allUniverseKeys = Array.from(this.savesByUniverse.keys());
     await this.universeTabsManager.RebuildOpenTabsStateAsync();
-    const openTabsCountByUniverse = this.universeTabsManager.GetOpenTabsCountByUniverse(allUniverseKeys);
 
     // Add universe keys from the tabs map that are not already in the savesByUniverse map
     const tabsMapByUniverse = this.universeTabsManager.GetTabsMapByUniverse();
-    // This ensures that we include universes that have open tabs but may not have a saved state yet
     tabsMapByUniverse.forEach((_, key) => {
       if (!allUniverseKeys.includes(key)) allUniverseKeys.push(key);
     });
 
-    const orderedKeys = await this.SortUniverseKeysByPersistedOrderAsync(allUniverseKeys);
-    return orderedKeys.map((universeKey) => this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), tabsMapByUniverse));
+    if (mode === 'list') {
+      const orderedKeys = await this.SortUniverseKeysByPersistedOrderAsync(allUniverseKeys);
+      const orderedUniverses = orderedKeys.map((universeKey) =>
+        this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), tabsMapByUniverse)
+      );
+      return [orderedUniverses];
+    }
+
+    if (mode === 'grid') {
+      const orderedGrid = await this.SortUniverseGridByPersistedOrderAsync(allUniverseKeys);
+      return orderedGrid.map((column) =>
+        column.map((universeKey) =>
+          this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), tabsMapByUniverse)
+        )
+      );
+    }
+
+    return [];
   }
 
   public async SetUniverseOrderAsync(order: string[]): Promise<string[]> {
@@ -102,6 +116,59 @@ export class UniverseManager {
     const remaining = allUniverseKeys.filter((k) => !consumed.has(k.trim().toLowerCase())).sort((a, b) => a.localeCompare(b));
     return [...ordered, ...remaining];
   }
+
+  private async SortUniverseGridByPersistedOrderAsync(allUniverseKeys: string[]): Promise<string[][]> {
+    const persistedOrder = await this.saveManager.GetUniverseGridAsync();
+
+    // Map normalized keys to original keys from input
+    const keyByNormalized = new Map<string, string>();
+    (allUniverseKeys || []).forEach((key) => {
+      if (typeof key === 'string') {
+        keyByNormalized.set(key.trim().toLowerCase(), key);
+      }
+    });
+
+    const orderedGrid: string[][] = [];
+    const consumed = new Set<string>();
+
+    // Reconstruct the 2D grid layout using persisted column structures
+    for (const column of persistedOrder || []) {
+      const orderedColumn: string[] = [];
+      for (const normalized of column || []) {
+        const original = keyByNormalized.get(normalized);
+        if (original && !consumed.has(normalized)) {
+          orderedColumn.push(original);
+          consumed.add(normalized);
+        }
+      }
+      orderedGrid.push(orderedColumn);
+    }
+
+    // Collect new or unpositioned keys
+    const remaining = (allUniverseKeys || [])
+      .filter((k) => typeof k === 'string' && !consumed.has(k.trim().toLowerCase()))
+      .sort((a, b) => a.localeCompare(b));
+
+    // Append remaining keys to the first column
+    if (remaining.length > 0) {
+      if (orderedGrid.length === 0) {
+        orderedGrid.push([]);
+      }
+      orderedGrid[0].push(...remaining);
+    }
+
+    return orderedGrid;
+  }
+
+
+  public async SetUniverseGridAsync(grid: string[][]): Promise<string[][]> {
+    const knownKeys = new Set(Array.from(this.savesByUniverse.keys()).map((k) => k.trim().toLowerCase()));
+    const filteredGrid = (grid || []).map((column) => (column || []).filter((k) => typeof k === 'string' && knownKeys.has(k.trim().toLowerCase())));
+    const missing = Array.from(knownKeys).filter((k) => !filteredGrid.flat().map((x) => x.trim().toLowerCase()).includes(k)).sort((a, b) => a.localeCompare(b));
+    return await this.saveManager.SaveUniverseGridAsync([...filteredGrid, missing]);
+  }
+
+
 
   private BuildUniverseStatus(universeKey: string, universe: ExtensionLocalData | undefined, tabsMapByUniverse: Map<string, number[]>): SidePanelUniverseStatus {
     const tabIds = tabsMapByUniverse.get(universeKey) || [];

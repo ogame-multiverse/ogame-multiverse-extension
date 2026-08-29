@@ -36,6 +36,11 @@ $ogm-surface-color-hover: #1a2230;
   -webkit-font-smoothing: antialiased;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
 
 body {
   margin: 0;
@@ -43,6 +48,12 @@ body {
   color: $ogm-text-color;
   font-size: 15px;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .tabs {
@@ -88,47 +99,40 @@ body {
 
 
 #panel-universe {
-
-  .universe-sync-paused {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px;
-    margin-bottom: 8px;
-    border: 1px solid $ogm-border-color;
-    background: color.adjust($ogm-background-color-lighter, $alpha: -0.06);
-    color: $ogm-text-color;
-    border-radius: 6px;
-    font-size: 13px;
-    opacity: 0.95;
-
-    .material-symbols-outlined {
-      color: $ogm-color-red;
-      font-size: 18px;
-      line-height: 1;
-    }
-  }
-  /* When sync is paused, hide message/fleet counters in the universe list */
-  &:has(.universe-sync-paused) {
-    .universe-indicators,
-    .universe-value-group,
-    .universe-value,
-    .universe-value-label {
-      display: none !important;
-    }
-  }
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 
   .universe-list {
-    position: relative; // Obligatoire pour caler le repère de la ligne
-    display: block;
-    column-gap: 5px;
-    column-count: 1;
-    max-width: 340px;
+    flex: 1;
+    position: relative;
+    width: 100%;
+    gap: 8px;
+    /* List mode : single column, 340px wide */
+    &[data-mode='list'] {
+      display: flex;
+      flex-direction: column;
+      max-width: 340px;
+    }
+    /* Grid mode : multiple columns, each 340px wide, with a gap of 8px */
+    &[data-mode="grid"] {
+      display: grid;
+      grid-template-columns: repeat(var(--grid-columns, 1), 340px);
+      grid-auto-rows: max-content;
+      align-content: start;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .universe-column {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
 
     .drop-indicator-line {
       position: absolute;
-      //left/right will be set dynamically in JS
-      height: 3px;
       background-color: $ogm-color-orange;
       border-radius: 2px;
       box-shadow: 0 0 6px $ogm-color-orange;
@@ -142,10 +146,15 @@ body {
     }
 
     .universe-item-box {
-      display: block;
-      width: 100%;
-      break-inside: avoid;
-      margin-bottom: 5px;
+      width: 340px;
+      box-sizing: border-box;
+      margin-bottom: 0;
+
+      .universe-item-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
 
       &.dragging {
         opacity: 0.4;
@@ -188,6 +197,8 @@ body {
               cursor: grab;
               user-select: none;
               font-size: 20px;
+              padding: 6px; // Increase the padding to make the grab area larger
+              margin: -6px; // Negative margin to offset the padding and keep the layout consistent
 
               &:hover {
                 opacity: 1;
@@ -571,7 +582,7 @@ body {
       // Indicators are still shown, since the are only updfated when the universe is open in an active tab
       &[data-universe-open='true'] {
         &[data-universe-open-current-window='false'] {
-          #universe-refresh-button,
+          .universe-refresh-button,
           .universe-settings-button {
             display: none !important;
           }
@@ -611,13 +622,12 @@ body {
       }
     }
   }
-  // Define breakpoints and column counts for the universe list (min-width, column-count, max-width)
+  // Define the breakpoints and corresponding column counts for the grid layout
   $grid-paliers: ( (680px, 2, 680px), (1020px, 3, 1020px), (1280px, 4, 1280px), (1600px, 5, 1600px) );
   // Generate media queries for each breakpoint
   @each $width, $count, $max in $grid-paliers {
     @media (min-width: $width) {
       .universe-list {
-        column-count: $count;
         max-width: $max;
       }
     }

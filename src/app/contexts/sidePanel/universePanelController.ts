@@ -45,8 +45,6 @@ export class UniversePanelController {
   private readonly defaultWarningThresholdMinutes = 15;
 
   private loaded = false;
-  private syncSuspended = false;
-  private syncIndicatorEl?: HTMLElement;
   private readonly universeRowsByKey = new Map<string, UniverseRowView>();
 
   private rafId?: number;
@@ -58,6 +56,7 @@ export class UniversePanelController {
   private readonly activeLocalTabIds = new Set<number>();
 
   private containerDnDListenersAttached = false;
+  private resizeObserver?: ResizeObserver;
 
   private readonly onTabChanged = () => { void this.Refresh(); };
 
@@ -89,6 +88,10 @@ export class UniversePanelController {
     sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseOrder(this.logger, (data: { order: string[] }) => {
       this.ApplyUniverseOrder(data?.order || []);
     });
+
+    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseGrid(this.logger, () => {
+      this.Refresh();
+    });
   }
 
   /**
@@ -98,6 +101,7 @@ export class UniversePanelController {
     if (!this.loaded) {
       this.loaded = true;
       await this.InitCurrentWindowIdAsync();
+      this.InitResizeObserver();
       this.Refresh();
     }
     this.StartAnimationLoop();
@@ -114,6 +118,8 @@ export class UniversePanelController {
    * Deactivates the universe panel controller by canceling the animation loop and removing event listeners for tab changes.
    */
   public Deactivate(): void {
+    this.resizeObserver?.disconnect();
+
     if (this.rafId !== undefined) {
       cancelAnimationFrame(this.rafId);
       this.rafId = undefined;
@@ -125,6 +131,33 @@ export class UniversePanelController {
       chromeApi.tabs.onUpdated?.removeListener(this.onTabChanged);
       chromeApi.tabs.onRemoved?.removeListener(this.onTabChanged);
     }
+  }
+
+  private DetectUniverseDisplayMode(): 'list' | 'grid' {
+    const parent = document.getElementById('panel-universe');
+    const width = parent ? parent.clientWidth : window.innerWidth;
+    return width >= 650 ? 'grid' : 'list';
+  }
+
+  private InitResizeObserver(): void {
+    const container = document.getElementById('universe-list');
+    if (!container) return;
+
+    // Initialise the current mode to null to ensure the first detection triggers a refresh
+    let currentMode: 'list' | 'grid' | null = null;
+
+    this.resizeObserver = new ResizeObserver(() => {
+      const newMode = this.DetectUniverseDisplayMode();
+      container.setAttribute('data-mode', newMode);
+
+      if (newMode !== currentMode) {
+        currentMode = newMode;
+        this.Refresh();
+      }
+    });
+
+    const parent = document.getElementById('panel-universe') || container;
+    this.resizeObserver.observe(parent);
   }
 
   private async InitCurrentWindowIdAsync(): Promise<void> {
@@ -175,10 +208,13 @@ export class UniversePanelController {
       if (!container) return;
 
       await this.UpdateLocalTabIdsAsync();
-      await this.CheckSyncStateAsync();
 
-      const universeStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger);
-      if (!universeStatuses.length) {
+      const mode = this.DetectUniverseDisplayMode();
+      container.setAttribute('data-mode', mode);
+
+      const rawStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger, mode);
+
+      if (!rawStatuses || (Array.isArray(rawStatuses) && rawStatuses.length === 0)) {
         container.replaceChildren();
         this.universeRowsByKey.clear();
         this.lastSecondByUniverseKey.clear();
@@ -190,8 +226,60 @@ export class UniversePanelController {
         return;
       }
 
-      this.SyncUniverseRows(container, universeStatuses);
+      const is2DGrid = Array.isArray(rawStatuses[0]);
+
+      if (mode === 'grid' && is2DGrid) {
+        // Clean up empty columns (null or empty arrays) to avoid rendering them
+        const activeGrid = (rawStatuses as SidePanelUniverseStatus[][]).filter(
+          (col) => col && col.length > 0
+        );
+
+        container.style.setProperty('--grid-columns', String(activeGrid.length));
+
+        const flatStatuses = this.FlattenGridRowMajor(activeGrid);
+        this.SyncUniverseRows(container, flatStatuses);
+
+        activeGrid.forEach((column, colIdx) => {
+          column.forEach((status, rowIdx) => {
+            const key = this.NormalizeUniverseKey(status.UniverseKey);
+            const rowView = this.universeRowsByKey.get(key);
+            if (rowView) {
+              rowView.row.style.gridColumn = String(colIdx + 1);
+              rowView.row.style.gridRow = String(rowIdx + 1);
+            }
+          });
+        });
+      } else {
+        container.style.removeProperty('--grid-columns');
+
+        // If the mode is 'list' or the data is not a 2D grid, flatten the statuses to a 1D array
+        const flatStatuses: SidePanelUniverseStatus[] = is2DGrid
+          ? (rawStatuses as unknown as SidePanelUniverseStatus[][]).flat()
+          : (rawStatuses as unknown as SidePanelUniverseStatus[]);
+
+        this.SyncUniverseRows(container, flatStatuses);
+
+        this.universeRowsByKey.forEach((rowView) => {
+          rowView.row.style.removeProperty('grid-column');
+          rowView.row.style.removeProperty('grid-row');
+        });
+      }
     }, 100, false);
+  }
+
+  private FlattenGridRowMajor<T>(grid: T[][]): T[] {
+    const result: T[] = [];
+    const maxRows = Math.max(0, ...grid.map((col) => col.length));
+
+    for (let r = 0; r < maxRows; r++) {
+      for (let c = 0; c < grid.length; c++) {
+        if (grid[c] && grid[c][r] !== undefined) {
+          result.push(grid[c][r]);
+        }
+      }
+    }
+
+    return result;
   }
 
   private UpdateUniverseOpenState(universeKey: string, isOpen: boolean): void {
@@ -204,11 +292,6 @@ export class UniversePanelController {
     }
   }
 
-  public async CheckSyncStateAsync(): Promise<void> {
-    const hasActiveTab = await this.HasActiveOGameUniverseTabAsync();
-    this.syncSuspended = !hasActiveTab;
-    this.SetSyncPausedIndicator(this.syncSuspended);
-  }
 
   public UpdateSingleUniverseStatus(data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean }): void {
     if (!data?.universeKey) return;
@@ -291,7 +374,6 @@ export class UniversePanelController {
 
     if (now - this.lastSyncCheckTime >= 1000) {
       this.lastSyncCheckTime = now;
-      void this.CheckSyncStateAsync();
     }
 
     this.universeRowsByKey.forEach((rowView, universeKey) => {
@@ -316,62 +398,6 @@ export class UniversePanelController {
     });
   }
 
-  /**
-   * Checks if there is an active OGame tab.
-   * Since indicators are only updated for active OGame tabs (serving as reminders of elements seen by the player),
-   * the tab no longer strictly needs to be in the current window.
-   *
-   * @returns A promise that resolves to true if an active OGame tab exists, false otherwise.
-   */
-  private async HasActiveOGameUniverseTabAsync(): Promise<boolean> {
-    const chromeApi = (globalThis as { chrome?: any }).chrome;
-    if (!chromeApi?.tabs?.query) return true;
-
-    try {
-      const tabs = await chromeApi.tabs.query({ active: true });
-      return tabs.some((tab: any) => this.IsOGameUniverseTabab(tab));
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Determines if a given tab is an OGame universe tab based on its URL.
-   * @param tab
-   * @returns True if the tab is an OGame universe tab, false otherwise.
-   */
-  private IsOGameUniverseTabab(tab: any): boolean {
-    if (GlobalConstants.SYNC_TABS_URLS_REGEXPS.length === 0) return true;
-    const url = typeof tab?.url === 'string' ? tab.url : typeof tab?.pendingUrl === 'string' ? tab.pendingUrl : '';
-    return GlobalConstants.SYNC_TABS_URLS_REGEXPS.some((regexp) => regexp.test(url));
-  }
-
-  private SetSyncPausedIndicator(paused: boolean): void {
-    const container = document.getElementById('universe-list');
-    if (!container) return;
-
-    if (!paused) {
-      this.syncIndicatorEl?.remove();
-      this.syncIndicatorEl = undefined;
-      return;
-    }
-
-    if (this.syncIndicatorEl) return;
-
-    const parent = container.parentElement || container;
-    const el = document.createElement('div');
-    el.id = 'universe-sync-paused';
-    el.className = 'universe-sync-paused';
-
-    const text = Localizator.Translate('SidePanelSyncPaused') || 'Sync paused — no active OGame tab.';
-    el.innerHTML = `
-      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
-      <span>${text}</span>
-    `;
-
-    parent.insertBefore(el, container);
-    this.syncIndicatorEl = el;
-  }
 
   private BuildUniverseRow(status: SidePanelUniverseStatus): UniverseRowView {
     const tempContainer = document.createElement('div');
@@ -381,12 +407,14 @@ export class UniversePanelController {
     row.setAttribute('data-universe-key', status.UniverseKey);
     row.setAttribute('draggable', 'false');
 
+    // Add event listeners for drag-and-drop functionality
     const dragHandle = row.querySelector('.universe-drag-handle') as HTMLElement | null;
     if (dragHandle) {
-      dragHandle.addEventListener('mousedown', () => row.setAttribute('draggable', 'true'));
-      dragHandle.addEventListener('mouseup', () => row.setAttribute('draggable', 'false'));
+      dragHandle.addEventListener('mouseenter', () => row.setAttribute('draggable', 'true'));
       dragHandle.addEventListener('mouseleave', () => {
-        if (!row.classList.contains('dragging')) row.setAttribute('draggable', 'false');
+        if (!row.classList.contains('dragging')) {
+          row.setAttribute('draggable', 'false');
+        }
       });
     }
 
@@ -394,6 +422,7 @@ export class UniversePanelController {
       if (!event.dataTransfer) return;
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', status.UniverseKey);
+      event.dataTransfer.setData('text/x-ogame-item', status.UniverseKey);
       row.classList.add('dragging');
     });
 
@@ -404,7 +433,7 @@ export class UniversePanelController {
     });
 
     const thresholdSelect = row.querySelector('.universe-threshold-select') as HTMLSelectElement;
-    const refreshButton = row.querySelector('#universe-refresh-button') as HTMLButtonElement;
+    const refreshButton = row.querySelector('.universe-refresh-button') as HTMLButtonElement;
     const settingsButton = row.querySelector('.universe-settings-button') as HTMLButtonElement;
     const removeButton = row.querySelector('.universe-remove-button') as HTMLButtonElement;
     const lastRefresh = row.querySelector('.universe-last-refresh') as HTMLElement;
@@ -458,15 +487,15 @@ export class UniversePanelController {
 
     thresholdSelect.addEventListener('change', async () => {
       const selectedMinutes = Number(thresholdSelect.value);
-      status.SidePanelOptions.WarningThresholdMinutes = selectedMinutes;
-      await this.SaveOption(status.UniverseKey, 'WarningThresholdMinutes', selectedMinutes);
+      rowView.currentStatus.SidePanelOptions.WarningThresholdMinutes = selectedMinutes;
+      await this.SaveOption(rowView.currentStatus.UniverseKey, 'WarningThresholdMinutes', selectedMinutes);
       updateWarningState(selectedMinutes);
     });
 
     refreshButton.addEventListener('click', () =>
-      this.HandleTabIconClickAsync(status, refreshButton)
+      this.HandleTabIconClickAsync(rowView.currentStatus, refreshButton)
     );
-    removeButton.addEventListener('click', () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, status.UniverseKey)));
+    removeButton.addEventListener('click', () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, rowView.currentStatus.UniverseKey)));
 
     settingsButton.addEventListener('click', () => {
       const isActive = settingsButton.getAttribute('data-universe-settings-active') === 'true';
@@ -484,7 +513,7 @@ export class UniversePanelController {
       checkbox.addEventListener('change', async () => {
         const checked = checkbox.checked;
         row.setAttribute(attributeName, String(checked));
-        await this.SaveOption(status.UniverseKey, optionKey, checked);
+        await this.SaveOption(rowView.currentStatus.UniverseKey, optionKey, checked);
       });
     });
 
@@ -569,7 +598,6 @@ export class UniversePanelController {
       }
     });
 
-    // Reorder only misplaced rows so untouched rows keep their DOM identity (avoids re-triggering CSS animations).
     const desiredRows: HTMLElement[] = [];
     universeStatuses.forEach((status) => {
       const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(status.UniverseKey));
@@ -577,6 +605,9 @@ export class UniversePanelController {
     });
     let cursor: Element | null = container.firstElementChild;
     desiredRows.forEach((row) => {
+      while (cursor && cursor.classList.contains('drop-indicator-line')) {
+        cursor = cursor.nextElementSibling;
+      }
       if (cursor === row) {
         cursor = row.nextElementSibling;
       } else {
@@ -711,7 +742,6 @@ export class UniversePanelController {
     if (this.containerDnDListenersAttached) return;
     this.containerDnDListenersAttached = true;
 
-    // Création ou récupération de l'élément indicateur unique
     let indicator = container.querySelector('.drop-indicator-line') as HTMLElement | null;
     if (!indicator) {
       indicator = document.createElement('div');
@@ -719,42 +749,96 @@ export class UniversePanelController {
       container.appendChild(indicator);
     }
 
+    interface DropTargetState {
+      type: 'new-col-first' | 'new-col-last' | 'inside';
+      targetKey?: string;
+      isBefore?: boolean;
+    }
+
     let draggingItem: HTMLElement | null = null;
-    let lastTarget: HTMLElement | null = null;
-    let lastBefore = true;
+    let draggedKey: string | null = null;
+    let dropTargetState: DropTargetState | null = null;
 
     const hideIndicator = () => {
       if (indicator) indicator.style.display = 'none';
     };
 
     const applyReorder = () => {
-      const dragging = draggingItem || (container.querySelector('.universe-item-box.dragging') as HTMLElement | null);
+      const mode = container.getAttribute('data-mode') || 'list';
+      const keyToMove = draggedKey || draggingItem?.getAttribute('data-universe-key');
 
-      if (dragging && lastTarget && lastTarget !== dragging) {
-        lastTarget.parentElement?.insertBefore(dragging, lastBefore ? lastTarget : lastTarget.nextSibling);
+      if (keyToMove && dropTargetState) {
+        if (mode === 'grid') {
+          // Extraction de la grille courante (sans l'élément dragué)
+          let currentGrid = this.ExtractUniverseGridFromDOM(container);
 
-        const newOrder = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'))
-          .map((el) => el.getAttribute('data-universe-key') || '')
-          .filter(Boolean);
+          // Insertion selon la cible
+          if (dropTargetState.type === 'new-col-first') {
+            currentGrid.unshift([keyToMove]);
+          } else if (dropTargetState.type === 'new-col-last') {
+            currentGrid.push([keyToMove]);
+          } else if (dropTargetState.type === 'inside' && dropTargetState.targetKey) {
+            const targetKey = dropTargetState.targetKey;
+            const isBefore = dropTargetState.isBefore;
 
-        void this.PersistUniverseOrderAsync(newOrder);
+            let inserted = false;
+            for (let c = 0; c < currentGrid.length; c++) {
+              const idx = currentGrid[c].indexOf(targetKey);
+              if (idx !== -1) {
+                const insertIdx = isBefore ? idx : idx + 1;
+                currentGrid[c].splice(insertIdx, 0, keyToMove);
+                inserted = true;
+                break;
+              }
+            }
+
+            if (!inserted) {
+              if (currentGrid.length === 0) {
+                currentGrid = [[keyToMove]];
+              } else {
+                currentGrid[currentGrid.length - 1].push(keyToMove);
+              }
+            }
+          }
+
+          // Clean up empty columns and persist the new grid
+          currentGrid = currentGrid.filter((col) => col.length > 0);
+          void this.PersistUniverseGridAsync(currentGrid);
+        } else {
+          if (dropTargetState.targetKey) {
+            const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'));
+            let newOrder = items.map((el) => el.getAttribute('data-universe-key') || '').filter(Boolean);
+            newOrder = newOrder.filter((k) => k !== keyToMove);
+
+            const targetIdx = newOrder.indexOf(dropTargetState.targetKey);
+            if (targetIdx !== -1) {
+              const insertIdx = dropTargetState.isBefore ? targetIdx : targetIdx + 1;
+              newOrder.splice(insertIdx, 0, keyToMove);
+            } else {
+              newOrder.push(keyToMove);
+            }
+            void this.PersistUniverseOrderAsync(newOrder);
+          }
+        }
       }
 
       hideIndicator();
-      lastTarget = null;
       draggingItem = null;
+      draggedKey = null;
+      dropTargetState = null;
     };
 
-    // Bloque le comportement par défaut de Firefox (navigation) + enregistre l'élément
     container.addEventListener('dragstart', (event) => {
       const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
       if (target) {
         draggingItem = target;
+        draggedKey = target.getAttribute('data-universe-key');
+        target.classList.add('dragging');
 
         if (event.dataTransfer) {
           event.dataTransfer.effectAllowed = 'move';
-          event.dataTransfer.setData('text/x-ogame-item', target.getAttribute('data-universe-key') || '');
-          event.dataTransfer.setData('text/plain', ''); // Évite la navigation accidentelle dans Firefox
+          event.dataTransfer.setData('text/x-ogame-item', draggedKey || '');
+          event.dataTransfer.setData('text/plain', '');
         }
       }
     });
@@ -766,38 +850,138 @@ export class UniversePanelController {
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 
-      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
-      if (!target || target === dragging) {
-        hideIndicator();
-        return;
-      }
-
+      const mode = container.getAttribute('data-mode') || 'list';
       const containerRect = container.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      const before = event.clientY < targetRect.top + targetRect.height / 2;
 
-      lastTarget = target;
-      lastBefore = before;
+      if (mode === 'grid') {
+        const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
+        if (items.length === 0) return;
 
-      // Calcul vertical et horizontal dynamique
-      const topPos = before
-        ? targetRect.top - containerRect.top - 2
-        : targetRect.bottom - containerRect.top + 2;
+        // Group items by their approximate left position to identify columns
+        const colMap = new Map<number, HTMLElement[]>();
+        items.forEach((item) => {
+          const rect = item.getBoundingClientRect();
+          const left = Math.round(rect.left);
+          let matchKey = Array.from(colMap.keys()).find((k) => Math.abs(k - left) < 20);
+          if (matchKey === undefined) {
+            matchKey = left;
+            colMap.set(matchKey, []);
+          }
+          colMap.get(matchKey)!.push(item);
+        });
 
-      const leftPos = targetRect.left - containerRect.left;
-      const width = targetRect.width;
+        const sortedLefts = Array.from(colMap.keys()).sort((a, b) => a - b);
+        const firstColRect = colMap.get(sortedLefts[0])![0].getBoundingClientRect();
+        const lastColItems = colMap.get(sortedLefts[sortedLefts.length - 1])!;
+        const lastColRect = lastColItems[0].getBoundingClientRect();
 
-      indicator.style.top = `${topPos}px`;
-      indicator.style.left = `${leftPos}px`;
-      indicator.style.width = `${width}px`;
-      indicator.style.display = 'block';
+        // Check if the cursor is far left or far right of the columns to indicate a new column drop
+        const isFarLeft = event.clientX < firstColRect.left + 15;
+        const isFarRight = event.clientX > lastColRect.right - 15;
+
+        if (isFarLeft) {
+          indicator.style.top = `${firstColRect.top - containerRect.top}px`;
+          indicator.style.left = `${firstColRect.left - containerRect.left - 4}px`;
+          indicator.style.width = '4px';
+          indicator.style.height = `${containerRect.height - 10}px`;
+          indicator.style.display = 'block';
+          dropTargetState = { type: 'new-col-first' };
+          return;
+        }
+
+        if (isFarRight) {
+          indicator.style.top = `${lastColRect.top - containerRect.top}px`;
+          indicator.style.left = `${lastColRect.right - containerRect.left + 2}px`;
+          indicator.style.width = '4px';
+          indicator.style.height = `${containerRect.height - 10}px`;
+          indicator.style.display = 'block';
+          dropTargetState = { type: 'new-col-last' };
+          return;
+        }
+
+        // Otherwise, find the closest column to the cursor's X position
+        let closestLeft = sortedLefts[0];
+        let minDistance = Infinity;
+        sortedLefts.forEach((leftVal) => {
+          const rect = colMap.get(leftVal)![0].getBoundingClientRect();
+          const center = rect.left + rect.width / 2;
+          const dist = Math.abs(event.clientX - center);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestLeft = leftVal;
+          }
+        });
+
+        const targetColItems = colMap.get(closestLeft)!;
+        targetColItems.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+
+        let targetItem = targetColItems[0];
+        let isBefore = true;
+
+        for (const item of targetColItems) {
+          const rect = item.getBoundingClientRect();
+          const itemMiddle = rect.top + rect.height / 2;
+          if (event.clientY < itemMiddle) {
+            targetItem = item;
+            isBefore = true;
+            break;
+          } else {
+            targetItem = item;
+            isBefore = false;
+          }
+        }
+
+        const targetRect = targetItem.getBoundingClientRect();
+        const topPos = isBefore
+          ? targetRect.top - containerRect.top - 4
+          : targetRect.bottom - containerRect.top + 2;
+
+        indicator.style.top = `${topPos}px`;
+        indicator.style.left = `${targetRect.left - containerRect.left}px`;
+        indicator.style.width = `${targetRect.width}px`;
+        indicator.style.height = '4px';
+        indicator.style.display = 'block';
+
+        dropTargetState = {
+          type: 'inside',
+          targetKey: targetItem.getAttribute('data-universe-key') || undefined,
+          isBefore,
+        };
+      } else {
+        // List mode: find the closest item vertically
+        const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
+        if (!target || target === dragging) {
+          hideIndicator();
+          return;
+        }
+
+        const targetRect = target.getBoundingClientRect();
+        const isBefore = event.clientY < targetRect.top + targetRect.height / 2;
+        const topPos = isBefore
+          ? targetRect.top - containerRect.top - 4
+          : targetRect.bottom - containerRect.top + 1;
+
+        indicator.style.top = `${topPos}px`;
+        indicator.style.left = `${targetRect.left - containerRect.left}px`;
+        indicator.style.width = `${targetRect.width}px`;
+        indicator.style.height = '3px';
+        indicator.style.display = 'block';
+
+        dropTargetState = {
+          type: 'inside',
+          targetKey: target.getAttribute('data-universe-key') || undefined,
+          isBefore,
+        };
+      }
     });
 
     container.addEventListener('dragleave', (event) => {
       if (event.target === container) hideIndicator();
     });
 
-    container.addEventListener('dragend', () => {
+    container.addEventListener('dragend', (event) => {
+      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
+      target?.classList.remove('dragging');
       applyReorder();
     });
 
@@ -805,6 +989,29 @@ export class UniversePanelController {
       event.preventDefault();
       applyReorder();
     });
+  }
+
+  private ExtractUniverseGridFromDOM(container: HTMLElement): string[][] {
+    const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
+    const columnsMap = new Map<number, string[]>();
+
+    items.forEach((item) => {
+      const key = item.getAttribute('data-universe-key');
+      if (!key) return;
+
+      const left = Math.round(item.getBoundingClientRect().left);
+      let matchKey = Array.from(columnsMap.keys()).find((k) => Math.abs(k - left) < 20);
+      if (matchKey === undefined) {
+        matchKey = left;
+        columnsMap.set(matchKey, []);
+      }
+      columnsMap.get(matchKey)!.push(key);
+    });
+
+    const sortedLefts = Array.from(columnsMap.keys()).sort((a, b) => a - b);
+    return sortedLefts
+      .map((left) => columnsMap.get(left)!)
+      .filter((col) => col.length > 0);
   }
 
   private ClearDropIndicators(): void {
@@ -821,6 +1028,15 @@ export class UniversePanelController {
     }
   }
 
+  private async PersistUniverseGridAsync(grid: string[][]): Promise<void> {
+    try {
+      await serviceWorkerProtocolClient.SaveUniverseGridAsync(this.logger, grid);
+    } catch (error) {
+      this.logger.error('Failed to persist universe grid', error);
+      this.Refresh();
+    }
+  }
+
   private ApplyUniverseOrder(order: string[]): void {
     const container = document.getElementById('universe-list');
     if (!container) return;
@@ -831,6 +1047,9 @@ export class UniversePanelController {
     });
     let cursor: Element | null = container.firstElementChild;
     desiredRows.forEach((row) => {
+      while (cursor && cursor.classList.contains('drop-indicator-line')) {
+        cursor = cursor.nextElementSibling;
+      }
       if (cursor === row) {
         cursor = row.nextElementSibling;
       } else {

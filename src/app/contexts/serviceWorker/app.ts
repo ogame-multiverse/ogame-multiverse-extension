@@ -49,8 +49,8 @@ class ServiceWorkerContextApp {
       sidePanelBroadcastProtocolClient.UpdateUniverseStatus(this.logger, data.universeKey, data.universeName, data.universeCounters, isOpen);
     });
 
-    serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(this.logger, () =>
-      this.universeManager.ListUniverseStatusesAsync()
+    serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(this.logger, (data) =>
+      this.universeManager.ListUniverseStatusesAsync(data)
     );
 
     serviceWorkerProtocolRegistrar.OnActionOnUniverseTab(this.logger, async (data) => {
@@ -74,6 +74,12 @@ class ServiceWorkerContextApp {
     serviceWorkerProtocolRegistrar.OnSaveUniverseOrder(this.logger, async (order: string[]) => {
       const normalized = await this.universeManager.SetUniverseOrderAsync(order);
       sidePanelBroadcastProtocolClient.UpdateUniverseOrder(this.logger, normalized);
+      return normalized;
+    });
+
+    serviceWorkerProtocolRegistrar.OnSaveUniverseGrid(this.logger, async (grid: string[][]) => {
+      const normalized = await this.universeManager.SetUniverseGridAsync(grid);
+      sidePanelBroadcastProtocolClient.UpdateUniverseGrid(this.logger, normalized);
       return normalized;
     });
 

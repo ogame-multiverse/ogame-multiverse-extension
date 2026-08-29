@@ -9,12 +9,13 @@ import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOp
 export interface ServiceWorkerProtocol {
   RegisterUniverse(data: { universeKey: string, universeDomain: string, lastRefreshDate: number }): Promise<void>
   UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters }): Promise<void>
-  GetUniversesStatuses(): Promise<SidePanelUniverseStatus[]>
+  GetUniversesStatuses(mode: 'list' | 'grid'): Promise<SidePanelUniverseStatus[][]>
   ActionOnUniverseTab(data: { universeKey: string, action: 'activate' | 'move' | 'close' | 'refresh', windowId: number }): Promise<void>
   RemoveUniverse(universeKey: string): Promise<void>
   GetUniverseSidePanelOptions(universeKey: string): Promise<UniverseSidePanelOptions>
   SaveUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): Promise<void>
   SaveUniverseOrder(order: string[]): Promise<string[]>
+  SaveUniverseGrid(grid: string[][]): Promise<string[][]>
   ToggleSidePanel(): void
 }
 
@@ -39,8 +40,8 @@ export class ServiceWorkerProtocolClient {
     return this.send(logger, 'UpdateUniverseStatus', { universeKey, universeName, universeCounters })
   }
 
-  public GetUniversesStatusesAsync(logger: Logger) {
-    return this.send(logger, 'GetUniversesStatuses')
+  public GetUniversesStatusesAsync(logger: Logger, mode: 'list' | 'grid') {
+    return this.send(logger, 'GetUniversesStatuses', mode)
   }
 
   public ActionOnUniverseTabAsync(logger: Logger, universeKey: string, action: 'activate' | 'move' | 'close' | 'refresh', windowId: number) {
@@ -61,6 +62,10 @@ export class ServiceWorkerProtocolClient {
 
   public SaveUniverseOrderAsync(logger: Logger, order: string[]) {
     return this.send(logger, 'SaveUniverseOrder', order)
+  }
+
+  public SaveUniverseGridAsync(logger: Logger, grid: string[][]) {
+    return this.send(logger, 'SaveUniverseGrid', grid)
   }
 
   public ToggleSidePanel(logger: Logger) {
@@ -105,6 +110,10 @@ export class ServiceWorkerProtocolRegistrar {
 
   public OnSaveUniverseOrder(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseOrder']): void {
     this.listen(logger, 'SaveUniverseOrder', handler);
+  }
+
+  public OnSaveUniverseGrid(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseGrid']): void {
+    this.listen(logger, 'SaveUniverseGrid', handler);
   }
 
   public OnToggleSidePanel(logger: Logger, handler: (data: void, sender: browser.Runtime.MessageSender) => void): void {
