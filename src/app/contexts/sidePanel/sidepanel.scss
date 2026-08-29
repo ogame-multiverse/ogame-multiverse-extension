@@ -119,11 +119,23 @@ body {
   }
 
   .universe-list {
+    position: relative; // Obligatoire pour caler le repère de la ligne
     display: block;
     column-gap: 5px;
     column-count: 1;
     max-width: 340px;
 
+    .drop-indicator-line {
+      position: absolute;
+      //left/right will be set dynamically in JS
+      height: 3px;
+      background-color: $ogm-color-orange;
+      border-radius: 2px;
+      box-shadow: 0 0 6px $ogm-color-orange;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+    }
 
     .universe-empty {
       opacity: 0.8;
@@ -137,14 +149,6 @@ body {
 
       &.dragging {
         opacity: 0.4;
-      }
-
-      &.drop-before {
-        box-shadow: inset 0 2px 0 0 $ogm-color-orange;
-      }
-
-      &.drop-after {
-        box-shadow: inset 0 -2px 0 0 $ogm-color-orange;
       }
 
 
@@ -563,7 +567,6 @@ body {
           display: none !important;
         }
       }
-
       // Hide the refresh button, and settings button when the universe is open, but not in the current window
       // Indicators are still shown, since the are only updfated when the universe is open in an active tab
       &[data-universe-open='true'] {

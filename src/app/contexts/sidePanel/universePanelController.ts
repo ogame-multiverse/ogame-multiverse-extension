@@ -711,41 +711,99 @@ export class UniversePanelController {
     if (this.containerDnDListenersAttached) return;
     this.containerDnDListenersAttached = true;
 
-    container.addEventListener('dragover', (event) => {
+    // Création ou récupération de l'élément indicateur unique
+    let indicator = container.querySelector('.drop-indicator-line') as HTMLElement | null;
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'drop-indicator-line';
+      container.appendChild(indicator);
+    }
+
+    let draggingItem: HTMLElement | null = null;
+    let lastTarget: HTMLElement | null = null;
+    let lastBefore = true;
+
+    const hideIndicator = () => {
+      if (indicator) indicator.style.display = 'none';
+    };
+
+    const applyReorder = () => {
+      const dragging = draggingItem || (container.querySelector('.universe-item-box.dragging') as HTMLElement | null);
+
+      if (dragging && lastTarget && lastTarget !== dragging) {
+        lastTarget.parentElement?.insertBefore(dragging, lastBefore ? lastTarget : lastTarget.nextSibling);
+
+        const newOrder = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'))
+          .map((el) => el.getAttribute('data-universe-key') || '')
+          .filter(Boolean);
+
+        void this.PersistUniverseOrderAsync(newOrder);
+      }
+
+      hideIndicator();
+      lastTarget = null;
+      draggingItem = null;
+    };
+
+    // Bloque le comportement par défaut de Firefox (navigation) + enregistre l'élément
+    container.addEventListener('dragstart', (event) => {
       const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
-      const dragging = container.querySelector('.universe-item-box.dragging') as HTMLElement | null;
-      if (!dragging) return;
+      if (target) {
+        draggingItem = target;
+
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/x-ogame-item', target.getAttribute('data-universe-key') || '');
+          event.dataTransfer.setData('text/plain', ''); // Évite la navigation accidentelle dans Firefox
+        }
+      }
+    });
+
+    container.addEventListener('dragover', (event) => {
+      const dragging = draggingItem || (container.querySelector('.universe-item-box.dragging') as HTMLElement | null);
+      if (!dragging || !indicator) return;
+
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+
+      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
       if (!target || target === dragging) {
-        this.ClearDropIndicators();
+        hideIndicator();
         return;
       }
-      const rect = target.getBoundingClientRect();
-      const before = event.clientY < rect.top + rect.height / 2;
-      this.ClearDropIndicators();
-      target.classList.add(before ? 'drop-before' : 'drop-after');
+
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const before = event.clientY < targetRect.top + targetRect.height / 2;
+
+      lastTarget = target;
+      lastBefore = before;
+
+      // Calcul vertical et horizontal dynamique
+      const topPos = before
+        ? targetRect.top - containerRect.top - 2
+        : targetRect.bottom - containerRect.top + 2;
+
+      const leftPos = targetRect.left - containerRect.left;
+      const width = targetRect.width;
+
+      indicator.style.top = `${topPos}px`;
+      indicator.style.left = `${leftPos}px`;
+      indicator.style.width = `${width}px`;
+      indicator.style.display = 'block';
     });
 
     container.addEventListener('dragleave', (event) => {
-      if (event.target === container) this.ClearDropIndicators();
+      if (event.target === container) hideIndicator();
+    });
+
+    container.addEventListener('dragend', () => {
+      applyReorder();
     });
 
     container.addEventListener('drop', (event) => {
       event.preventDefault();
-      const dragging = container.querySelector('.universe-item-box.dragging') as HTMLElement | null;
-      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
-      this.ClearDropIndicators();
-      if (!dragging) return;
-      if (target && target !== dragging) {
-        const rect = target.getBoundingClientRect();
-        const before = event.clientY < rect.top + rect.height / 2;
-        target.parentElement?.insertBefore(dragging, before ? target : target.nextSibling);
-      }
-      const newOrder = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'))
-        .map((el) => el.getAttribute('data-universe-key') || '')
-        .filter(Boolean);
-      void this.PersistUniverseOrderAsync(newOrder);
+      applyReorder();
     });
   }
 
