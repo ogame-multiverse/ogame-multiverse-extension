@@ -141,7 +141,7 @@ body {
     flex: 1;
     position: relative;
     width: 100%;
-    min-height: 48px; // Permet de conserver une zone de dépôt même lorsque la section est vide
+    min-height: 25px; // Minimum height to ensure the list is visible even when empty
     gap: 8px;
     /* List mode : single column, 340px wide */
     &[data-mode='list'] {
@@ -584,7 +584,7 @@ body {
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
           position: relative;
           overflow: hidden;
-          // Barre biseautée adoucie
+          // Soften the edges of the highlight with a pseudo-element
           &::before {
             content: '';
             position: absolute;
