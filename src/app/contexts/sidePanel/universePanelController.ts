@@ -387,7 +387,7 @@ export class UniversePanelController {
       if (elapsedSec !== previousSec) {
         this.lastSecondByUniverseKey.set(universeKey, elapsedSec);
 
-        const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefreshWithState(status)}`;
+        const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefresh(status.LastRefreshAtIso) }`;
         if (rowView.lastRefresh.textContent !== nextRefreshText) {
           rowView.lastRefresh.textContent = nextRefreshText;
         }
@@ -619,7 +619,7 @@ export class UniversePanelController {
       rowView.badgesContainer.innerHTML = badgesHtml;
     }
 
-    const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefreshWithState(status)}`;
+    const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefresh(status.LastRefreshAtIso) }`;
     if (rowView.lastRefresh.textContent !== nextRefreshText) {
       rowView.lastRefresh.textContent = nextRefreshText;
     }
@@ -667,12 +667,6 @@ export class UniversePanelController {
     }
 
     return `${Math.floor(hours / 24)} ${Localizator.Translate('SidePanelDaysShort')}`;
-  }
-
-  private FormatLastRefreshWithState(status: SidePanelUniverseStatus): string {
-    const formattedLastRefresh = this.FormatLastRefresh(status.LastRefreshAtIso);
-    if (status.IsOpen) return formattedLastRefresh;
-    return `${formattedLastRefresh} (${Localizator.Translate('SidePanelUniverseInactiveShort')})`;
   }
 
   private ShouldShowRefreshWarning(status: SidePanelUniverseStatus, thresholdMinutes: number): boolean {

@@ -25,14 +25,6 @@ export const Localizations = [
     tr: 'Hiç evren algılanmadı.',
     br: 'Nenhum universo detectado.',
   }),
-  new I18nValue('SidePanelUniverseInactiveShort', {
-    en: 'inactive',
-    fr: 'offline',
-    es: 'inactivo',
-    de: 'inaktiv',
-    tr: 'pasif',
-    br: 'inativo',
-  }),
   new I18nValue('SidePanelLastRefreshLabel', {
     en: 'Last refresh',
     fr: 'Dernière actualisation',
