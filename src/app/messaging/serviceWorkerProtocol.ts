@@ -5,24 +5,24 @@ import { Logger } from '../logging/logger';
 import { SidePanelUniverseCounters } from '../model/sidePanel/sidePanelUniverseCounters';
 import { SidePanelUniverseStatus } from '../model/sidePanel/sidePanelUniverseStatus';
 import { UniverseSidePanelOptions } from '../model/sidePanel/universeSidePanelOptions';
+import { UniverseLayoutConfig } from '../model/sidePanel/universeLayoutConfig';
+import { SidePanelUniversesSections } from '../model/sidePanel/sidePanelUniversesSections';
 
 export interface ServiceWorkerProtocol {
   RegisterUniverse(data: { universeKey: string, universeDomain: string, lastRefreshDate: number }): Promise<void>
   UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters }): Promise<void>
-  GetUniversesStatuses(mode: 'list' | 'grid'): Promise<SidePanelUniverseStatus[][]>
+  GetUniversesStatuses(mode: 'list' | 'grid'): Promise<SidePanelUniversesSections>
   ActionOnUniverseTab(data: { universeKey: string, action: 'activate' | 'move' | 'close' | 'refresh', windowId: number }): Promise<void>
   RemoveUniverse(universeKey: string): Promise<void>
   GetUniverseSidePanelOptions(universeKey: string): Promise<UniverseSidePanelOptions>
   SaveUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): Promise<void>
-  SaveUniverseOrder(order: string[]): Promise<string[]>
-  SaveUniverseGrid(grid: string[][]): Promise<string[][]>
+  SaveUniverseLayout(layout: UniverseLayoutConfig): Promise<UniverseLayoutConfig>
   ToggleSidePanel(): void
 }
 
 const serviceWorkerMessenger = defineExtensionMessaging<ServiceWorkerProtocol>()
 
 export class ServiceWorkerProtocolClient {
-  // internal type-safe helper: if 'key' does not exist in ServiceWorkerProtocol, TS refuses to compile
   private send<K extends keyof ServiceWorkerProtocol>(
     logger: Logger,
     key: K,
@@ -60,18 +60,15 @@ export class ServiceWorkerProtocolClient {
     return this.send(logger, 'SaveUniverseSidePanelOptions', { universeKey, options })
   }
 
-  public SaveUniverseOrderAsync(logger: Logger, order: string[]) {
-    return this.send(logger, 'SaveUniverseOrder', order)
-  }
-
-  public SaveUniverseGridAsync(logger: Logger, grid: string[][]) {
-    return this.send(logger, 'SaveUniverseGrid', grid)
+  public SaveUniverseLayoutAsync(logger: Logger, layout: UniverseLayoutConfig) {
+    return this.send(logger, 'SaveUniverseLayout', layout)
   }
 
   public ToggleSidePanel(logger: Logger) {
     return this.send(logger, 'ToggleSidePanel');
   }
 }
+
 export class ServiceWorkerProtocolRegistrar {
   private listen(logger: Logger, key: string, handler: Function): void {
     serviceWorkerMessenger.onMessage(key as any, ({ data, sender }: any) => {
@@ -108,12 +105,8 @@ export class ServiceWorkerProtocolRegistrar {
     this.listen(logger, 'SaveUniverseSidePanelOptions', handler);
   }
 
-  public OnSaveUniverseOrder(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseOrder']): void {
-    this.listen(logger, 'SaveUniverseOrder', handler);
-  }
-
-  public OnSaveUniverseGrid(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseGrid']): void {
-    this.listen(logger, 'SaveUniverseGrid', handler);
+  public OnSaveUniverseLayout(logger: Logger, handler: ServiceWorkerProtocol['SaveUniverseLayout']): void {
+    this.listen(logger, 'SaveUniverseLayout', handler);
   }
 
   public OnToggleSidePanel(logger: Logger, handler: (data: void, sender: browser.Runtime.MessageSender) => void): void {

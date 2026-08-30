@@ -6,6 +6,7 @@ import { serviceWorkerProtocolRegistrar } from '../../messaging/serviceWorkerPro
 import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
 import { ExtensionLocalData } from '../../model/save/extensionLocalData';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
+import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig'; // Ajouté
 import { ContextMenusManager } from './contextMenusManager';
 import { ExtensionStorageService, StorageArea } from './extensionStorageService';
 import { KeyboardCommandsManager } from './keyboardCommandsManager';
@@ -33,7 +34,6 @@ class ServiceWorkerContextApp {
 
     this.RegisterServiceWorkerEvents();
 
-    // Listen for extension installation or update events to reconnect open OGame tabs
     browser.runtime.onInstalled.addListener(this.OnExtensionInstallation);
   }
 
@@ -71,23 +71,16 @@ class ServiceWorkerContextApp {
       sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptions(this.logger, data.universeKey, data.options);
     });
 
-    serviceWorkerProtocolRegistrar.OnSaveUniverseOrder(this.logger, async (order: string[]) => {
-      const normalized = await this.universeManager.SetUniverseOrderAsync(order);
-      sidePanelBroadcastProtocolClient.UpdateUniverseOrder(this.logger, normalized);
-      return normalized;
-    });
-
-    serviceWorkerProtocolRegistrar.OnSaveUniverseGrid(this.logger, async (grid: string[][]) => {
-      const normalized = await this.universeManager.SetUniverseGridAsync(grid);
-      sidePanelBroadcastProtocolClient.UpdateUniverseGrid(this.logger, normalized);
-      return normalized;
-    });
-
     serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
       this.sidePanelManager.ToggleSidePanel(sender)
     );
-  }
 
+    serviceWorkerProtocolRegistrar.OnSaveUniverseLayout(this.logger, async (layout: UniverseLayoutConfig) => {
+      const normalized = await this.universeManager.SetUniverseLayoutAsync(layout);
+      sidePanelBroadcastProtocolClient.UpdateUniverseGrid(this.logger);
+      return normalized;
+    });
+  }
 
   private readonly OnExtensionInstallation = (details: { reason: string }): void => {
     if (details.reason === 'install' || details.reason === 'update') {
@@ -98,7 +91,6 @@ class ServiceWorkerContextApp {
   public async StartAsync(): Promise<void> {
     await browserInfo.InitAsync();
     Localizator.Init(browserInfo.Language);
-
 
     await this.universeManager.InitializeAsync();
     this.universeTabsManager.Start();

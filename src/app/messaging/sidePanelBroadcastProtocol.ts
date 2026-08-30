@@ -10,15 +10,13 @@ export interface SidePanelBroadcastProtocol {
   UpdateUniverseStatus(data: { universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters, isOpen: boolean }): void
   UpdateUniverseOpenState(data: { universeKey: string, isOpen: boolean }): void
   UpdateUniverseSidePanelOptions(data: { universeKey: string, options: UniverseSidePanelOptions }): void
-  UpdateUniverseOrder(data: { order: string[] }): void
-  UpdateUniverseGrid(data: { grid: string[][] }): void
+  UpdateUniverseGrid(): void
   RemoveUniverse(universeKey: string): void
 }
 
 const sidePanelBroadcastMessenger = defineExtensionMessaging<SidePanelBroadcastProtocol>()
 
 export class SidePanelBroadcastProtocolClient {
-  // internal type-safe helper: if 'key' does not exist in SidePanelBroadcastProtocol, TS refuses to compile
   private send<K extends keyof SidePanelBroadcastProtocol>(
     logger: Logger,
     key: K,
@@ -45,16 +43,14 @@ export class SidePanelBroadcastProtocolClient {
   public UpdateUniverseSidePanelOptions(logger: Logger, universeKey: string, options: UniverseSidePanelOptions) {
     return this.send(logger, 'UpdateUniverseSidePanelOptions', { universeKey, options })
   }
-  public UpdateUniverseOrder(logger: Logger, order: string[]) {
-    return this.send(logger, 'UpdateUniverseOrder', { order })
-  }
-  public UpdateUniverseGrid(logger: Logger, grid: string[][]) {
-    return this.send(logger, 'UpdateUniverseGrid', { grid })
+  public UpdateUniverseGrid(logger: Logger) {
+    return this.send(logger, 'UpdateUniverseGrid')
   }
   public RemoveUniverse(logger: Logger, universeKey: string) {
     return this.send(logger, 'RemoveUniverse', universeKey)
   }
 }
+
 export class SidePanelBroadcastProtocolRegistrar {
   private listen(logger: Logger, key: string, handler: Function): void {
     sidePanelBroadcastMessenger.onMessage(key as any, ({ data, sender }: any) => {
@@ -75,10 +71,6 @@ export class SidePanelBroadcastProtocolRegistrar {
   }
   public OnUpdateUniverseSidePanelOptions(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseSidePanelOptions']): void {
     this.listen(logger, 'UpdateUniverseSidePanelOptions', handler);
-  }
-
-  public OnUpdateUniverseOrder(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseOrder']): void {
-    this.listen(logger, 'UpdateUniverseOrder', handler);
   }
 
   public OnUpdateUniverseGrid(logger: Logger, handler: SidePanelBroadcastProtocol['UpdateUniverseGrid']): void {

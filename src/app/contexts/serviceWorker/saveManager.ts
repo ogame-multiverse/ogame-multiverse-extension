@@ -1,10 +1,12 @@
 import { ExtensionLocalData } from '../../model/save/extensionLocalData';
+import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
 import { ExtensionStorageService } from './extensionStorageService';
 
-// Reserved storage keys holding the user-defined universe display order and grid layout.
 export const UNIVERSE_ORDER_STORAGE_KEY = '__ogm_universe_order';
 export const UNIVERSE_GRID_STORAGE_KEY = '__ogm_universe_grid';
+export const UNIVERSE_FAVORITE_ORDER_STORAGE_KEY = '__ogm_universe_favorite_order';
+export const UNIVERSE_FAVORITE_GRID_STORAGE_KEY = '__ogm_universe_favorite_grid';
 
 export class SaveManager {
   constructor(private readonly extensionStorageService: ExtensionStorageService) { }
@@ -34,95 +36,105 @@ export class SaveManager {
     return result;
   }
 
+  private sanitizeGrid(grid: string[][], seen: Set<string> = new Set()): string[][] {
+    return (grid || [])
+      .filter((column) => Array.isArray(column))
+      .map((column) => this.sanitizeRow(column, seen))
+      .filter((column) => column.length > 0);
+  }
+
   public async GetAllExtensionLocalDataAsync(): Promise<Record<string, ExtensionLocalData>> {
     return await this.extensionStorageService.GetAll<ExtensionLocalData>(
       (val): val is ExtensionLocalData => this.isExtensionLocalData(val)
     );
   }
 
-  public async GetUniverseOrderAsync(): Promise<string[]> {
-    try {
-      const result = await this.extensionStorageService.Get<string[]>(UNIVERSE_ORDER_STORAGE_KEY);
-      if (!Array.isArray(result)) return [];
-      return this.sanitizeRow(result);
-    } catch {
-      return [];
-    }
-  }
-
-  public async SaveUniverseOrderAsync(order: string[]): Promise<string[]> {
-    const normalized = this.sanitizeRow(order);
-    await this.extensionStorageService.Set(UNIVERSE_ORDER_STORAGE_KEY, normalized);
-    return normalized;
-  }
-
-  public async GetUniverseGridAsync(): Promise<string[][]> {
-    try {
-      const raw = await this.extensionStorageService.Get<string[][]>(UNIVERSE_GRID_STORAGE_KEY);
-      if (!Array.isArray(raw)) return [];
-
-      const seen = new Set<string>();
-      return raw
-        .filter((row): row is string[] => Array.isArray(row))
-        .map((row) => this.sanitizeRow(row, seen))
-        .filter((row) => row.length > 0);
-    } catch {
-      return [];
-    }
-  }
-
-  public async SaveUniverseGridAsync(grid: string[][]): Promise<string[][]> {
+  public async GetUniverseLayoutConfigAsync(): Promise<UniverseLayoutConfig> {
     const seen = new Set<string>();
-    const normalized = (grid || [])
-      .filter((column) => Array.isArray(column))
-      .map((column) => this.sanitizeRow(column, seen))
-      .filter((column) => column.length > 0);
 
-    await this.extensionStorageService.Set(UNIVERSE_GRID_STORAGE_KEY, normalized);
-    return normalized;
+    const rawFavOrder = await this.extensionStorageService.Get<string[]>(UNIVERSE_FAVORITE_ORDER_STORAGE_KEY) || [];
+    const rawFavGrid = await this.extensionStorageService.Get<string[][]>(UNIVERSE_FAVORITE_GRID_STORAGE_KEY) || [];
+    const rawOrder = await this.extensionStorageService.Get<string[]>(UNIVERSE_ORDER_STORAGE_KEY) || [];
+    const rawGrid = await this.extensionStorageService.Get<string[][]>(UNIVERSE_GRID_STORAGE_KEY) || [];
+
+    const favoriteListOrder = this.sanitizeRow(rawFavOrder, seen);
+
+    const favGridSeen = new Set<string>();
+    const favoriteGridOrder = this.sanitizeGrid(rawFavGrid, favGridSeen);
+
+    const otherSeen = new Set<string>(seen);
+    const listOrder = this.sanitizeRow(rawOrder, otherSeen);
+
+    const otherGridSeen = new Set<string>(favGridSeen);
+    const gridOrder = this.sanitizeGrid(rawGrid, otherGridSeen);
+
+    return new UniverseLayoutConfig({
+      favoriteListOrder,
+      favoriteGridOrder,
+      listOrder,
+      gridOrder,
+    });
   }
 
+  public async SaveUniverseLayoutConfigAsync(config: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
+    const seenList = new Set<string>();
+    const favList = this.sanitizeRow(config.favoriteListOrder || [], seenList);
+    const otherList = this.sanitizeRow(config.listOrder || [], seenList);
+
+    const seenGrid = new Set<string>();
+    const favGrid = this.sanitizeGrid(config.favoriteGridOrder || [], seenGrid);
+    const otherGrid = this.sanitizeGrid(config.gridOrder || [], seenGrid);
+
+    await this.extensionStorageService.Set(UNIVERSE_FAVORITE_ORDER_STORAGE_KEY, favList);
+    await this.extensionStorageService.Set(UNIVERSE_FAVORITE_GRID_STORAGE_KEY, favGrid);
+    await this.extensionStorageService.Set(UNIVERSE_ORDER_STORAGE_KEY, otherList);
+    await this.extensionStorageService.Set(UNIVERSE_GRID_STORAGE_KEY, otherGrid);
+
+    return new UniverseLayoutConfig({
+      favoriteListOrder: favList,
+      favoriteGridOrder: favGrid,
+      listOrder: otherList,
+      gridOrder: otherGrid,
+    });
+  }
 
   public async AppendToUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
     const key = this.normalizeKey(universeKey);
     if (!key) return;
 
-    const order = await this.GetUniverseOrderAsync();
-    if (!order.includes(key)) {
-      order.push(key);
-      await this.SaveUniverseOrderAsync(order);
+    const layout = await this.GetUniverseLayoutConfigAsync();
+
+    const inFavList = layout.favoriteListOrder.includes(key);
+    const inOtherList = layout.listOrder.includes(key);
+    if (!inFavList && !inOtherList) {
+      layout.listOrder.push(key);
     }
 
-    const grid = await this.GetUniverseGridAsync();
-    const existsInGrid = grid.some((column) => column.includes(key));
-
-    if (!existsInGrid) {
-      if (grid.length === 0) {
-        grid.push([key]);
+    const inFavGrid = layout.favoriteGridOrder.some((col) => col.includes(key));
+    const inOtherGrid = layout.gridOrder.some((col) => col.includes(key));
+    if (!inFavGrid && !inOtherGrid) {
+      if (layout.gridOrder.length === 0) {
+        layout.gridOrder.push([key]);
       } else {
-        grid[grid.length - 1].push(key);
+        layout.gridOrder[layout.gridOrder.length - 1].push(key);
       }
-      await this.SaveUniverseGridAsync(grid);
     }
+
+    await this.SaveUniverseLayoutConfigAsync(layout);
   }
 
   public async RemoveFromUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
     const key = this.normalizeKey(universeKey);
     if (!key) return;
 
-    // Remove from order (1D)
-    const order = await this.GetUniverseOrderAsync();
-    const nextOrder = order.filter((k) => k !== key);
-    if (nextOrder.length !== order.length) {
-      await this.SaveUniverseOrderAsync(nextOrder);
-    }
+    const layout = await this.GetUniverseLayoutConfigAsync();
+    layout.favoriteListOrder = layout.favoriteListOrder.filter((k) => k !== key);
+    layout.listOrder = layout.listOrder.filter((k) => k !== key);
+    layout.favoriteGridOrder = layout.favoriteGridOrder.map((col) => col.filter((k) => k !== key)).filter((col) => col.length > 0);
+    layout.gridOrder = layout.gridOrder.map((col) => col.filter((k) => k !== key)).filter((col) => col.length > 0);
 
-    // Remove from grid (2D)
-    const grid = await this.GetUniverseGridAsync();
-    const nextGrid = grid.map((column) => column.filter((k) => k !== key));
-    await this.SaveUniverseGridAsync(nextGrid);
+    await this.SaveUniverseLayoutConfigAsync(layout);
   }
-
 
   public async GetExtensionLocalDataAsync(universeKey: string): Promise<ExtensionLocalData> {
     const raw = await this.extensionStorageService.Get<Partial<ExtensionLocalData>>(universeKey);
@@ -168,9 +180,5 @@ export class SaveManager {
     localSave.LastRefreshDate = lastRefreshDate;
     await this.SaveExtensionLocalDataAsync(universeKey, localSave);
     return localSave;
-  }
-
-  public async RemoveExtensionLocalDataAsync(universeKey: string): Promise<void> {
-    await this.extensionStorageService.Remove(universeKey);
   }
 }

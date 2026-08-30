@@ -103,21 +103,54 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: auto;
+  gap: 16px;
+  position: relative;
+
+  .drop-indicator-line {
+    position: absolute;
+    background-color: $ogm-color-orange;
+    border-radius: 2px;
+    box-shadow: 0 0 6px $ogm-color-orange;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+  }
+
+  .universe-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .universe-section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid $ogm-border-color;
+      color: $ogm-color-orange;
+      font-weight: 600;
+      font-size: 15px;
+
+      .material-symbols-outlined {
+        font-size: 18px;
+      }
+    }
+  }
 
   .universe-list {
     flex: 1;
     position: relative;
     width: 100%;
+    min-height: 48px; // Permet de conserver une zone de dépôt même lorsque la section est vide
     gap: 8px;
     /* List mode : single column, 340px wide */
     &[data-mode='list'] {
       display: flex;
       flex-direction: column;
       max-width: 340px;
-      gap: 8px;
 
       .universe-column {
-        display: contents; // Use display: contents to make the column invisible and allow its children to be direct children of the parent flex container
+        display: contents;
       }
     }
     /* Grid mode : multiple columns, each 340px wide, with a gap of 8px */
@@ -126,7 +159,7 @@ body {
       flex-direction: row;
       align-items: flex-start;
       gap: 8px;
-      width: max-content; // Allow the grid to expand based on the number of columns
+      width: max-content;
       min-width: 100%;
 
       .universe-column {
@@ -135,18 +168,8 @@ body {
         gap: 8px;
         width: 340px;
         min-width: 340px;
-        flex-shrink: 0; // Prevent the column from shrinking below its defined width
+        flex-shrink: 0;
       }
-    }
-
-    .drop-indicator-line {
-      position: absolute;
-      background-color: $ogm-color-orange;
-      border-radius: 2px;
-      box-shadow: 0 0 6px $ogm-color-orange;
-      pointer-events: none;
-      z-index: 1000;
-      display: none;
     }
 
     .universe-empty {
