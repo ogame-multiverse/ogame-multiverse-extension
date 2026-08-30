@@ -30,14 +30,17 @@ interface IndicatorBinding {
   checkboxIdSuffix: string;
   attributeName: string;
   optionKey: keyof UniverseSidePanelOptions;
+  labelKey: string;
+  icon: string;
+  containerClass: string;
 }
 
 const INDICATOR_BINDINGS: IndicatorBinding[] = [
-  { checkboxIdSuffix: 'indicator-fleet-hostile-display-setting-checkbox', attributeName: 'show-hostile-fleets-indicator', optionKey: 'ShowHostileFleetIndicator' },
-  { checkboxIdSuffix: 'indicator-fleet-friendly-display-setting-checkbox', attributeName: 'show-friendly-fleets-indicator', optionKey: 'ShowFriendlyFleetIndicator' },
-  { checkboxIdSuffix: 'indicator-fleet-own-display-setting-checkbox', attributeName: 'show-own-fleets-indicator', optionKey: 'ShowOwnFleetIndicator' },
-  { checkboxIdSuffix: 'indicator-unread-mail-display-setting-checkbox', attributeName: 'show-unread-mail-indicator', optionKey: 'ShowUnreadMessagesIndicator' },
-  { checkboxIdSuffix: 'indicator-unread-chat-display-setting-checkbox', attributeName: 'show-unread-chat-indicator', optionKey: 'ShowUnreadChatMessagesIndicator' },
+  { checkboxIdSuffix: 'indicator-fleet-hostile-display-setting-checkbox', attributeName: 'show-hostile-fleets-indicator', optionKey: 'ShowHostileFleetIndicator', labelKey: 'SidePanelHostileFleetsLabel', icon: 'rocket_launch', containerClass: 'indicator-fleet-hostile-display-setting' },
+  { checkboxIdSuffix: 'indicator-fleet-friendly-display-setting-checkbox', attributeName: 'show-friendly-fleets-indicator', optionKey: 'ShowFriendlyFleetIndicator', labelKey: 'SidePanelFriendlyFleetsLabel', icon: 'rocket_launch', containerClass: 'indicator-fleet-friendly-display-setting' },
+  { checkboxIdSuffix: 'indicator-fleet-own-display-setting-checkbox', attributeName: 'show-own-fleets-indicator', optionKey: 'ShowOwnFleetIndicator', labelKey: 'SidePanelOwnFleetsLabel', icon: 'rocket_launch', containerClass: 'indicator-fleet-own-display-setting' },
+  { checkboxIdSuffix: 'indicator-unread-mail-display-setting-checkbox', attributeName: 'show-unread-mail-indicator', optionKey: 'ShowUnreadMessagesIndicator', labelKey: 'SidePanelUnreadMessagesLabel', icon: 'mail', containerClass: 'indicator-unread-mail-display-setting' },
+  { checkboxIdSuffix: 'indicator-unread-chat-display-setting-checkbox', attributeName: 'show-unread-chat-indicator', optionKey: 'ShowUnreadChatMessagesIndicator', labelKey: 'SidePanelUnreadChatLabel', icon: 'chat', containerClass: 'indicator-unread-chat-display-setting' },
 ];
 
 export class UniversePanelController {
@@ -45,8 +48,6 @@ export class UniversePanelController {
   private readonly defaultWarningThresholdMinutes = 15;
 
   private loaded = false;
-  private syncSuspended = false;
-  private syncIndicatorEl?: HTMLElement;
   private readonly universeRowsByKey = new Map<string, UniverseRowView>();
 
   private rafId?: number;
@@ -58,6 +59,7 @@ export class UniversePanelController {
   private readonly activeLocalTabIds = new Set<number>();
 
   private containerDnDListenersAttached = false;
+  private resizeObserver?: ResizeObserver;
 
   private readonly onTabChanged = () => { void this.Refresh(); };
 
@@ -89,15 +91,17 @@ export class UniversePanelController {
     sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseOrder(this.logger, (data: { order: string[] }) => {
       this.ApplyUniverseOrder(data?.order || []);
     });
+
+    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseGrid(this.logger, () => {
+      this.Refresh();
+    });
   }
 
-  /**
-   * Activates the universe panel controller by initializing the current window ID, refreshing the panel, and starting the animation loop.
-   */
   public async ActivateAsync(): Promise<void> {
     if (!this.loaded) {
       this.loaded = true;
       await this.InitCurrentWindowIdAsync();
+      this.InitResizeObserver();
       this.Refresh();
     }
     this.StartAnimationLoop();
@@ -110,10 +114,9 @@ export class UniversePanelController {
     }
   }
 
-  /**
-   * Deactivates the universe panel controller by canceling the animation loop and removing event listeners for tab changes.
-   */
   public Deactivate(): void {
+    this.resizeObserver?.disconnect();
+
     if (this.rafId !== undefined) {
       cancelAnimationFrame(this.rafId);
       this.rafId = undefined;
@@ -125,6 +128,32 @@ export class UniversePanelController {
       chromeApi.tabs.onUpdated?.removeListener(this.onTabChanged);
       chromeApi.tabs.onRemoved?.removeListener(this.onTabChanged);
     }
+  }
+
+  private DetectUniverseDisplayMode(): 'list' | 'grid' {
+    const parent = document.getElementById('panel-universe');
+    const width = parent ? parent.clientWidth : window.innerWidth;
+    return width >= 650 ? 'grid' : 'list';
+  }
+
+  private InitResizeObserver(): void {
+    const container = document.getElementById('universe-list');
+    if (!container) return;
+
+    let currentMode: 'list' | 'grid' | null = null;
+
+    this.resizeObserver = new ResizeObserver(() => {
+      const newMode = this.DetectUniverseDisplayMode();
+      container.setAttribute('data-mode', newMode);
+
+      if (newMode !== currentMode) {
+        currentMode = newMode;
+        this.Refresh();
+      }
+    });
+
+    const parent = document.getElementById('panel-universe') || container;
+    this.resizeObserver.observe(parent);
   }
 
   private async InitCurrentWindowIdAsync(): Promise<void> {
@@ -165,20 +194,19 @@ export class UniversePanelController {
     }
   }
 
-  /**
-   * Refreshes the universe panel by fetching the latest universe statuses and updating the UI accordingly.
-   * This method is debounced to prevent excessive updates within a short time frame.
-   */
   public Refresh(): void {
     Debouncer.Debounce('universe-panel-refresh', async () => {
       const container = document.getElementById('universe-list');
       if (!container) return;
 
       await this.UpdateLocalTabIdsAsync();
-      await this.CheckSyncStateAsync();
 
-      const universeStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger);
-      if (!universeStatuses.length) {
+      const mode = this.DetectUniverseDisplayMode();
+      container.setAttribute('data-mode', mode);
+
+      const rawStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger, mode);
+
+      if (!rawStatuses || (Array.isArray(rawStatuses) && rawStatuses.length === 0)) {
         container.replaceChildren();
         this.universeRowsByKey.clear();
         this.lastSecondByUniverseKey.clear();
@@ -190,8 +218,67 @@ export class UniversePanelController {
         return;
       }
 
-      this.SyncUniverseRows(container, universeStatuses);
+      const is2DGrid = Array.isArray(rawStatuses[0]);
+
+      let activeGrid: SidePanelUniverseStatus[][];
+      if (mode === 'grid' && is2DGrid) {
+        activeGrid = (rawStatuses as SidePanelUniverseStatus[][]).filter(
+          (col) => col && col.length > 0
+        );
+      } else {
+        const flatStatuses: SidePanelUniverseStatus[] = is2DGrid
+          ? (rawStatuses as unknown as SidePanelUniverseStatus[][]).flat()
+          : (rawStatuses as unknown as SidePanelUniverseStatus[]);
+        activeGrid = [flatStatuses];
+      }
+
+      this.SyncUniverseGrid(container, activeGrid);
     }, 100, false);
+  }
+
+  private SyncUniverseGrid(container: HTMLElement, activeGrid: SidePanelUniverseStatus[][]): void {
+    container.querySelector('.universe-empty')?.remove();
+    this.EnsureContainerDnDListeners(container);
+
+    const nextUniverseKeys = new Set<string>();
+
+    const existingCols = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
+    while (existingCols.length > activeGrid.length) {
+      existingCols.pop()?.remove();
+    }
+    while (existingCols.length < activeGrid.length) {
+      const colEl = document.createElement('div');
+      colEl.className = 'universe-column';
+      container.appendChild(colEl);
+      existingCols.push(colEl);
+    }
+
+    activeGrid.forEach((colStatuses, colIdx) => {
+      const colEl = existingCols[colIdx];
+
+      colStatuses.forEach((status) => {
+        const universeKey = this.NormalizeUniverseKey(status.UniverseKey);
+        nextUniverseKeys.add(universeKey);
+
+        let rowView = this.universeRowsByKey.get(universeKey);
+        if (rowView) {
+          this.UpdateUniverseRow(rowView, status);
+        } else {
+          rowView = this.BuildUniverseRow(status);
+          this.universeRowsByKey.set(universeKey, rowView);
+        }
+
+        colEl.appendChild(rowView.row);
+      });
+    });
+
+    this.universeRowsByKey.forEach((rowView, key) => {
+      if (!nextUniverseKeys.has(key)) {
+        rowView.row.remove();
+        this.universeRowsByKey.delete(key);
+        this.lastSecondByUniverseKey.delete(key);
+      }
+    });
   }
 
   private UpdateUniverseOpenState(universeKey: string, isOpen: boolean): void {
@@ -202,12 +289,6 @@ export class UniversePanelController {
       existingRow.currentStatus.IsOpen = isOpen;
       this.UpdateUniverseRow(existingRow, existingRow.currentStatus);
     }
-  }
-
-  public async CheckSyncStateAsync(): Promise<void> {
-    const hasActiveTab = await this.HasActiveOGameUniverseTabAsync();
-    this.syncSuspended = !hasActiveTab;
-    this.SetSyncPausedIndicator(this.syncSuspended);
   }
 
   public UpdateSingleUniverseStatus(data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean }): void {
@@ -291,7 +372,6 @@ export class UniversePanelController {
 
     if (now - this.lastSyncCheckTime >= 1000) {
       this.lastSyncCheckTime = now;
-      void this.CheckSyncStateAsync();
     }
 
     this.universeRowsByKey.forEach((rowView, universeKey) => {
@@ -316,63 +396,6 @@ export class UniversePanelController {
     });
   }
 
-  /**
-   * Checks if there is an active OGame tab.
-   * Since indicators are only updated for active OGame tabs (serving as reminders of elements seen by the player),
-   * the tab no longer strictly needs to be in the current window.
-   *
-   * @returns A promise that resolves to true if an active OGame tab exists, false otherwise.
-   */
-  private async HasActiveOGameUniverseTabAsync(): Promise<boolean> {
-    const chromeApi = (globalThis as { chrome?: any }).chrome;
-    if (!chromeApi?.tabs?.query) return true;
-
-    try {
-      const tabs = await chromeApi.tabs.query({ active: true });
-      return tabs.some((tab: any) => this.IsOGameUniverseTabab(tab));
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Determines if a given tab is an OGame universe tab based on its URL.
-   * @param tab
-   * @returns True if the tab is an OGame universe tab, false otherwise.
-   */
-  private IsOGameUniverseTabab(tab: any): boolean {
-    if (GlobalConstants.SYNC_TABS_URLS_REGEXPS.length === 0) return true;
-    const url = typeof tab?.url === 'string' ? tab.url : typeof tab?.pendingUrl === 'string' ? tab.pendingUrl : '';
-    return GlobalConstants.SYNC_TABS_URLS_REGEXPS.some((regexp) => regexp.test(url));
-  }
-
-  private SetSyncPausedIndicator(paused: boolean): void {
-    const container = document.getElementById('universe-list');
-    if (!container) return;
-
-    if (!paused) {
-      this.syncIndicatorEl?.remove();
-      this.syncIndicatorEl = undefined;
-      return;
-    }
-
-    if (this.syncIndicatorEl) return;
-
-    const parent = container.parentElement || container;
-    const el = document.createElement('div');
-    el.id = 'universe-sync-paused';
-    el.className = 'universe-sync-paused';
-
-    const text = Localizator.Translate('SidePanelSyncPaused') || 'Sync paused — no active OGame tab.';
-    el.innerHTML = `
-      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
-      <span>${text}</span>
-    `;
-
-    parent.insertBefore(el, container);
-    this.syncIndicatorEl = el;
-  }
-
   private BuildUniverseRow(status: SidePanelUniverseStatus): UniverseRowView {
     const tempContainer = document.createElement('div');
     tempContainer.innerHTML = this.GetUniverseRowTemplate(status.UniverseKey);
@@ -383,10 +406,11 @@ export class UniversePanelController {
 
     const dragHandle = row.querySelector('.universe-drag-handle') as HTMLElement | null;
     if (dragHandle) {
-      dragHandle.addEventListener('mousedown', () => row.setAttribute('draggable', 'true'));
-      dragHandle.addEventListener('mouseup', () => row.setAttribute('draggable', 'false'));
+      dragHandle.addEventListener('mouseenter', () => row.setAttribute('draggable', 'true'));
       dragHandle.addEventListener('mouseleave', () => {
-        if (!row.classList.contains('dragging')) row.setAttribute('draggable', 'false');
+        if (!row.classList.contains('dragging')) {
+          row.setAttribute('draggable', 'false');
+        }
       });
     }
 
@@ -394,6 +418,7 @@ export class UniversePanelController {
       if (!event.dataTransfer) return;
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', status.UniverseKey);
+      event.dataTransfer.setData('text/x-ogame-item', status.UniverseKey);
       row.classList.add('dragging');
     });
 
@@ -404,7 +429,7 @@ export class UniversePanelController {
     });
 
     const thresholdSelect = row.querySelector('.universe-threshold-select') as HTMLSelectElement;
-    const refreshButton = row.querySelector('#universe-refresh-button') as HTMLButtonElement;
+    const refreshButton = row.querySelector('.universe-refresh-button') as HTMLButtonElement;
     const settingsButton = row.querySelector('.universe-settings-button') as HTMLButtonElement;
     const removeButton = row.querySelector('.universe-remove-button') as HTMLButtonElement;
     const lastRefresh = row.querySelector('.universe-last-refresh') as HTMLElement;
@@ -458,15 +483,15 @@ export class UniversePanelController {
 
     thresholdSelect.addEventListener('change', async () => {
       const selectedMinutes = Number(thresholdSelect.value);
-      status.SidePanelOptions.WarningThresholdMinutes = selectedMinutes;
-      await this.SaveOption(status.UniverseKey, 'WarningThresholdMinutes', selectedMinutes);
+      rowView.currentStatus.SidePanelOptions.WarningThresholdMinutes = selectedMinutes;
+      await this.SaveOption(rowView.currentStatus.UniverseKey, 'WarningThresholdMinutes', selectedMinutes);
       updateWarningState(selectedMinutes);
     });
 
     refreshButton.addEventListener('click', () =>
-      this.HandleTabIconClickAsync(status, refreshButton)
+      this.HandleTabIconClickAsync(rowView.currentStatus, refreshButton)
     );
-    removeButton.addEventListener('click', () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, status.UniverseKey)));
+    removeButton.addEventListener('click', () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, rowView.currentStatus.UniverseKey)));
 
     settingsButton.addEventListener('click', () => {
       const isActive = settingsButton.getAttribute('data-universe-settings-active') === 'true';
@@ -484,7 +509,7 @@ export class UniversePanelController {
       checkbox.addEventListener('change', async () => {
         const checked = checkbox.checked;
         row.setAttribute(attributeName, String(checked));
-        await this.SaveOption(status.UniverseKey, optionKey, checked);
+        await this.SaveOption(rowView.currentStatus.UniverseKey, optionKey, checked);
       });
     });
 
@@ -540,49 +565,6 @@ export class UniversePanelController {
         button.disabled = false;
       }
     }
-  }
-
-  private SyncUniverseRows(container: HTMLElement, universeStatuses: SidePanelUniverseStatus[]): void {
-    container.querySelector('.universe-empty')?.remove();
-    this.EnsureContainerDnDListeners(container);
-    const nextUniverseKeys = new Set<string>();
-
-    universeStatuses.forEach((status) => {
-      const universeKey = this.NormalizeUniverseKey(status.UniverseKey);
-      nextUniverseKeys.add(universeKey);
-
-      const existingRow = this.universeRowsByKey.get(universeKey);
-      if (existingRow) {
-        this.UpdateUniverseRow(existingRow, status);
-      } else {
-        const createdRow = this.BuildUniverseRow(status);
-        this.universeRowsByKey.set(universeKey, createdRow);
-        container.appendChild(createdRow.row);
-      }
-    });
-
-    this.universeRowsByKey.forEach((rowView, key) => {
-      if (!nextUniverseKeys.has(key)) {
-        rowView.row.remove();
-        this.universeRowsByKey.delete(key);
-        this.lastSecondByUniverseKey.delete(key);
-      }
-    });
-
-    // Reorder only misplaced rows so untouched rows keep their DOM identity (avoids re-triggering CSS animations).
-    const desiredRows: HTMLElement[] = [];
-    universeStatuses.forEach((status) => {
-      const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(status.UniverseKey));
-      if (rowView) desiredRows.push(rowView.row);
-    });
-    let cursor: Element | null = container.firstElementChild;
-    desiredRows.forEach((row) => {
-      if (cursor === row) {
-        cursor = row.nextElementSibling;
-      } else {
-        container.insertBefore(row, cursor);
-      }
-    });
   }
 
   private UpdateUniverseRow(rowView: UniverseRowView, status: SidePanelUniverseStatus): void {
@@ -711,42 +693,256 @@ export class UniversePanelController {
     if (this.containerDnDListenersAttached) return;
     this.containerDnDListenersAttached = true;
 
-    container.addEventListener('dragover', (event) => {
+    let indicator = container.querySelector('.drop-indicator-line') as HTMLElement | null;
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'drop-indicator-line';
+      container.appendChild(indicator);
+    }
+
+    interface DropTargetState {
+      type: 'new-col-first' | 'new-col-last' | 'inside';
+      targetKey?: string;
+      isBefore?: boolean;
+    }
+
+    let draggingItem: HTMLElement | null = null;
+    let draggedKey: string | null = null;
+    let dropTargetState: DropTargetState | null = null;
+
+    const hideIndicator = () => {
+      if (indicator) indicator.style.display = 'none';
+    };
+
+    const applyReorder = () => {
+      const mode = container.getAttribute('data-mode') || 'list';
+      const keyToMove = draggedKey || draggingItem?.getAttribute('data-universe-key');
+
+      if (keyToMove && dropTargetState) {
+        if (mode === 'grid') {
+          let currentGrid = this.ExtractUniverseGridFromDOM(container);
+
+          if (dropTargetState.type === 'new-col-first') {
+            currentGrid.unshift([keyToMove]);
+          } else if (dropTargetState.type === 'new-col-last') {
+            currentGrid.push([keyToMove]);
+          } else if (dropTargetState.type === 'inside' && dropTargetState.targetKey) {
+            const targetKey = dropTargetState.targetKey;
+            const isBefore = dropTargetState.isBefore;
+
+            let inserted = false;
+            for (let c = 0; c < currentGrid.length; c++) {
+              const idx = currentGrid[c].indexOf(targetKey);
+              if (idx !== -1) {
+                const insertIdx = isBefore ? idx : idx + 1;
+                currentGrid[c].splice(insertIdx, 0, keyToMove);
+                inserted = true;
+                break;
+              }
+            }
+
+            if (!inserted) {
+              if (currentGrid.length === 0) {
+                currentGrid = [[keyToMove]];
+              } else {
+                currentGrid[currentGrid.length - 1].push(keyToMove);
+              }
+            }
+          }
+
+          currentGrid = currentGrid.filter((col) => col.length > 0);
+          void this.PersistUniverseGridAsync(currentGrid);
+        } else {
+          if (dropTargetState.targetKey) {
+            const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'));
+            let newOrder = items.map((el) => el.getAttribute('data-universe-key') || '').filter(Boolean);
+            newOrder = newOrder.filter((k) => k !== keyToMove);
+
+            const targetIdx = newOrder.indexOf(dropTargetState.targetKey);
+            if (targetIdx !== -1) {
+              const insertIdx = dropTargetState.isBefore ? targetIdx : targetIdx + 1;
+              newOrder.splice(insertIdx, 0, keyToMove);
+            } else {
+              newOrder.push(keyToMove);
+            }
+            void this.PersistUniverseOrderAsync(newOrder);
+          }
+        }
+      }
+
+      hideIndicator();
+      draggingItem = null;
+      draggedKey = null;
+      dropTargetState = null;
+    };
+
+    container.addEventListener('dragstart', (event) => {
       const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
-      const dragging = container.querySelector('.universe-item-box.dragging') as HTMLElement | null;
-      if (!dragging) return;
+      if (target) {
+        draggingItem = target;
+        draggedKey = target.getAttribute('data-universe-key');
+        target.classList.add('dragging');
+
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/x-ogame-item', draggedKey || '');
+          event.dataTransfer.setData('text/plain', '');
+        }
+      }
+    });
+
+    container.addEventListener('dragover', (event) => {
+      const dragging = draggingItem || (container.querySelector('.universe-item-box.dragging') as HTMLElement | null);
+      if (!dragging || !indicator) return;
+
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-      if (!target || target === dragging) {
-        this.ClearDropIndicators();
-        return;
+
+      const mode = container.getAttribute('data-mode') || 'list';
+      const containerRect = container.getBoundingClientRect();
+
+      if (mode === 'grid') {
+        const colElements = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
+        if (colElements.length === 0) return;
+
+        const firstColRect = colElements[0].getBoundingClientRect();
+        const lastColRect = colElements[colElements.length - 1].getBoundingClientRect();
+        const canCreateNewColumn = colElements.length < 4;
+
+        const isFarLeft = canCreateNewColumn && (event.clientX < firstColRect.left + 25);
+        const isFarRight = canCreateNewColumn && (event.clientX > containerRect.right - 35 || event.clientX > lastColRect.right - 25);
+
+        if (isFarLeft) {
+          const colHeight = firstColRect.height;
+          indicator.style.top = `${firstColRect.top - containerRect.top}px`;
+          indicator.style.left = `${firstColRect.left - containerRect.left - 4}px`;
+          indicator.style.width = '4px';
+          indicator.style.height = `${colHeight}px`;
+          indicator.style.display = 'block';
+          dropTargetState = { type: 'new-col-first' };
+          return;
+        }
+
+        if (isFarRight) {
+          const colHeight = lastColRect.height;
+          indicator.style.top = `${lastColRect.top - containerRect.top}px`;
+          indicator.style.left = `${lastColRect.right - containerRect.left + 2}px`;
+          indicator.style.width = '4px';
+          indicator.style.height = `${colHeight}px`;
+          indicator.style.display = 'block';
+          dropTargetState = { type: 'new-col-last' };
+          return;
+        }
+
+        let targetCol = colElements[0];
+        let minDistance = Infinity;
+        colElements.forEach((colEl) => {
+          const rect = colEl.getBoundingClientRect();
+          const center = rect.left + rect.width / 2;
+          const dist = Math.abs(event.clientX - center);
+          if (dist < minDistance) {
+            minDistance = dist;
+            targetCol = colEl;
+          }
+        });
+
+        const targetColItems = Array.from(targetCol.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
+
+        if (targetColItems.length === 0) {
+          const targetColRect = targetCol.getBoundingClientRect();
+          indicator.style.top = `${targetColRect.top - containerRect.top}px`;
+          indicator.style.left = `${targetColRect.left - containerRect.left}px`;
+          indicator.style.width = `${targetColRect.width}px`;
+          indicator.style.height = '4px';
+          indicator.style.display = 'block';
+
+          dropTargetState = { type: 'inside', targetKey: undefined, isBefore: true };
+          return;
+        }
+
+        let targetItem = targetColItems[0];
+        let isBefore = true;
+
+        for (const item of targetColItems) {
+          const rect = item.getBoundingClientRect();
+          const itemMiddle = rect.top + rect.height / 2;
+          if (event.clientY < itemMiddle) {
+            targetItem = item;
+            isBefore = true;
+            break;
+          } else {
+            targetItem = item;
+            isBefore = false;
+          }
+        }
+
+        const targetRect = targetItem.getBoundingClientRect();
+        const topPos = isBefore
+          ? targetRect.top - containerRect.top - 4
+          : targetRect.bottom - containerRect.top + 2;
+
+        indicator.style.top = `${topPos}px`;
+        indicator.style.left = `${targetRect.left - containerRect.left}px`;
+        indicator.style.width = `${targetRect.width}px`;
+        indicator.style.height = '4px';
+        indicator.style.display = 'block';
+
+        dropTargetState = {
+          type: 'inside',
+          targetKey: targetItem.getAttribute('data-universe-key') || undefined,
+          isBefore,
+        };
+      } else {
+        const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
+        if (!target || target === dragging) {
+          hideIndicator();
+          return;
+        }
+
+        const targetRect = target.getBoundingClientRect();
+        const isBefore = event.clientY < targetRect.top + targetRect.height / 2;
+        const topPos = isBefore
+          ? targetRect.top - containerRect.top - 4
+          : targetRect.bottom - containerRect.top + 1;
+
+        indicator.style.top = `${topPos}px`;
+        indicator.style.left = `${targetRect.left - containerRect.left}px`;
+        indicator.style.width = `${targetRect.width}px`;
+        indicator.style.height = '3px';
+        indicator.style.display = 'block';
+
+        dropTargetState = {
+          type: 'inside',
+          targetKey: target.getAttribute('data-universe-key') || undefined,
+          isBefore,
+        };
       }
-      const rect = target.getBoundingClientRect();
-      const before = event.clientY < rect.top + rect.height / 2;
-      this.ClearDropIndicators();
-      target.classList.add(before ? 'drop-before' : 'drop-after');
     });
 
     container.addEventListener('dragleave', (event) => {
-      if (event.target === container) this.ClearDropIndicators();
+      if (event.target === container) hideIndicator();
+    });
+
+    container.addEventListener('dragend', (event) => {
+      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
+      target?.classList.remove('dragging');
+      applyReorder();
     });
 
     container.addEventListener('drop', (event) => {
       event.preventDefault();
-      const dragging = container.querySelector('.universe-item-box.dragging') as HTMLElement | null;
-      const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
-      this.ClearDropIndicators();
-      if (!dragging) return;
-      if (target && target !== dragging) {
-        const rect = target.getBoundingClientRect();
-        const before = event.clientY < rect.top + rect.height / 2;
-        target.parentElement?.insertBefore(dragging, before ? target : target.nextSibling);
-      }
-      const newOrder = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'))
-        .map((el) => el.getAttribute('data-universe-key') || '')
-        .filter(Boolean);
-      void this.PersistUniverseOrderAsync(newOrder);
+      applyReorder();
     });
+  }
+
+  private ExtractUniverseGridFromDOM(container: HTMLElement): string[][] {
+    const columns = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
+    return columns
+      .map((col) => {
+        const items = Array.from(col.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
+        return items.map((item) => item.getAttribute('data-universe-key') || '').filter(Boolean);
+      })
+      .filter((col) => col.length > 0);
   }
 
   private ClearDropIndicators(): void {
@@ -763,25 +959,43 @@ export class UniversePanelController {
     }
   }
 
+  private async PersistUniverseGridAsync(grid: string[][]): Promise<void> {
+    try {
+      await serviceWorkerProtocolClient.SaveUniverseGridAsync(this.logger, grid);
+    } catch (error) {
+      this.logger.error('Failed to persist universe grid', error);
+      this.Refresh();
+    }
+  }
+
   private ApplyUniverseOrder(order: string[]): void {
+    const mode = this.DetectUniverseDisplayMode();
+    if (mode === 'grid') {
+      this.Refresh();
+      return;
+    }
     const container = document.getElementById('universe-list');
     if (!container) return;
+    const col = container.querySelector('.universe-column') || container;
     const desiredRows: HTMLElement[] = [];
     order.forEach((rawKey) => {
       const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(rawKey));
       if (rowView) desiredRows.push(rowView.row);
     });
-    let cursor: Element | null = container.firstElementChild;
-    desiredRows.forEach((row) => {
-      if (cursor === row) {
-        cursor = row.nextElementSibling;
-      } else {
-        container.insertBefore(row, cursor);
-      }
-    });
+    desiredRows.forEach((row) => col.appendChild(row));
   }
 
   private GetUniverseRowTemplate(universeKey: string): string {
+    const indicatorSettingsHtml = INDICATOR_BINDINGS.map(({ checkboxIdSuffix, labelKey, icon, containerClass }) => `
+                <div class="universe-setting-item ${containerClass}">
+                  <label for="${checkboxIdSuffix}-${universeKey}" class="setting-item-label">
+                    <span class="material-symbols-outlined" aria-hidden="true">${icon}</span>
+                    <span class="setting-item-label-text">${Localizator.Translate(labelKey)}</span>
+                  </label>
+                  <input type="checkbox" id="${checkboxIdSuffix}-${universeKey}" class="setting-item-checkbox"></input>
+                </div>
+    `.trim()).join('\n');
+
     return `
       <div class="universe-item-box">
         <div class="universe-item">
@@ -824,7 +1038,7 @@ export class UniversePanelController {
               </span>
             </div>
           </div>
-          <button type="button" id="universe-refresh-button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
+          <button type="button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
           </button>
           <button type="button" class="universe-settings-button" title="${Localizator.Translate('SidePanelSettingsUniverse')}" aria-label="${Localizator.Translate('SidePanelSettingsUniverse')}">
@@ -835,41 +1049,7 @@ export class UniversePanelController {
             <div class="universe-settings-group">
               <span class="universe-settings-group-header">${Localizator.Translate('SidePanelSettingsGroupIndicators')}:</span>
               <div class="universe-settings-group-content">
-                <div class="universe-setting-item indicator-fleet-hostile-display-setting">
-                  <label for="indicator-fleet-hostile-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelHostileFleetsLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-fleet-hostile-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-fleet-friendly-display-setting">
-                  <label for="indicator-fleet-friendly-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelFriendlyFleetsLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-fleet-friendly-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-fleet-own-display-setting">
-                  <label for="indicator-fleet-own-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelOwnFleetsLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-fleet-own-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-unread-mail-display-setting">
-                  <label for="indicator-unread-mail-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">mail</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelUnreadMessagesLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-unread-mail-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-unread-chat-display-setting">
-                  <label for="indicator-unread-chat-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">chat</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelUnreadChatLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-unread-chat-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
+                ${indicatorSettingsHtml}
               </div>
             </div>
             <button type="button" class="universe-remove-button" title="${Localizator.Translate('SidePanelRemoveUniverse')}" aria-label="${Localizator.Translate('SidePanelRemoveUniverse')}">

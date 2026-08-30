@@ -9,22 +9,6 @@ export const Localizations = [
     tr: 'Evrenler',
     br: 'Universos',
   }),
-  new I18nValue('SidePanelUniverseUnknown', {
-    en: 'Unknown universe',
-    fr: 'Univers inconnu',
-    es: 'Universo desconocido',
-    de: 'Unbekanntes Universum',
-    tr: 'Bilinmeyen evren',
-    br: 'Universo desconhecido',
-  }),
-  new I18nValue('SidePanelRefreshDetection', {
-    en: 'Refresh',
-    fr: 'Actualiser',
-    es: 'Actualizar',
-    de: 'Aktualisieren',
-    tr: 'Yenile',
-    br: 'Atualizar',
-  }),
   new I18nValue('SidePanelSettingsUniverse', {
     en: 'Settings',
     fr: 'Paramètres',
@@ -40,14 +24,6 @@ export const Localizations = [
     de: 'Kein Universum erkannt.',
     tr: 'Hiç evren algılanmadı.',
     br: 'Nenhum universo detectado.',
-  }),
-  new I18nValue('SidePanelUniverseTabOpen', {
-    en: 'Tab open',
-    fr: 'Onglet ouvert',
-    es: 'Pestaña abierta',
-    de: 'Tab geöffnet',
-    tr: 'Sekme açık',
-    br: 'Aba aberta',
   }),
   new I18nValue('SidePanelUniverseInactiveShort', {
     en: 'inactive',
@@ -72,14 +48,6 @@ export const Localizations = [
     de: 'Nie',
     tr: 'Hiç',
     br: 'Nunca',
-  }),
-  new I18nValue('SidePanelSyncPaused', {
-    en: 'Tab synchronization deactivated — waiting for an active OGame tab in the current window.',
-    fr: "Synchronisation des onglets désactivée — En attente d'un onglet OGame actif dans la fenêtre actuelle.",
-    es: 'Sincronización de pestañas desactivada — esperando una pestaña activa de OGame en la ventana actual.',
-    de: 'Tab-Synchronisierung deaktiviert — Warten auf einen aktiven OGame-Tab im aktuellen Fenster.',
-    tr: 'Sekme senkronizasyonu devre dışı bırak — mevcut pencerede aktif bir OGame sekmesi bekleniyor.',
-    br: 'Sincronização de abas desativada — aguardando uma aba ativa do OGame na janela atual.',
   }),
   new I18nValue('SidePanelReloadUniverseTab', {
     en: 'Reload universe tab',

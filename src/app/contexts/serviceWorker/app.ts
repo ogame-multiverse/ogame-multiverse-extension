@@ -24,7 +24,7 @@ class ServiceWorkerContextApp {
   private readonly logger = serviceWorkerLoggerFactory.CreateLogger("ServiceWorkerContextApp");
 
   constructor() {
-    this.saveManager = new SaveManager(new ExtensionStorageService<ExtensionLocalData>(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
+    this.saveManager = new SaveManager(new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
     this.universeTabsManager = new UniverseTabsManager(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
     this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
     this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsManager);
@@ -49,8 +49,8 @@ class ServiceWorkerContextApp {
       sidePanelBroadcastProtocolClient.UpdateUniverseStatus(this.logger, data.universeKey, data.universeName, data.universeCounters, isOpen);
     });
 
-    serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(this.logger, () =>
-      this.universeManager.ListUniverseStatusesAsync()
+    serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(this.logger, (data) =>
+      this.universeManager.ListUniverseStatusesAsync(data)
     );
 
     serviceWorkerProtocolRegistrar.OnActionOnUniverseTab(this.logger, async (data) => {
@@ -74,6 +74,12 @@ class ServiceWorkerContextApp {
     serviceWorkerProtocolRegistrar.OnSaveUniverseOrder(this.logger, async (order: string[]) => {
       const normalized = await this.universeManager.SetUniverseOrderAsync(order);
       sidePanelBroadcastProtocolClient.UpdateUniverseOrder(this.logger, normalized);
+      return normalized;
+    });
+
+    serviceWorkerProtocolRegistrar.OnSaveUniverseGrid(this.logger, async (grid: string[][]) => {
+      const normalized = await this.universeManager.SetUniverseGridAsync(grid);
+      sidePanelBroadcastProtocolClient.UpdateUniverseGrid(this.logger, normalized);
       return normalized;
     });
 
