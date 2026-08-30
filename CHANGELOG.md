@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added grid layout reorganization when expanding the sidepanel to full view.
 
 ### Changed
+- Since indicators are now static snapshots, an active OGame tab is no longer required to display them.
 - Technical refactoring and codebase improvements.
 
 ## [1.2.0.0] - 2026-08-16
