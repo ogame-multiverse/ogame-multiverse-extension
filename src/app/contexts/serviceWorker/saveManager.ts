@@ -3,10 +3,7 @@ import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
 import { ExtensionStorageService } from './extensionStorageService';
 
-export const UNIVERSE_ORDER_STORAGE_KEY = '__ogm_universe_order';
-export const UNIVERSE_GRID_STORAGE_KEY = '__ogm_universe_grid';
-export const UNIVERSE_FAVORITE_ORDER_STORAGE_KEY = '__ogm_universe_favorite_order';
-export const UNIVERSE_FAVORITE_GRID_STORAGE_KEY = '__ogm_universe_favorite_grid';
+export const UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY = '__ogm_universe_layout_config';
 
 export class SaveManager {
   constructor(private readonly extensionStorageService: ExtensionStorageService) { }
@@ -83,16 +80,13 @@ export class SaveManager {
 
     if (isIncomingGridFlatList && stGrid.length > 0) {
       // --- LIST MODE ACTION ---
-      // Preserve existing stored columns as priority
       finalList = inList;
       const listKeys = new Set(finalList);
 
-      // Preserve items present in the original columns
       finalGrid = stGrid
         .map((col) => col.filter((id) => listKeys.has(id)))
         .filter((col) => col.length > 0);
 
-      // If a new universe was moved into this section, add it to the last column
       const currentGridKeys = new Set(finalGrid.flat());
       const missing = finalList.filter((id) => !currentGridKeys.has(id));
 
@@ -105,7 +99,6 @@ export class SaveManager {
       }
     } else if (inGrid.length > 0) {
       // --- GRID MODE ACTION ---
-      // The multi-column layout of inGrid takes precedence
       finalGrid = inGrid;
       const gridKeys = new Set(finalGrid.flat());
 
@@ -132,16 +125,14 @@ export class SaveManager {
   }
 
   public async GetUniverseLayoutConfigAsync(): Promise<UniverseLayoutConfig> {
-    const rawFavOrder = await this.extensionStorageService.Get<string[]>(UNIVERSE_FAVORITE_ORDER_STORAGE_KEY) || [];
-    const rawFavGrid = await this.extensionStorageService.Get<string[][]>(UNIVERSE_FAVORITE_GRID_STORAGE_KEY) || [];
-    const rawOrder = await this.extensionStorageService.Get<string[]>(UNIVERSE_ORDER_STORAGE_KEY) || [];
-    const rawGrid = await this.extensionStorageService.Get<string[][]>(UNIVERSE_GRID_STORAGE_KEY) || [];
+    const raw = await this.extensionStorageService.Get<Partial<UniverseLayoutConfig>>(UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY);
+    if (!raw) return new UniverseLayoutConfig();
 
-    const fav = this.reconcileSection(rawFavOrder, rawFavGrid, rawFavOrder, rawFavGrid);
+    const fav = this.reconcileSection(raw.favoriteListOrder, raw.favoriteGridOrder, raw.favoriteListOrder, raw.favoriteGridOrder);
     const favKeys = new Set([...fav.list, ...fav.grid.flat()]);
 
-    const otherOrder = rawOrder.filter((id) => !favKeys.has(this.normalizeKey(id)));
-    const otherGrid = rawGrid
+    const otherOrder = (raw.listOrder || []).filter((id) => !favKeys.has(this.normalizeKey(id)));
+    const otherGrid = (raw.gridOrder || [])
       .map((col) => col.filter((id) => !favKeys.has(this.normalizeKey(id))))
       .filter((col) => col.length > 0);
 
@@ -185,17 +176,15 @@ export class SaveManager {
       storedOtherGrid
     );
 
-    await this.extensionStorageService.Set(UNIVERSE_FAVORITE_ORDER_STORAGE_KEY, fav.list);
-    await this.extensionStorageService.Set(UNIVERSE_FAVORITE_GRID_STORAGE_KEY, fav.grid);
-    await this.extensionStorageService.Set(UNIVERSE_ORDER_STORAGE_KEY, others.list);
-    await this.extensionStorageService.Set(UNIVERSE_GRID_STORAGE_KEY, others.grid);
-
-    return new UniverseLayoutConfig({
+    const updatedConfig = new UniverseLayoutConfig({
       favoriteListOrder: fav.list,
       favoriteGridOrder: fav.grid,
       listOrder: others.list,
       gridOrder: others.grid,
     });
+
+    await this.extensionStorageService.Set(UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY, updatedConfig);
+    return updatedConfig;
   }
 
   public async AppendToUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
