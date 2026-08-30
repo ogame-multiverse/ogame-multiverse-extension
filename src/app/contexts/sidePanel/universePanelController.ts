@@ -24,6 +24,7 @@ interface UniverseRowView {
   refreshButton: HTMLButtonElement;
   settingsButton: HTMLButtonElement;
   removeButton: HTMLButtonElement;
+  thresholdSelect: HTMLSelectElement;
   updateWarningState: () => void;
   currentStatus: SidePanelUniverseStatus;
 }
@@ -349,12 +350,7 @@ export class UniversePanelController {
     if (!existingRow) return;
 
     existingRow.currentStatus.SidePanelOptions = options;
-
-    const thresholdSelect = existingRow.row.querySelector('.universe-threshold-select') as HTMLSelectElement;
-    if (thresholdSelect && options.WarningThresholdMinutes !== undefined) {
-      thresholdSelect.value = String(options.WarningThresholdMinutes);
-    }
-    existingRow.updateWarningState();
+    this.UpdateUniverseRow(existingRow, existingRow.currentStatus);
 
     INDICATOR_BINDINGS.forEach(({ checkboxIdSuffix, attributeName, optionKey }) => {
       const checkbox = existingRow.row.querySelector(`#${checkboxIdSuffix}-${existingRow.currentStatus.UniverseKey}`) as HTMLInputElement;
@@ -385,10 +381,17 @@ export class UniversePanelController {
 
     this.universeRowsByKey.forEach((rowView, universeKey) => {
       const status = rowView.currentStatus;
-      if (!status.LastRefreshAtIso) return;
+
+      if (!status.LastRefreshAtIso) {
+        rowView.updateWarningState();
+        return;
+      }
 
       const parsed = Date.parse(status.LastRefreshAtIso);
-      if (!Number.isFinite(parsed)) return;
+      if (!Number.isFinite(parsed)) {
+        rowView.updateWarningState();
+        return;
+      }
 
       const elapsedSec = Math.max(0, Math.floor((now - parsed) / 1000));
       const previousSec = this.lastSecondByUniverseKey.get(universeKey);
@@ -452,11 +455,7 @@ export class UniversePanelController {
       }
     });
 
-    const updateWarningState = (thresholdMinutes: number) => {
-      const shouldWarn = this.ShouldShowRefreshWarning(rowView.currentStatus, thresholdMinutes);
-      refreshButton.classList.toggle('universe-refresh-warning', shouldWarn);
-      lastRefresh.classList.toggle('universe-last-refresh-warning', shouldWarn);
-    };
+    const selectedThreshold = status.SidePanelOptions?.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
 
     const rowView: UniverseRowView = {
       row,
@@ -472,14 +471,16 @@ export class UniversePanelController {
       refreshButton,
       settingsButton,
       removeButton,
+      thresholdSelect,
       currentStatus: status,
       updateWarningState: () => {
-        const threshold = status.SidePanelOptions.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
-        updateWarningState(threshold);
+        const threshold = rowView.currentStatus.SidePanelOptions?.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
+        const shouldWarn = this.ShouldShowRefreshWarning(rowView.currentStatus, threshold);
+        refreshButton.classList.toggle('universe-refresh-warning', shouldWarn);
+        lastRefresh.classList.toggle('universe-last-refresh-warning', shouldWarn);
       },
     };
 
-    const selectedThreshold = status.SidePanelOptions.WarningThresholdMinutes;
     this.warningThresholdOptions.forEach((minutes) => {
       const option = document.createElement('option');
       option.value = String(minutes);
@@ -488,13 +489,14 @@ export class UniversePanelController {
       thresholdSelect.appendChild(option);
     });
 
-    updateWarningState(selectedThreshold ?? this.defaultWarningThresholdMinutes);
-
     thresholdSelect.addEventListener('change', async () => {
       const selectedMinutes = Number(thresholdSelect.value);
+      if (!rowView.currentStatus.SidePanelOptions) {
+        rowView.currentStatus.SidePanelOptions = {} as UniverseSidePanelOptions;
+      }
       rowView.currentStatus.SidePanelOptions.WarningThresholdMinutes = selectedMinutes;
       await this.SaveOption(rowView.currentStatus.UniverseKey, 'WarningThresholdMinutes', selectedMinutes);
-      updateWarningState(selectedMinutes);
+      rowView.updateWarningState();
     });
 
     refreshButton.addEventListener('click', () =>
@@ -511,7 +513,7 @@ export class UniversePanelController {
       const checkbox = row.querySelector(`#${checkboxIdSuffix}-${status.UniverseKey}`) as HTMLInputElement;
       if (!checkbox) return;
 
-      const initialValue = Boolean(status.SidePanelOptions[optionKey]);
+      const initialValue = Boolean(status.SidePanelOptions?.[optionKey]);
       checkbox.checked = initialValue;
       row.setAttribute(attributeName, String(initialValue));
 
@@ -578,6 +580,11 @@ export class UniversePanelController {
 
   private UpdateUniverseRow(rowView: UniverseRowView, status: SidePanelUniverseStatus): void {
     rowView.currentStatus = status;
+
+    const currentThreshold = status.SidePanelOptions?.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
+    if (rowView.thresholdSelect.value !== String(currentThreshold)) {
+      rowView.thresholdSelect.value = String(currentThreshold);
+    }
 
     const tabIds = status.TabIds || [];
     const hasLocalTabs = tabIds.some((tabId) => this.localTabIds.has(tabId));
@@ -1014,7 +1021,7 @@ export class UniversePanelController {
                     <span class="material-symbols-outlined" aria-hidden="true">${icon}</span>
                     <span class="setting-item-label-text">${Localizator.Translate(labelKey)}</span>
                   </label>
-                  <input type="checkbox" id="${checkboxIdSuffix}-${universeKey}" class="setting-item-checkbox"></input>
+                  <input type="checkbox" id="${checkboxIdSuffix}-${universeKey}" class="setting-item-checkbox" />
                 </div>
     `.trim()).join('\n');
 

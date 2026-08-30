@@ -4,9 +4,8 @@ import { Localizator } from '../../localization/localizator';
 import { serviceWorkerLoggerFactory } from '../../logging/loggerFactory';
 import { serviceWorkerProtocolRegistrar } from '../../messaging/serviceWorkerProtocol';
 import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
-import { ExtensionLocalData } from '../../model/save/extensionLocalData';
+import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
-import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig'; // Ajouté
 import { ContextMenusManager } from './contextMenusManager';
 import { ExtensionStorageService, StorageArea } from './extensionStorageService';
 import { KeyboardCommandsManager } from './keyboardCommandsManager';
@@ -21,14 +20,13 @@ class ServiceWorkerContextApp {
   private readonly sidePanelManager: SidePanelManager;
   private readonly contextMenusManager: ContextMenusManager;
   private readonly keyboardCommandsManager: KeyboardCommandsManager
-  private readonly saveManager: SaveManager;
   private readonly logger = serviceWorkerLoggerFactory.CreateLogger("ServiceWorkerContextApp");
 
   constructor() {
-    this.saveManager = new SaveManager(new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
+    const saveManager = new SaveManager(new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
     this.universeTabsManager = new UniverseTabsManager(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
     this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
-    this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsManager);
+    this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), saveManager, this.universeTabsManager);
     this.contextMenusManager = new ContextMenusManager(serviceWorkerLoggerFactory.CreateLogger("ContextMenusManager"), this.sidePanelManager);
     this.keyboardCommandsManager = new KeyboardCommandsManager(serviceWorkerLoggerFactory.CreateLogger("KeyboardCommandsManager"), this.sidePanelManager);
 
@@ -63,11 +61,11 @@ class ServiceWorkerContextApp {
     });
 
     serviceWorkerProtocolRegistrar.OnGetUniverseSidePanelOptions(this.logger, (data: string) =>
-      this.saveManager.GetUniverseSidePanelOptionsAsync(data)
+      this.universeManager.GetUniverseSidePanelOptionsAsync(data)
     );
 
     serviceWorkerProtocolRegistrar.OnSaveUniverseSidePanelOptions(this.logger, async (data: { universeKey: string, options: UniverseSidePanelOptions }) => {
-      this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options);
+      await this.universeManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options);
       sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptions(this.logger, data.universeKey, data.options);
     });
 

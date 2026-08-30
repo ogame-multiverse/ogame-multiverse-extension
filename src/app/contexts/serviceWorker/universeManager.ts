@@ -52,7 +52,7 @@ export class UniverseManager {
     const localSave = this.savesByUniverse.get(universeKey);
     if (localSave && localSave.UniverseName !== universeName) {
       localSave.UniverseName = universeName;
-      await this.SaveExtensionLocalDataAsync(universeKey, localSave);
+      await this.saveManager.SaveExtensionLocalDataAsync(universeKey, localSave);
     }
   }
 
@@ -93,6 +93,22 @@ export class UniverseManager {
         favorites: favGridOrdered.map((col) => col.map((key) => this.BuildUniverseStatus(key, this.savesByUniverse.get(key), tabsMapByUniverse))),
         others: otherGridOrdered.map((col) => col.map((key) => this.BuildUniverseStatus(key, this.savesByUniverse.get(key), tabsMapByUniverse))),
       };
+    }
+  }
+
+  public async GetUniverseSidePanelOptionsAsync(universeKey: string): Promise<UniverseSidePanelOptions> {
+    const localSave = this.savesByUniverse.get(universeKey);
+    if (localSave?.SidePanelOptions) {
+      return localSave.SidePanelOptions;
+    }
+    return await this.saveManager.GetUniverseSidePanelOptionsAsync(universeKey);
+  }
+
+  public async SaveUniverseSidePanelOptionsAsync(universeKey: string, options: UniverseSidePanelOptions): Promise<void> {
+    await this.saveManager.SaveUniverseSidePanelOptionsAsync(universeKey, options);
+    const localSave = this.savesByUniverse.get(universeKey);
+    if (localSave) {
+      localSave.SidePanelOptions = options;
     }
   }
 
@@ -161,9 +177,5 @@ export class UniverseManager {
       SidePanelOptions: universe?.SidePanelOptions || new UniverseSidePanelOptions({}),
       SidePanelUniverseCounters: universeData?.universeCounters || new SidePanelUniverseCounters({})
     });
-  }
-
-  private async SaveExtensionLocalDataAsync(universeKey: string, localSave: ExtensionLocalData): Promise<void> {
-    await this.saveManager.SaveExtensionLocalDataAsync(universeKey, localSave);
   }
 }
