@@ -30,14 +30,17 @@ interface IndicatorBinding {
   checkboxIdSuffix: string;
   attributeName: string;
   optionKey: keyof UniverseSidePanelOptions;
+  labelKey: string;
+  icon: string;
+  containerClass: string;
 }
 
 const INDICATOR_BINDINGS: IndicatorBinding[] = [
-  { checkboxIdSuffix: 'indicator-fleet-hostile-display-setting-checkbox', attributeName: 'show-hostile-fleets-indicator', optionKey: 'ShowHostileFleetIndicator' },
-  { checkboxIdSuffix: 'indicator-fleet-friendly-display-setting-checkbox', attributeName: 'show-friendly-fleets-indicator', optionKey: 'ShowFriendlyFleetIndicator' },
-  { checkboxIdSuffix: 'indicator-fleet-own-display-setting-checkbox', attributeName: 'show-own-fleets-indicator', optionKey: 'ShowOwnFleetIndicator' },
-  { checkboxIdSuffix: 'indicator-unread-mail-display-setting-checkbox', attributeName: 'show-unread-mail-indicator', optionKey: 'ShowUnreadMessagesIndicator' },
-  { checkboxIdSuffix: 'indicator-unread-chat-display-setting-checkbox', attributeName: 'show-unread-chat-indicator', optionKey: 'ShowUnreadChatMessagesIndicator' },
+  { checkboxIdSuffix: 'indicator-fleet-hostile-display-setting-checkbox', attributeName: 'show-hostile-fleets-indicator', optionKey: 'ShowHostileFleetIndicator', labelKey: 'SidePanelHostileFleetsLabel', icon: 'rocket_launch', containerClass: 'indicator-fleet-hostile-display-setting' },
+  { checkboxIdSuffix: 'indicator-fleet-friendly-display-setting-checkbox', attributeName: 'show-friendly-fleets-indicator', optionKey: 'ShowFriendlyFleetIndicator', labelKey: 'SidePanelFriendlyFleetsLabel', icon: 'rocket_launch', containerClass: 'indicator-fleet-friendly-display-setting' },
+  { checkboxIdSuffix: 'indicator-fleet-own-display-setting-checkbox', attributeName: 'show-own-fleets-indicator', optionKey: 'ShowOwnFleetIndicator', labelKey: 'SidePanelOwnFleetsLabel', icon: 'rocket_launch', containerClass: 'indicator-fleet-own-display-setting' },
+  { checkboxIdSuffix: 'indicator-unread-mail-display-setting-checkbox', attributeName: 'show-unread-mail-indicator', optionKey: 'ShowUnreadMessagesIndicator', labelKey: 'SidePanelUnreadMessagesLabel', icon: 'mail', containerClass: 'indicator-unread-mail-display-setting' },
+  { checkboxIdSuffix: 'indicator-unread-chat-display-setting-checkbox', attributeName: 'show-unread-chat-indicator', optionKey: 'ShowUnreadChatMessagesIndicator', labelKey: 'SidePanelUnreadChatLabel', icon: 'chat', containerClass: 'indicator-unread-chat-display-setting' },
 ];
 
 export class UniversePanelController {
@@ -94,9 +97,6 @@ export class UniversePanelController {
     });
   }
 
-  /**
-   * Activates the universe panel controller by initializing the current window ID, refreshing the panel, and starting the animation loop.
-   */
   public async ActivateAsync(): Promise<void> {
     if (!this.loaded) {
       this.loaded = true;
@@ -114,9 +114,6 @@ export class UniversePanelController {
     }
   }
 
-  /**
-   * Deactivates the universe panel controller by canceling the animation loop and removing event listeners for tab changes.
-   */
   public Deactivate(): void {
     this.resizeObserver?.disconnect();
 
@@ -143,7 +140,6 @@ export class UniversePanelController {
     const container = document.getElementById('universe-list');
     if (!container) return;
 
-    // Initialise the current mode to null to ensure the first detection triggers a refresh
     let currentMode: 'list' | 'grid' | null = null;
 
     this.resizeObserver = new ResizeObserver(() => {
@@ -198,10 +194,6 @@ export class UniversePanelController {
     }
   }
 
-  /**
-   * Refreshes the universe panel by fetching the latest universe statuses and updating the UI accordingly.
-   * This method is debounced to prevent excessive updates within a short time frame.
-   */
   public Refresh(): void {
     Debouncer.Debounce('universe-panel-refresh', async () => {
       const container = document.getElementById('universe-list');
@@ -228,17 +220,19 @@ export class UniversePanelController {
 
       const is2DGrid = Array.isArray(rawStatuses[0]);
 
+      let activeGrid: SidePanelUniverseStatus[][];
       if (mode === 'grid' && is2DGrid) {
-        const activeGrid = (rawStatuses as SidePanelUniverseStatus[][]).filter(
+        activeGrid = (rawStatuses as SidePanelUniverseStatus[][]).filter(
           (col) => col && col.length > 0
         );
-        this.SyncUniverseGrid(container, activeGrid);
       } else {
         const flatStatuses: SidePanelUniverseStatus[] = is2DGrid
           ? (rawStatuses as unknown as SidePanelUniverseStatus[][]).flat()
           : (rawStatuses as unknown as SidePanelUniverseStatus[]);
-        this.SyncUniverseList(container, flatStatuses);
+        activeGrid = [flatStatuses];
       }
+
+      this.SyncUniverseGrid(container, activeGrid);
     }, 100, false);
   }
 
@@ -248,7 +242,6 @@ export class UniversePanelController {
 
     const nextUniverseKeys = new Set<string>();
 
-    // Ensure the number of columns in the DOM matches the number of columns in the active grid
     const existingCols = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
     while (existingCols.length > activeGrid.length) {
       existingCols.pop()?.remove();
@@ -260,7 +253,6 @@ export class UniversePanelController {
       existingCols.push(colEl);
     }
 
-    // Update each column with the corresponding universe statuses
     activeGrid.forEach((colStatuses, colIdx) => {
       const colEl = existingCols[colIdx];
 
@@ -278,48 +270,6 @@ export class UniversePanelController {
 
         colEl.appendChild(rowView.row);
       });
-    });
-
-    // Remove any universe rows that are no longer present in the active grid
-    this.universeRowsByKey.forEach((rowView, key) => {
-      if (!nextUniverseKeys.has(key)) {
-        rowView.row.remove();
-        this.universeRowsByKey.delete(key);
-        this.lastSecondByUniverseKey.delete(key);
-      }
-    });
-  }
-
-  private SyncUniverseList(container: HTMLElement, flatStatuses: SidePanelUniverseStatus[]): void {
-    container.querySelector('.universe-empty')?.remove();
-    this.EnsureContainerDnDListeners(container);
-
-    const nextUniverseKeys = new Set<string>();
-
-    const existingCols = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
-    while (existingCols.length > 1) {
-      existingCols.pop()?.remove();
-    }
-    let colEl = existingCols[0];
-    if (!colEl) {
-      colEl = document.createElement('div');
-      colEl.className = 'universe-column';
-      container.appendChild(colEl);
-    }
-
-    flatStatuses.forEach((status) => {
-      const universeKey = this.NormalizeUniverseKey(status.UniverseKey);
-      nextUniverseKeys.add(universeKey);
-
-      let rowView = this.universeRowsByKey.get(universeKey);
-      if (rowView) {
-        this.UpdateUniverseRow(rowView, status);
-      } else {
-        rowView = this.BuildUniverseRow(status);
-        this.universeRowsByKey.set(universeKey, rowView);
-      }
-
-      colEl.appendChild(rowView.row);
     });
 
     this.universeRowsByKey.forEach((rowView, key) => {
@@ -340,7 +290,6 @@ export class UniversePanelController {
       this.UpdateUniverseRow(existingRow, existingRow.currentStatus);
     }
   }
-
 
   public UpdateSingleUniverseStatus(data: { universeKey: string; universeName: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean }): void {
     if (!data?.universeKey) return;
@@ -447,7 +396,6 @@ export class UniversePanelController {
     });
   }
 
-
   private BuildUniverseRow(status: SidePanelUniverseStatus): UniverseRowView {
     const tempContainer = document.createElement('div');
     tempContainer.innerHTML = this.GetUniverseRowTemplate(status.UniverseKey);
@@ -456,7 +404,6 @@ export class UniversePanelController {
     row.setAttribute('data-universe-key', status.UniverseKey);
     row.setAttribute('draggable', 'false');
 
-    // Add event listeners for drag-and-drop functionality
     const dragHandle = row.querySelector('.universe-drag-handle') as HTMLElement | null;
     if (dragHandle) {
       dragHandle.addEventListener('mouseenter', () => row.setAttribute('draggable', 'true'));
@@ -773,10 +720,8 @@ export class UniversePanelController {
 
       if (keyToMove && dropTargetState) {
         if (mode === 'grid') {
-          // Extraction de la grille courante (sans l'élément dragué)
           let currentGrid = this.ExtractUniverseGridFromDOM(container);
 
-          // Insertion selon la cible
           if (dropTargetState.type === 'new-col-first') {
             currentGrid.unshift([keyToMove]);
           } else if (dropTargetState.type === 'new-col-last') {
@@ -805,7 +750,6 @@ export class UniversePanelController {
             }
           }
 
-          // Clean up empty columns and persist the new grid
           currentGrid = currentGrid.filter((col) => col.length > 0);
           void this.PersistUniverseGridAsync(currentGrid);
         } else {
@@ -858,38 +802,18 @@ export class UniversePanelController {
       const containerRect = container.getBoundingClientRect();
 
       if (mode === 'grid') {
-        const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
-        if (items.length === 0) return;
+        const colElements = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
+        if (colElements.length === 0) return;
 
-        // Group items by their approximate left position to identify columns
-        const colMap = new Map<number, HTMLElement[]>();
-        items.forEach((item) => {
-          const rect = item.getBoundingClientRect();
-          const left = Math.round(rect.left);
-          let matchKey = Array.from(colMap.keys()).find((k) => Math.abs(k - left) < 20);
-          if (matchKey === undefined) {
-            matchKey = left;
-            colMap.set(matchKey, []);
-          }
-          colMap.get(matchKey)!.push(item);
-        });
+        const firstColRect = colElements[0].getBoundingClientRect();
+        const lastColRect = colElements[colElements.length - 1].getBoundingClientRect();
+        const canCreateNewColumn = colElements.length < 4;
 
-        const sortedLefts = Array.from(colMap.keys()).sort((a, b) => a - b);
-        const firstColRect = colMap.get(sortedLefts[0])![0].getBoundingClientRect();
-        const lastColItems = colMap.get(sortedLefts[sortedLefts.length - 1])!;
-        const lastColRect = lastColItems[0].getBoundingClientRect();
-
-        // Determine if we can create a new column (max 4 columns allowed)
-        const canCreateNewColumn = sortedLefts.length < 4;
-
-        // Check if the cursor is far left or far right to indicate a new column
         const isFarLeft = canCreateNewColumn && (event.clientX < firstColRect.left + 25);
         const isFarRight = canCreateNewColumn && (event.clientX > containerRect.right - 35 || event.clientX > lastColRect.right - 25);
 
         if (isFarLeft) {
-          const firstColBottom = colMap.get(sortedLefts[0])!.slice(-1)[0].getBoundingClientRect().bottom;
-          const colHeight = firstColBottom - firstColRect.top;
-
+          const colHeight = firstColRect.height;
           indicator.style.top = `${firstColRect.top - containerRect.top}px`;
           indicator.style.left = `${firstColRect.left - containerRect.left - 4}px`;
           indicator.style.width = '4px';
@@ -900,9 +824,7 @@ export class UniversePanelController {
         }
 
         if (isFarRight) {
-          const lastColBottom = lastColItems[lastColItems.length - 1].getBoundingClientRect().bottom;
-          const colHeight = lastColBottom - lastColRect.top;
-
+          const colHeight = lastColRect.height;
           indicator.style.top = `${lastColRect.top - containerRect.top}px`;
           indicator.style.left = `${lastColRect.right - containerRect.left + 2}px`;
           indicator.style.width = '4px';
@@ -912,21 +834,31 @@ export class UniversePanelController {
           return;
         }
 
-        // Otherwise, find the closest column to the cursor's X position
-        let closestLeft = sortedLefts[0];
+        let targetCol = colElements[0];
         let minDistance = Infinity;
-        sortedLefts.forEach((leftVal) => {
-          const rect = colMap.get(leftVal)![0].getBoundingClientRect();
+        colElements.forEach((colEl) => {
+          const rect = colEl.getBoundingClientRect();
           const center = rect.left + rect.width / 2;
           const dist = Math.abs(event.clientX - center);
           if (dist < minDistance) {
             minDistance = dist;
-            closestLeft = leftVal;
+            targetCol = colEl;
           }
         });
 
-        const targetColItems = colMap.get(closestLeft)!;
-        targetColItems.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+        const targetColItems = Array.from(targetCol.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
+
+        if (targetColItems.length === 0) {
+          const targetColRect = targetCol.getBoundingClientRect();
+          indicator.style.top = `${targetColRect.top - containerRect.top}px`;
+          indicator.style.left = `${targetColRect.left - containerRect.left}px`;
+          indicator.style.width = `${targetColRect.width}px`;
+          indicator.style.height = '4px';
+          indicator.style.display = 'block';
+
+          dropTargetState = { type: 'inside', targetKey: undefined, isBefore: true };
+          return;
+        }
 
         let targetItem = targetColItems[0];
         let isBefore = true;
@@ -961,7 +893,6 @@ export class UniversePanelController {
           isBefore,
         };
       } else {
-        // List mode: find the closest item vertically
         const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
         if (!target || target === dragging) {
           hideIndicator();
@@ -1038,27 +969,33 @@ export class UniversePanelController {
   }
 
   private ApplyUniverseOrder(order: string[]): void {
+    const mode = this.DetectUniverseDisplayMode();
+    if (mode === 'grid') {
+      this.Refresh();
+      return;
+    }
     const container = document.getElementById('universe-list');
     if (!container) return;
+    const col = container.querySelector('.universe-column') || container;
     const desiredRows: HTMLElement[] = [];
     order.forEach((rawKey) => {
       const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(rawKey));
       if (rowView) desiredRows.push(rowView.row);
     });
-    let cursor: Element | null = container.firstElementChild;
-    desiredRows.forEach((row) => {
-      while (cursor && cursor.classList.contains('drop-indicator-line')) {
-        cursor = cursor.nextElementSibling;
-      }
-      if (cursor === row) {
-        cursor = row.nextElementSibling;
-      } else {
-        container.insertBefore(row, cursor);
-      }
-    });
+    desiredRows.forEach((row) => col.appendChild(row));
   }
 
   private GetUniverseRowTemplate(universeKey: string): string {
+    const indicatorSettingsHtml = INDICATOR_BINDINGS.map(({ checkboxIdSuffix, labelKey, icon, containerClass }) => `
+                <div class="universe-setting-item ${containerClass}">
+                  <label for="${checkboxIdSuffix}-${universeKey}" class="setting-item-label">
+                    <span class="material-symbols-outlined" aria-hidden="true">${icon}</span>
+                    <span class="setting-item-label-text">${Localizator.Translate(labelKey)}</span>
+                  </label>
+                  <input type="checkbox" id="${checkboxIdSuffix}-${universeKey}" class="setting-item-checkbox"></input>
+                </div>
+    `.trim()).join('\n');
+
     return `
       <div class="universe-item-box">
         <div class="universe-item">
@@ -1101,7 +1038,7 @@ export class UniversePanelController {
               </span>
             </div>
           </div>
-          <button type="button" id="universe-refresh-button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
+          <button type="button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
           </button>
           <button type="button" class="universe-settings-button" title="${Localizator.Translate('SidePanelSettingsUniverse')}" aria-label="${Localizator.Translate('SidePanelSettingsUniverse')}">
@@ -1112,41 +1049,7 @@ export class UniversePanelController {
             <div class="universe-settings-group">
               <span class="universe-settings-group-header">${Localizator.Translate('SidePanelSettingsGroupIndicators')}:</span>
               <div class="universe-settings-group-content">
-                <div class="universe-setting-item indicator-fleet-hostile-display-setting">
-                  <label for="indicator-fleet-hostile-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelHostileFleetsLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-fleet-hostile-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-fleet-friendly-display-setting">
-                  <label for="indicator-fleet-friendly-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelFriendlyFleetsLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-fleet-friendly-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-fleet-own-display-setting">
-                  <label for="indicator-fleet-own-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelOwnFleetsLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-fleet-own-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-unread-mail-display-setting">
-                  <label for="indicator-unread-mail-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">mail</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelUnreadMessagesLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-unread-mail-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
-                <div class="universe-setting-item indicator-unread-chat-display-setting">
-                  <label for="indicator-unread-chat-display-setting-checkbox-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined" aria-hidden="true">chat</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelUnreadChatLabel')}</span>
-                  </label>
-                  <input type="checkbox" id="indicator-unread-chat-display-setting-checkbox-${universeKey}" class="setting-item-checkbox"></input>
-                </div>
+                ${indicatorSettingsHtml}
               </div>
             </div>
             <button type="button" class="universe-remove-button" title="${Localizator.Translate('SidePanelRemoveUniverse')}" aria-label="${Localizator.Translate('SidePanelRemoveUniverse')}">
