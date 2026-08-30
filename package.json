@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Extension navigateur Chrome et Firefox en TypeScript et SCSS.",
   "scripts": {
-    "build": "bash run build.sh"
+    "build": "bash ./build.sh"
   },
   "devDependencies": {
     "@fontsource/material-symbols-outlined": "^5.2.30",
