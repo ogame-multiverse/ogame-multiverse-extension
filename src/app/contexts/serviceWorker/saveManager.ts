@@ -60,7 +60,7 @@ export class SaveManager {
   }
 
   /**
-   * Réconcilie une section sans détruire le découpage multi-colonnes lors des actions en mode Liste.
+   * Reconciles a section without destroying the multi-column layout during List mode actions.
    */
   private reconcileSection(
     incomingListRaw: string[] | undefined,
@@ -73,7 +73,7 @@ export class SaveManager {
     const stList = this.sanitizeRow(storedListRaw);
     const stGrid = this.sanitizeGrid(storedGridRaw);
 
-    // Détection d'un appel provenant du mode Liste (grille entrante aplatie à 1 colonne)
+    // Detection of a call coming from List mode (incoming grid flattened to 1 column)
     const isIncomingGridFlatList =
       inGrid.length === 0 ||
       (inGrid.length === 1 && this.areEqual(inGrid[0], inList));
@@ -82,17 +82,17 @@ export class SaveManager {
     let finalList: string[];
 
     if (isIncomingGridFlatList && stGrid.length > 0) {
-      // --- ACTION MODE LISTE ---
-      // On conserve prioritairement les colonnes existantes en stockage
+      // --- LIST MODE ACTION ---
+      // Preserve existing stored columns as priority
       finalList = inList;
       const listKeys = new Set(finalList);
 
-      // Conserve les éléments présents dans les colonnes d'origine
+      // Preserve items present in the original columns
       finalGrid = stGrid
         .map((col) => col.filter((id) => listKeys.has(id)))
         .filter((col) => col.length > 0);
 
-      // Si un nouvel univers a été déplacé dans cette section, on l'ajoute dans la dernière colonne
+      // If a new universe was moved into this section, add it to the last column
       const currentGridKeys = new Set(finalGrid.flat());
       const missing = finalList.filter((id) => !currentGridKeys.has(id));
 
@@ -104,8 +104,8 @@ export class SaveManager {
         }
       }
     } else if (inGrid.length > 0) {
-      // --- ACTION MODE GRILLE ---
-      // La disposition multi-colonnes de inGrid fait foi
+      // --- GRID MODE ACTION ---
+      // The multi-column layout of inGrid takes precedence
       finalGrid = inGrid;
       const gridKeys = new Set(finalGrid.flat());
 
@@ -117,7 +117,7 @@ export class SaveManager {
         }
       });
     } else {
-      // --- INITIALISATION OU SECTIONS VIDES ---
+      // --- INITIALIZATION OR EMPTY SECTIONS ---
       finalList = inList.length > 0 ? inList : stList;
       finalGrid = stGrid.length > 0 ? stGrid : (finalList.length > 0 ? [finalList] : []);
     }
@@ -158,7 +158,7 @@ export class SaveManager {
   public async SaveUniverseLayoutConfigAsync(config: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
     const current = await this.GetUniverseLayoutConfigAsync();
 
-    // 1. Favoris
+    // Favorites
     const fav = this.reconcileSection(
       config.favoriteListOrder,
       config.favoriteGridOrder,
@@ -167,7 +167,7 @@ export class SaveManager {
     );
     const favKeys = new Set([...fav.list, ...fav.grid.flat()]);
 
-    // 2. Autres univers (exclusion des favoris)
+    // Other universes (excluding favorites)
     const incomingOtherList = (config.listOrder || []).filter((id) => !favKeys.has(this.normalizeKey(id)));
     const incomingOtherGrid = (config.gridOrder || [])
       .map((col) => col.filter((id) => !favKeys.has(this.normalizeKey(id))))
