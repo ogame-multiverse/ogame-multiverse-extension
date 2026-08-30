@@ -25,14 +25,6 @@ export const Localizations = [
     tr: 'Hiç evren algılanmadı.',
     br: 'Nenhum universo detectado.',
   }),
-  new I18nValue('SidePanelUniverseInactiveShort', {
-    en: 'inactive',
-    fr: 'offline',
-    es: 'inactivo',
-    de: 'inaktiv',
-    tr: 'pasif',
-    br: 'inativo',
-  }),
   new I18nValue('SidePanelLastRefreshLabel', {
     en: 'Last refresh',
     fr: 'Dernière actualisation',
@@ -176,5 +168,21 @@ export const Localizations = [
     de: 'OGame Multiverse - Seitliches Panel umschalten',
     tr: 'OGame Multiverse - Yan paneli aç/kapat',
     br: 'OGame Multiverse - Alternar painel lateral',
-  })
+  }),
+  new I18nValue('SidePanelFavoriteUniverses', {
+    en: 'Favorite Universes',
+    fr: 'Univers favoris',
+    es: 'Universos favoritos',
+    de: 'Favorisierte Universen',
+    tr: 'Favori Evrenler',
+    br: 'Universos Favoritos',
+  }),
+  new I18nValue('SidePanelOtherUniverses', {
+    en: 'Other Universes',
+    fr: 'Autres univers',
+    es: 'Otros universos',
+    de: 'Andere Universen',
+    tr: 'Diğer Evrenler',
+    br: 'Outros Universos',
+  }),
 ];

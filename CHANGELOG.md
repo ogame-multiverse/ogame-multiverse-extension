@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added universe reorganization in list mode (special thanks to GeGe).
 - Added grid layout reorganization when expanding the sidepanel to full view.
+- Categorized universe dashboard into **Favorite** and **Other** sections.
 
 ### Changed
 - Since indicators are now static snapshots, an active OGame tab is no longer required to display them.

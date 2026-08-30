@@ -5,6 +5,8 @@ import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtoc
 import { sidePanelBroadcastProtocolRegistrar } from '../../messaging/sidePanelBroadcastProtocol';
 import { SidePanelUniverseStatus } from '../../model/sidePanel/sidePanelUniverseStatus';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
+import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
+import { SidePanelUniversesSections } from '../../model/sidePanel/sidePanelUniversesSections';
 import { Debouncer } from '../../async/debouncer';
 import { SidePanelUniverseCounters } from '../../model/sidePanel/sidePanelUniverseCounters';
 
@@ -22,6 +24,7 @@ interface UniverseRowView {
   refreshButton: HTMLButtonElement;
   settingsButton: HTMLButtonElement;
   removeButton: HTMLButtonElement;
+  thresholdSelect: HTMLSelectElement;
   updateWarningState: () => void;
   currentStatus: SidePanelUniverseStatus;
 }
@@ -58,7 +61,7 @@ export class UniversePanelController {
   private readonly localTabIds = new Set<number>();
   private readonly activeLocalTabIds = new Set<number>();
 
-  private containerDnDListenersAttached = false;
+  private dndListenersAttached = false;
   private resizeObserver?: ResizeObserver;
 
   private readonly onTabChanged = () => { void this.Refresh(); };
@@ -87,10 +90,6 @@ export class UniversePanelController {
         this.UpdateSingleUniverseOptions(data.universeKey, data.options);
       }
     );
-
-    sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseOrder(this.logger, (data: { order: string[] }) => {
-      this.ApplyUniverseOrder(data?.order || []);
-    });
 
     sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseGrid(this.logger, () => {
       this.Refresh();
@@ -137,23 +136,20 @@ export class UniversePanelController {
   }
 
   private InitResizeObserver(): void {
-    const container = document.getElementById('universe-list');
-    if (!container) return;
+    const panel = document.getElementById('panel-universe');
+    if (!panel) return;
 
     let currentMode: 'list' | 'grid' | null = null;
 
     this.resizeObserver = new ResizeObserver(() => {
       const newMode = this.DetectUniverseDisplayMode();
-      container.setAttribute('data-mode', newMode);
-
       if (newMode !== currentMode) {
         currentMode = newMode;
         this.Refresh();
       }
     });
 
-    const parent = document.getElementById('panel-universe') || container;
-    this.resizeObserver.observe(parent);
+    this.resizeObserver.observe(panel);
   }
 
   private async InitCurrentWindowIdAsync(): Promise<void> {
@@ -196,52 +192,79 @@ export class UniversePanelController {
 
   public Refresh(): void {
     Debouncer.Debounce('universe-panel-refresh', async () => {
-      const container = document.getElementById('universe-list');
-      if (!container) return;
+      const panel = document.getElementById('panel-universe');
+      if (!panel) return;
 
       await this.UpdateLocalTabIdsAsync();
 
       const mode = this.DetectUniverseDisplayMode();
-      container.setAttribute('data-mode', mode);
+      panel.setAttribute('data-mode', mode);
 
-      const rawStatuses = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger, mode);
+      const rawData: SidePanelUniversesSections = await serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger, mode);
+      const favoritesGrid: SidePanelUniverseStatus[][] = rawData?.favorites || [];
+      const othersGrid: SidePanelUniverseStatus[][] = rawData?.others || [];
 
-      if (!rawStatuses || (Array.isArray(rawStatuses) && rawStatuses.length === 0)) {
-        container.replaceChildren();
-        this.universeRowsByKey.clear();
-        this.lastSecondByUniverseKey.clear();
+      const favContainer = this.EnsureSectionDOM('favorites', Localizator.Translate('SidePanelFavoriteUniverses') || 'Univers favoris', 'star');
+      const othersContainer = this.EnsureSectionDOM('others', Localizator.Translate('SidePanelOtherUniverses') || 'Autres univers', 'public');
 
-        const empty = document.createElement('div');
-        empty.className = 'universe-empty';
-        empty.textContent = Localizator.Translate('SidePanelNoUniverses');
-        container.appendChild(empty);
-        return;
-      }
+      favContainer.setAttribute('data-mode', mode);
+      othersContainer.setAttribute('data-mode', mode);
 
-      const is2DGrid = Array.isArray(rawStatuses[0]);
+      const nextUniverseKeys = new Set<string>();
 
-      let activeGrid: SidePanelUniverseStatus[][];
-      if (mode === 'grid' && is2DGrid) {
-        activeGrid = (rawStatuses as SidePanelUniverseStatus[][]).filter(
-          (col) => col && col.length > 0
-        );
-      } else {
-        const flatStatuses: SidePanelUniverseStatus[] = is2DGrid
-          ? (rawStatuses as unknown as SidePanelUniverseStatus[][]).flat()
-          : (rawStatuses as unknown as SidePanelUniverseStatus[]);
-        activeGrid = [flatStatuses];
-      }
+      this.SyncUniverseSection(favContainer, favoritesGrid, nextUniverseKeys);
+      this.SyncUniverseSection(othersContainer, othersGrid, nextUniverseKeys);
 
-      this.SyncUniverseGrid(container, activeGrid);
+      this.universeRowsByKey.forEach((rowView, key) => {
+        if (!nextUniverseKeys.has(key)) {
+          rowView.row.remove();
+          this.universeRowsByKey.delete(key);
+          this.lastSecondByUniverseKey.delete(key);
+        }
+      });
+
+      this.EnsureDnDListeners();
     }, 100, false);
   }
 
-  private SyncUniverseGrid(container: HTMLElement, activeGrid: SidePanelUniverseStatus[][]): void {
-    container.querySelector('.universe-empty')?.remove();
-    this.EnsureContainerDnDListeners(container);
+  private EnsureSectionDOM(sectionKey: string, sectionTitleText: string, iconName: string): HTMLElement {
+    let sectionEl = document.getElementById(`universe-section-${sectionKey}`);
+    if (!sectionEl) {
+      const panel = document.getElementById('panel-universe');
+      if (!panel) throw new Error('#panel-universe element missing');
 
-    const nextUniverseKeys = new Set<string>();
+      sectionEl = document.createElement('div');
+      sectionEl.id = `universe-section-${sectionKey}`;
+      sectionEl.className = 'universe-section';
 
+      const header = document.createElement('div');
+      header.className = 'universe-section-header';
+
+      const icon = document.createElement('span');
+      icon.className = 'material-symbols-outlined';
+      icon.textContent = iconName;
+
+      const title = document.createElement('span');
+      title.className = 'universe-section-title';
+      title.textContent = sectionTitleText;
+
+      header.appendChild(icon);
+      header.appendChild(title);
+
+      const listContainer = document.createElement('div');
+      listContainer.id = `universe-list-${sectionKey}`;
+      listContainer.className = 'universe-list';
+      listContainer.setAttribute('data-section', sectionKey);
+
+      sectionEl.appendChild(header);
+      sectionEl.appendChild(listContainer);
+      panel.appendChild(sectionEl);
+    }
+
+    return sectionEl.querySelector('.universe-list') as HTMLElement;
+  }
+
+  private SyncUniverseSection(container: HTMLElement, activeGrid: SidePanelUniverseStatus[][], nextUniverseKeys: Set<string>): void {
     const existingCols = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
     while (existingCols.length > activeGrid.length) {
       existingCols.pop()?.remove();
@@ -270,14 +293,6 @@ export class UniversePanelController {
 
         colEl.appendChild(rowView.row);
       });
-    });
-
-    this.universeRowsByKey.forEach((rowView, key) => {
-      if (!nextUniverseKeys.has(key)) {
-        rowView.row.remove();
-        this.universeRowsByKey.delete(key);
-        this.lastSecondByUniverseKey.delete(key);
-      }
     });
   }
 
@@ -320,13 +335,8 @@ export class UniversePanelController {
       this.universeRowsByKey.delete(key);
       this.lastSecondByUniverseKey.delete(key);
 
-      const container = document.getElementById('universe-list');
-      if (container && this.universeRowsByKey.size === 0) {
-        container.replaceChildren();
-        const empty = document.createElement('div');
-        empty.className = 'universe-empty';
-        empty.textContent = Localizator.Translate('SidePanelNoUniverses');
-        container.appendChild(empty);
+      if (this.universeRowsByKey.size === 0) {
+        this.Refresh();
       }
     }
   }
@@ -340,12 +350,7 @@ export class UniversePanelController {
     if (!existingRow) return;
 
     existingRow.currentStatus.SidePanelOptions = options;
-
-    const thresholdSelect = existingRow.row.querySelector('.universe-threshold-select') as HTMLSelectElement;
-    if (thresholdSelect && options.WarningThresholdMinutes !== undefined) {
-      thresholdSelect.value = String(options.WarningThresholdMinutes);
-    }
-    existingRow.updateWarningState();
+    this.UpdateUniverseRow(existingRow, existingRow.currentStatus);
 
     INDICATOR_BINDINGS.forEach(({ checkboxIdSuffix, attributeName, optionKey }) => {
       const checkbox = existingRow.row.querySelector(`#${checkboxIdSuffix}-${existingRow.currentStatus.UniverseKey}`) as HTMLInputElement;
@@ -376,10 +381,17 @@ export class UniversePanelController {
 
     this.universeRowsByKey.forEach((rowView, universeKey) => {
       const status = rowView.currentStatus;
-      if (!status.LastRefreshAtIso) return;
+
+      if (!status.LastRefreshAtIso) {
+        rowView.updateWarningState();
+        return;
+      }
 
       const parsed = Date.parse(status.LastRefreshAtIso);
-      if (!Number.isFinite(parsed)) return;
+      if (!Number.isFinite(parsed)) {
+        rowView.updateWarningState();
+        return;
+      }
 
       const elapsedSec = Math.max(0, Math.floor((now - parsed) / 1000));
       const previousSec = this.lastSecondByUniverseKey.get(universeKey);
@@ -387,7 +399,7 @@ export class UniversePanelController {
       if (elapsedSec !== previousSec) {
         this.lastSecondByUniverseKey.set(universeKey, elapsedSec);
 
-        const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefreshWithState(status)}`;
+        const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefresh(status.LastRefreshAtIso)}`;
         if (rowView.lastRefresh.textContent !== nextRefreshText) {
           rowView.lastRefresh.textContent = nextRefreshText;
         }
@@ -443,11 +455,7 @@ export class UniversePanelController {
       }
     });
 
-    const updateWarningState = (thresholdMinutes: number) => {
-      const shouldWarn = this.ShouldShowRefreshWarning(rowView.currentStatus, thresholdMinutes);
-      refreshButton.classList.toggle('universe-refresh-warning', shouldWarn);
-      lastRefresh.classList.toggle('universe-last-refresh-warning', shouldWarn);
-    };
+    const selectedThreshold = status.SidePanelOptions?.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
 
     const rowView: UniverseRowView = {
       row,
@@ -463,14 +471,16 @@ export class UniversePanelController {
       refreshButton,
       settingsButton,
       removeButton,
+      thresholdSelect,
       currentStatus: status,
       updateWarningState: () => {
-        const threshold = status.SidePanelOptions.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
-        updateWarningState(threshold);
+        const threshold = rowView.currentStatus.SidePanelOptions?.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
+        const shouldWarn = this.ShouldShowRefreshWarning(rowView.currentStatus, threshold);
+        refreshButton.classList.toggle('universe-refresh-warning', shouldWarn);
+        lastRefresh.classList.toggle('universe-last-refresh-warning', shouldWarn);
       },
     };
 
-    const selectedThreshold = status.SidePanelOptions.WarningThresholdMinutes;
     this.warningThresholdOptions.forEach((minutes) => {
       const option = document.createElement('option');
       option.value = String(minutes);
@@ -479,13 +489,14 @@ export class UniversePanelController {
       thresholdSelect.appendChild(option);
     });
 
-    updateWarningState(selectedThreshold ?? this.defaultWarningThresholdMinutes);
-
     thresholdSelect.addEventListener('change', async () => {
       const selectedMinutes = Number(thresholdSelect.value);
+      if (!rowView.currentStatus.SidePanelOptions) {
+        rowView.currentStatus.SidePanelOptions = {} as UniverseSidePanelOptions;
+      }
       rowView.currentStatus.SidePanelOptions.WarningThresholdMinutes = selectedMinutes;
       await this.SaveOption(rowView.currentStatus.UniverseKey, 'WarningThresholdMinutes', selectedMinutes);
-      updateWarningState(selectedMinutes);
+      rowView.updateWarningState();
     });
 
     refreshButton.addEventListener('click', () =>
@@ -502,7 +513,7 @@ export class UniversePanelController {
       const checkbox = row.querySelector(`#${checkboxIdSuffix}-${status.UniverseKey}`) as HTMLInputElement;
       if (!checkbox) return;
 
-      const initialValue = Boolean(status.SidePanelOptions[optionKey]);
+      const initialValue = Boolean(status.SidePanelOptions?.[optionKey]);
       checkbox.checked = initialValue;
       row.setAttribute(attributeName, String(initialValue));
 
@@ -570,6 +581,11 @@ export class UniversePanelController {
   private UpdateUniverseRow(rowView: UniverseRowView, status: SidePanelUniverseStatus): void {
     rowView.currentStatus = status;
 
+    const currentThreshold = status.SidePanelOptions?.WarningThresholdMinutes ?? this.defaultWarningThresholdMinutes;
+    if (rowView.thresholdSelect.value !== String(currentThreshold)) {
+      rowView.thresholdSelect.value = String(currentThreshold);
+    }
+
     const tabIds = status.TabIds || [];
     const hasLocalTabs = tabIds.some((tabId) => this.localTabIds.has(tabId));
     const hasRemoteTabs = tabIds.some((tabId) => !this.localTabIds.has(tabId));
@@ -619,7 +635,7 @@ export class UniversePanelController {
       rowView.badgesContainer.innerHTML = badgesHtml;
     }
 
-    const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefreshWithState(status)}`;
+    const nextRefreshText = `${Localizator.Translate('SidePanelLastRefreshLabel')}: ${this.FormatLastRefresh(status.LastRefreshAtIso)}`;
     if (rowView.lastRefresh.textContent !== nextRefreshText) {
       rowView.lastRefresh.textContent = nextRefreshText;
     }
@@ -669,12 +685,6 @@ export class UniversePanelController {
     return `${Math.floor(hours / 24)} ${Localizator.Translate('SidePanelDaysShort')}`;
   }
 
-  private FormatLastRefreshWithState(status: SidePanelUniverseStatus): string {
-    const formattedLastRefresh = this.FormatLastRefresh(status.LastRefreshAtIso);
-    if (status.IsOpen) return formattedLastRefresh;
-    return `${formattedLastRefresh} (${Localizator.Translate('SidePanelUniverseInactiveShort')})`;
-  }
-
   private ShouldShowRefreshWarning(status: SidePanelUniverseStatus, thresholdMinutes: number): boolean {
     if (thresholdMinutes <= 0) return false;
     if (!status.LastRefreshAtIso) return true;
@@ -689,18 +699,22 @@ export class UniversePanelController {
     return (universeKey || '').trim().toLowerCase();
   }
 
-  private EnsureContainerDnDListeners(container: HTMLElement): void {
-    if (this.containerDnDListenersAttached) return;
-    this.containerDnDListenersAttached = true;
+  private EnsureDnDListeners(): void {
+    if (this.dndListenersAttached) return;
+    this.dndListenersAttached = true;
 
-    let indicator = container.querySelector('.drop-indicator-line') as HTMLElement | null;
+    const panel = document.getElementById('panel-universe');
+    if (!panel) return;
+
+    let indicator = document.querySelector('.drop-indicator-line') as HTMLElement | null;
     if (!indicator) {
       indicator = document.createElement('div');
       indicator.className = 'drop-indicator-line';
-      container.appendChild(indicator);
+      panel.appendChild(indicator);
     }
 
     interface DropTargetState {
+      targetSection: 'favorites' | 'others';
       type: 'new-col-first' | 'new-col-last' | 'inside';
       targetKey?: string;
       isBefore?: boolean;
@@ -714,69 +728,91 @@ export class UniversePanelController {
       if (indicator) indicator.style.display = 'none';
     };
 
-    const applyReorder = () => {
-      const mode = container.getAttribute('data-mode') || 'list';
+    const applyReorder = async () => {
       const keyToMove = draggedKey || draggingItem?.getAttribute('data-universe-key');
+      if (!keyToMove || !dropTargetState) {
+        hideIndicator();
+        return;
+      }
 
-      if (keyToMove && dropTargetState) {
-        if (mode === 'grid') {
-          let currentGrid = this.ExtractUniverseGridFromDOM(container);
+      const mode = panel.getAttribute('data-mode') || 'list';
+      const favContainer = document.getElementById('universe-list-favorites');
+      const othersContainer = document.getElementById('universe-list-others');
 
-          if (dropTargetState.type === 'new-col-first') {
-            currentGrid.unshift([keyToMove]);
-          } else if (dropTargetState.type === 'new-col-last') {
-            currentGrid.push([keyToMove]);
-          } else if (dropTargetState.type === 'inside' && dropTargetState.targetKey) {
-            const targetKey = dropTargetState.targetKey;
-            const isBefore = dropTargetState.isBefore;
+      if (!favContainer || !othersContainer) return;
 
+      if (mode === 'grid') {
+        let favGrid = this.ExtractUniverseGridFromDOM(favContainer, keyToMove);
+        let othersGrid = this.ExtractUniverseGridFromDOM(othersContainer, keyToMove);
+
+        let targetGrid = dropTargetState.targetSection === 'favorites' ? favGrid : othersGrid;
+
+        if (dropTargetState.type === 'new-col-first') {
+          targetGrid.unshift([keyToMove]);
+        } else if (dropTargetState.type === 'new-col-last') {
+          targetGrid.push([keyToMove]);
+        } else if (dropTargetState.type === 'inside') {
+          if (dropTargetState.targetKey) {
             let inserted = false;
-            for (let c = 0; c < currentGrid.length; c++) {
-              const idx = currentGrid[c].indexOf(targetKey);
+            for (let c = 0; c < targetGrid.length; c++) {
+              const idx = targetGrid[c].indexOf(dropTargetState.targetKey);
               if (idx !== -1) {
-                const insertIdx = isBefore ? idx : idx + 1;
-                currentGrid[c].splice(insertIdx, 0, keyToMove);
+                const insertIdx = dropTargetState.isBefore ? idx : idx + 1;
+                targetGrid[c].splice(insertIdx, 0, keyToMove);
                 inserted = true;
                 break;
               }
             }
-
             if (!inserted) {
-              if (currentGrid.length === 0) {
-                currentGrid = [[keyToMove]];
-              } else {
-                currentGrid[currentGrid.length - 1].push(keyToMove);
-              }
+              if (targetGrid.length === 0) targetGrid.push([keyToMove]);
+              else targetGrid[targetGrid.length - 1].push(keyToMove);
             }
-          }
-
-          currentGrid = currentGrid.filter((col) => col.length > 0);
-          void this.PersistUniverseGridAsync(currentGrid);
-        } else {
-          if (dropTargetState.targetKey) {
-            const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'));
-            let newOrder = items.map((el) => el.getAttribute('data-universe-key') || '').filter(Boolean);
-            newOrder = newOrder.filter((k) => k !== keyToMove);
-
-            const targetIdx = newOrder.indexOf(dropTargetState.targetKey);
-            if (targetIdx !== -1) {
-              const insertIdx = dropTargetState.isBefore ? targetIdx : targetIdx + 1;
-              newOrder.splice(insertIdx, 0, keyToMove);
-            } else {
-              newOrder.push(keyToMove);
-            }
-            void this.PersistUniverseOrderAsync(newOrder);
+          } else {
+            if (targetGrid.length === 0) targetGrid.push([keyToMove]);
+            else targetGrid[0].push(keyToMove);
           }
         }
+
+        const newLayout = new UniverseLayoutConfig({
+          favoriteGridOrder: favGrid.filter((c) => c.length > 0),
+          gridOrder: othersGrid.filter((c) => c.length > 0),
+        });
+
+        await serviceWorkerProtocolClient.SaveUniverseLayoutAsync(this.logger, newLayout);
+      } else {
+        let favList = this.ExtractUniverseListFromDOM(favContainer, keyToMove);
+        let othersList = this.ExtractUniverseListFromDOM(othersContainer, keyToMove);
+
+        let targetList = dropTargetState.targetSection === 'favorites' ? favList : othersList;
+
+        if (dropTargetState.targetKey) {
+          const targetIdx = targetList.indexOf(dropTargetState.targetKey);
+          if (targetIdx !== -1) {
+            const insertIdx = dropTargetState.isBefore ? targetIdx : targetIdx + 1;
+            targetList.splice(insertIdx, 0, keyToMove);
+          } else {
+            targetList.push(keyToMove);
+          }
+        } else {
+          targetList.push(keyToMove);
+        }
+
+        const newLayout = new UniverseLayoutConfig({
+          favoriteListOrder: favList,
+          listOrder: othersList,
+        });
+
+        await serviceWorkerProtocolClient.SaveUniverseLayoutAsync(this.logger, newLayout);
       }
 
       hideIndicator();
       draggingItem = null;
       draggedKey = null;
       dropTargetState = null;
+      this.Refresh();
     };
 
-    container.addEventListener('dragstart', (event) => {
+    panel.addEventListener('dragstart', (event) => {
       const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
       if (target) {
         draggingItem = target;
@@ -791,19 +827,34 @@ export class UniversePanelController {
       }
     });
 
-    container.addEventListener('dragover', (event) => {
-      const dragging = draggingItem || (container.querySelector('.universe-item-box.dragging') as HTMLElement | null);
+    panel.addEventListener('dragover', (event) => {
+      const dragging = draggingItem || (panel.querySelector('.universe-item-box.dragging') as HTMLElement | null);
       if (!dragging || !indicator) return;
 
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 
-      const mode = container.getAttribute('data-mode') || 'list';
-      const containerRect = container.getBoundingClientRect();
+      const targetListContainer = (event.target as HTMLElement | null)?.closest('.universe-list') as HTMLElement | null;
+      if (!targetListContainer) return;
+
+      const sectionKey = targetListContainer.getAttribute('data-section') as 'favorites' | 'others';
+      const mode = panel.getAttribute('data-mode') || 'list';
+      const containerRect = targetListContainer.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
 
       if (mode === 'grid') {
-        const colElements = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
-        if (colElements.length === 0) return;
+        const colElements = Array.from(targetListContainer.querySelectorAll<HTMLElement>('.universe-column'));
+
+        if (colElements.length === 0) {
+          indicator.style.top = `${containerRect.top - panelRect.top}px`;
+          indicator.style.left = `${containerRect.left - panelRect.left}px`;
+          indicator.style.width = '340px';
+          indicator.style.height = '4px';
+          indicator.style.display = 'block';
+
+          dropTargetState = { targetSection: sectionKey, type: 'inside', targetKey: undefined, isBefore: true };
+          return;
+        }
 
         const firstColRect = colElements[0].getBoundingClientRect();
         const lastColRect = colElements[colElements.length - 1].getBoundingClientRect();
@@ -813,24 +864,22 @@ export class UniversePanelController {
         const isFarRight = canCreateNewColumn && (event.clientX > containerRect.right - 35 || event.clientX > lastColRect.right - 25);
 
         if (isFarLeft) {
-          const colHeight = firstColRect.height;
-          indicator.style.top = `${firstColRect.top - containerRect.top}px`;
-          indicator.style.left = `${firstColRect.left - containerRect.left - 4}px`;
+          indicator.style.top = `${firstColRect.top - panelRect.top}px`;
+          indicator.style.left = `${firstColRect.left - panelRect.left - 4}px`;
           indicator.style.width = '4px';
-          indicator.style.height = `${colHeight}px`;
+          indicator.style.height = `${firstColRect.height}px`;
           indicator.style.display = 'block';
-          dropTargetState = { type: 'new-col-first' };
+          dropTargetState = { targetSection: sectionKey, type: 'new-col-first' };
           return;
         }
 
         if (isFarRight) {
-          const colHeight = lastColRect.height;
-          indicator.style.top = `${lastColRect.top - containerRect.top}px`;
-          indicator.style.left = `${lastColRect.right - containerRect.left + 2}px`;
+          indicator.style.top = `${lastColRect.top - panelRect.top}px`;
+          indicator.style.left = `${lastColRect.right - panelRect.left + 2}px`;
           indicator.style.width = '4px';
-          indicator.style.height = `${colHeight}px`;
+          indicator.style.height = `${lastColRect.height}px`;
           indicator.style.display = 'block';
-          dropTargetState = { type: 'new-col-last' };
+          dropTargetState = { targetSection: sectionKey, type: 'new-col-last' };
           return;
         }
 
@@ -847,16 +896,14 @@ export class UniversePanelController {
         });
 
         const targetColItems = Array.from(targetCol.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
-
         if (targetColItems.length === 0) {
           const targetColRect = targetCol.getBoundingClientRect();
-          indicator.style.top = `${targetColRect.top - containerRect.top}px`;
-          indicator.style.left = `${targetColRect.left - containerRect.left}px`;
+          indicator.style.top = `${targetColRect.top - panelRect.top}px`;
+          indicator.style.left = `${targetColRect.left - panelRect.left}px`;
           indicator.style.width = `${targetColRect.width}px`;
           indicator.style.height = '4px';
           indicator.style.display = 'block';
-
-          dropTargetState = { type: 'inside', targetKey: undefined, isBefore: true };
+          dropTargetState = { targetSection: sectionKey, type: 'inside', targetKey: undefined, isBefore: true };
           return;
         }
 
@@ -878,40 +925,48 @@ export class UniversePanelController {
 
         const targetRect = targetItem.getBoundingClientRect();
         const topPos = isBefore
-          ? targetRect.top - containerRect.top - 4
-          : targetRect.bottom - containerRect.top + 2;
+          ? targetRect.top - panelRect.top - 4
+          : targetRect.bottom - panelRect.top + 2;
 
         indicator.style.top = `${topPos}px`;
-        indicator.style.left = `${targetRect.left - containerRect.left}px`;
+        indicator.style.left = `${targetRect.left - panelRect.left}px`;
         indicator.style.width = `${targetRect.width}px`;
         indicator.style.height = '4px';
         indicator.style.display = 'block';
 
         dropTargetState = {
+          targetSection: sectionKey,
           type: 'inside',
           targetKey: targetItem.getAttribute('data-universe-key') || undefined,
           isBefore,
         };
       } else {
         const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
-        if (!target || target === dragging) {
-          hideIndicator();
+        if (!target) {
+          indicator.style.top = `${containerRect.bottom - panelRect.top}px`;
+          indicator.style.left = `${containerRect.left - panelRect.left}px`;
+          indicator.style.width = `${containerRect.width}px`;
+          indicator.style.height = '3px';
+          indicator.style.display = 'block';
+
+          dropTargetState = { targetSection: sectionKey, type: 'inside', targetKey: undefined, isBefore: false };
           return;
         }
 
         const targetRect = target.getBoundingClientRect();
         const isBefore = event.clientY < targetRect.top + targetRect.height / 2;
         const topPos = isBefore
-          ? targetRect.top - containerRect.top - 4
-          : targetRect.bottom - containerRect.top + 1;
+          ? targetRect.top - panelRect.top - 4
+          : targetRect.bottom - panelRect.top + 1;
 
         indicator.style.top = `${topPos}px`;
-        indicator.style.left = `${targetRect.left - containerRect.left}px`;
+        indicator.style.left = `${targetRect.left - panelRect.left}px`;
         indicator.style.width = `${targetRect.width}px`;
         indicator.style.height = '3px';
         indicator.style.display = 'block';
 
         dropTargetState = {
+          targetSection: sectionKey,
           type: 'inside',
           targetKey: target.getAttribute('data-universe-key') || undefined,
           isBefore,
@@ -919,70 +974,44 @@ export class UniversePanelController {
       }
     });
 
-    container.addEventListener('dragleave', (event) => {
-      if (event.target === container) hideIndicator();
+    panel.addEventListener('dragleave', (event) => {
+      if (event.target === panel) hideIndicator();
     });
 
-    container.addEventListener('dragend', (event) => {
+    panel.addEventListener('dragend', (event) => {
       const target = (event.target as HTMLElement | null)?.closest('.universe-item-box') as HTMLElement | null;
       target?.classList.remove('dragging');
-      applyReorder();
+      void applyReorder();
     });
 
-    container.addEventListener('drop', (event) => {
+    panel.addEventListener('drop', (event) => {
       event.preventDefault();
-      applyReorder();
+      void applyReorder();
     });
   }
 
-  private ExtractUniverseGridFromDOM(container: HTMLElement): string[][] {
+  private ExtractUniverseGridFromDOM(container: HTMLElement, excludeKey?: string): string[][] {
     const columns = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
     return columns
       .map((col) => {
-        const items = Array.from(col.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
-        return items.map((item) => item.getAttribute('data-universe-key') || '').filter(Boolean);
+        const items = Array.from(col.querySelectorAll<HTMLElement>('.universe-item-box'));
+        return items
+          .map((item) => item.getAttribute('data-universe-key') || '')
+          .filter((k) => k && k !== excludeKey);
       })
       .filter((col) => col.length > 0);
+  }
+
+  private ExtractUniverseListFromDOM(container: HTMLElement, excludeKey?: string): string[] {
+    const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box'));
+    return items
+      .map((item) => item.getAttribute('data-universe-key') || '')
+      .filter((k) => k && k !== excludeKey);
   }
 
   private ClearDropIndicators(): void {
     document.querySelectorAll('.universe-item-box.drop-before, .universe-item-box.drop-after')
       .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
-  }
-
-  private async PersistUniverseOrderAsync(order: string[]): Promise<void> {
-    try {
-      await serviceWorkerProtocolClient.SaveUniverseOrderAsync(this.logger, order);
-    } catch (error) {
-      this.logger.error('Failed to persist universe order', error);
-      this.Refresh();
-    }
-  }
-
-  private async PersistUniverseGridAsync(grid: string[][]): Promise<void> {
-    try {
-      await serviceWorkerProtocolClient.SaveUniverseGridAsync(this.logger, grid);
-    } catch (error) {
-      this.logger.error('Failed to persist universe grid', error);
-      this.Refresh();
-    }
-  }
-
-  private ApplyUniverseOrder(order: string[]): void {
-    const mode = this.DetectUniverseDisplayMode();
-    if (mode === 'grid') {
-      this.Refresh();
-      return;
-    }
-    const container = document.getElementById('universe-list');
-    if (!container) return;
-    const col = container.querySelector('.universe-column') || container;
-    const desiredRows: HTMLElement[] = [];
-    order.forEach((rawKey) => {
-      const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(rawKey));
-      if (rowView) desiredRows.push(rowView.row);
-    });
-    desiredRows.forEach((row) => col.appendChild(row));
   }
 
   private GetUniverseRowTemplate(universeKey: string): string {
@@ -992,7 +1021,7 @@ export class UniversePanelController {
                     <span class="material-symbols-outlined" aria-hidden="true">${icon}</span>
                     <span class="setting-item-label-text">${Localizator.Translate(labelKey)}</span>
                   </label>
-                  <input type="checkbox" id="${checkboxIdSuffix}-${universeKey}" class="setting-item-checkbox"></input>
+                  <input type="checkbox" id="${checkboxIdSuffix}-${universeKey}" class="setting-item-checkbox" />
                 </div>
     `.trim()).join('\n');
 

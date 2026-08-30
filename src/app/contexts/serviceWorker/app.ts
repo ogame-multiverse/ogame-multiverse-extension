@@ -4,7 +4,7 @@ import { Localizator } from '../../localization/localizator';
 import { serviceWorkerLoggerFactory } from '../../logging/loggerFactory';
 import { serviceWorkerProtocolRegistrar } from '../../messaging/serviceWorkerProtocol';
 import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
-import { ExtensionLocalData } from '../../model/save/extensionLocalData';
+import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
 import { ContextMenusManager } from './contextMenusManager';
 import { ExtensionStorageService, StorageArea } from './extensionStorageService';
@@ -20,20 +20,18 @@ class ServiceWorkerContextApp {
   private readonly sidePanelManager: SidePanelManager;
   private readonly contextMenusManager: ContextMenusManager;
   private readonly keyboardCommandsManager: KeyboardCommandsManager
-  private readonly saveManager: SaveManager;
   private readonly logger = serviceWorkerLoggerFactory.CreateLogger("ServiceWorkerContextApp");
 
   constructor() {
-    this.saveManager = new SaveManager(new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
+    const saveManager = new SaveManager(new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
     this.universeTabsManager = new UniverseTabsManager(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
     this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
-    this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsManager);
+    this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), saveManager, this.universeTabsManager);
     this.contextMenusManager = new ContextMenusManager(serviceWorkerLoggerFactory.CreateLogger("ContextMenusManager"), this.sidePanelManager);
     this.keyboardCommandsManager = new KeyboardCommandsManager(serviceWorkerLoggerFactory.CreateLogger("KeyboardCommandsManager"), this.sidePanelManager);
 
     this.RegisterServiceWorkerEvents();
 
-    // Listen for extension installation or update events to reconnect open OGame tabs
     browser.runtime.onInstalled.addListener(this.OnExtensionInstallation);
   }
 
@@ -63,31 +61,24 @@ class ServiceWorkerContextApp {
     });
 
     serviceWorkerProtocolRegistrar.OnGetUniverseSidePanelOptions(this.logger, (data: string) =>
-      this.saveManager.GetUniverseSidePanelOptionsAsync(data)
+      this.universeManager.GetUniverseSidePanelOptionsAsync(data)
     );
 
     serviceWorkerProtocolRegistrar.OnSaveUniverseSidePanelOptions(this.logger, async (data: { universeKey: string, options: UniverseSidePanelOptions }) => {
-      this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options);
+      await this.universeManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options);
       sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptions(this.logger, data.universeKey, data.options);
-    });
-
-    serviceWorkerProtocolRegistrar.OnSaveUniverseOrder(this.logger, async (order: string[]) => {
-      const normalized = await this.universeManager.SetUniverseOrderAsync(order);
-      sidePanelBroadcastProtocolClient.UpdateUniverseOrder(this.logger, normalized);
-      return normalized;
-    });
-
-    serviceWorkerProtocolRegistrar.OnSaveUniverseGrid(this.logger, async (grid: string[][]) => {
-      const normalized = await this.universeManager.SetUniverseGridAsync(grid);
-      sidePanelBroadcastProtocolClient.UpdateUniverseGrid(this.logger, normalized);
-      return normalized;
     });
 
     serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
       this.sidePanelManager.ToggleSidePanel(sender)
     );
-  }
 
+    serviceWorkerProtocolRegistrar.OnSaveUniverseLayout(this.logger, async (layout: UniverseLayoutConfig) => {
+      const normalized = await this.universeManager.SetUniverseLayoutAsync(layout);
+      sidePanelBroadcastProtocolClient.UpdateUniverseGrid(this.logger);
+      return normalized;
+    });
+  }
 
   private readonly OnExtensionInstallation = (details: { reason: string }): void => {
     if (details.reason === 'install' || details.reason === 'update') {
@@ -98,7 +89,6 @@ class ServiceWorkerContextApp {
   public async StartAsync(): Promise<void> {
     await browserInfo.InitAsync();
     Localizator.Init(browserInfo.Language);
-
 
     await this.universeManager.InitializeAsync();
     this.universeTabsManager.Start();
