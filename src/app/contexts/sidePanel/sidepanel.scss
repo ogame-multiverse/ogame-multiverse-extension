@@ -114,23 +114,28 @@ body {
       display: flex;
       flex-direction: column;
       max-width: 340px;
+      gap: 8px;
+
+      .universe-column {
+        display: contents; // Use display: contents to make the column invisible and allow its children to be direct children of the parent flex container
+      }
     }
     /* Grid mode : multiple columns, each 340px wide, with a gap of 8px */
     &[data-mode="grid"] {
-      display: grid;
-      grid-template-columns: repeat(min(var(--grid-columns, 1), 4), 340px);
-      grid-auto-rows: max-content;
-      align-content: start;
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
       gap: 8px;
       width: max-content; // Allow the grid to expand based on the number of columns
       min-width: 100%;
-    }
 
-    .universe-column {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      min-width: 0;
+      .universe-column {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 340px;
+        min-width: 0;
+      }
     }
 
     .drop-indicator-line {
@@ -431,7 +436,9 @@ body {
           }
 
           .universe-settings {
-            animation: universe-settings-opening 0.2s ease-in forwards;
+            max-height: 200px;
+            opacity: 1;
+            margin-top: 10px;
           }
         }
 
@@ -447,9 +454,10 @@ body {
           grid-template-rows: auto;
           grid-row: 2;
           grid-column: 1/3;
-          height: 0px;
+          max-height: 0;
           overflow: hidden;
           opacity: 0;
+          transition: max-height 0.2s ease-out, opacity 0.2s ease-out, margin-top 0.2s ease-out;
 
 
 
@@ -632,30 +640,6 @@ body {
       .universe-list {
         max-width: $max;
       }
-    }
-  }
-
-  @keyframes universe-settings-opening {
-    0% {
-      height: 0px;
-      opacity: 0;
-    }
-
-    100% {
-      height: 190px;
-      opacity: 1;
-    }
-  }
-
-  @keyframes universe-settings-closing {
-    0% {
-      height: 190px;
-      opacity: 1;
-    }
-
-    100% {
-      height: 0px;
-      opacity: 0;
     }
   }
 

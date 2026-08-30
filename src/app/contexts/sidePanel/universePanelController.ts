@@ -229,57 +229,106 @@ export class UniversePanelController {
       const is2DGrid = Array.isArray(rawStatuses[0]);
 
       if (mode === 'grid' && is2DGrid) {
-        // Clean up empty columns (null or empty arrays) to avoid rendering them
         const activeGrid = (rawStatuses as SidePanelUniverseStatus[][]).filter(
           (col) => col && col.length > 0
         );
-
-        container.style.setProperty('--grid-columns', String(activeGrid.length));
-
-        const flatStatuses = this.FlattenGridRowMajor(activeGrid);
-        this.SyncUniverseRows(container, flatStatuses);
-
-        activeGrid.forEach((column, colIdx) => {
-          column.forEach((status, rowIdx) => {
-            const key = this.NormalizeUniverseKey(status.UniverseKey);
-            const rowView = this.universeRowsByKey.get(key);
-            if (rowView) {
-              rowView.row.style.gridColumn = String(colIdx + 1);
-              rowView.row.style.gridRow = String(rowIdx + 1);
-            }
-          });
-        });
+        this.SyncUniverseGrid(container, activeGrid);
       } else {
-        container.style.removeProperty('--grid-columns');
-
-        // If the mode is 'list' or the data is not a 2D grid, flatten the statuses to a 1D array
         const flatStatuses: SidePanelUniverseStatus[] = is2DGrid
           ? (rawStatuses as unknown as SidePanelUniverseStatus[][]).flat()
           : (rawStatuses as unknown as SidePanelUniverseStatus[]);
-
-        this.SyncUniverseRows(container, flatStatuses);
-
-        this.universeRowsByKey.forEach((rowView) => {
-          rowView.row.style.removeProperty('grid-column');
-          rowView.row.style.removeProperty('grid-row');
-        });
+        this.SyncUniverseList(container, flatStatuses);
       }
     }, 100, false);
   }
 
-  private FlattenGridRowMajor<T>(grid: T[][]): T[] {
-    const result: T[] = [];
-    const maxRows = Math.max(0, ...grid.map((col) => col.length));
+  private SyncUniverseGrid(container: HTMLElement, activeGrid: SidePanelUniverseStatus[][]): void {
+    container.querySelector('.universe-empty')?.remove();
+    this.EnsureContainerDnDListeners(container);
 
-    for (let r = 0; r < maxRows; r++) {
-      for (let c = 0; c < grid.length; c++) {
-        if (grid[c] && grid[c][r] !== undefined) {
-          result.push(grid[c][r]);
-        }
-      }
+    const nextUniverseKeys = new Set<string>();
+
+    // Ensure the number of columns in the DOM matches the number of columns in the active grid
+    const existingCols = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
+    while (existingCols.length > activeGrid.length) {
+      existingCols.pop()?.remove();
+    }
+    while (existingCols.length < activeGrid.length) {
+      const colEl = document.createElement('div');
+      colEl.className = 'universe-column';
+      container.appendChild(colEl);
+      existingCols.push(colEl);
     }
 
-    return result;
+    // Update each column with the corresponding universe statuses
+    activeGrid.forEach((colStatuses, colIdx) => {
+      const colEl = existingCols[colIdx];
+
+      colStatuses.forEach((status) => {
+        const universeKey = this.NormalizeUniverseKey(status.UniverseKey);
+        nextUniverseKeys.add(universeKey);
+
+        let rowView = this.universeRowsByKey.get(universeKey);
+        if (rowView) {
+          this.UpdateUniverseRow(rowView, status);
+        } else {
+          rowView = this.BuildUniverseRow(status);
+          this.universeRowsByKey.set(universeKey, rowView);
+        }
+
+        colEl.appendChild(rowView.row);
+      });
+    });
+
+    // Remove any universe rows that are no longer present in the active grid
+    this.universeRowsByKey.forEach((rowView, key) => {
+      if (!nextUniverseKeys.has(key)) {
+        rowView.row.remove();
+        this.universeRowsByKey.delete(key);
+        this.lastSecondByUniverseKey.delete(key);
+      }
+    });
+  }
+
+  private SyncUniverseList(container: HTMLElement, flatStatuses: SidePanelUniverseStatus[]): void {
+    container.querySelector('.universe-empty')?.remove();
+    this.EnsureContainerDnDListeners(container);
+
+    const nextUniverseKeys = new Set<string>();
+
+    const existingCols = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
+    while (existingCols.length > 1) {
+      existingCols.pop()?.remove();
+    }
+    let colEl = existingCols[0];
+    if (!colEl) {
+      colEl = document.createElement('div');
+      colEl.className = 'universe-column';
+      container.appendChild(colEl);
+    }
+
+    flatStatuses.forEach((status) => {
+      const universeKey = this.NormalizeUniverseKey(status.UniverseKey);
+      nextUniverseKeys.add(universeKey);
+
+      let rowView = this.universeRowsByKey.get(universeKey);
+      if (rowView) {
+        this.UpdateUniverseRow(rowView, status);
+      } else {
+        rowView = this.BuildUniverseRow(status);
+        this.universeRowsByKey.set(universeKey, rowView);
+      }
+
+      colEl.appendChild(rowView.row);
+    });
+
+    this.universeRowsByKey.forEach((rowView, key) => {
+      if (!nextUniverseKeys.has(key)) {
+        rowView.row.remove();
+        this.universeRowsByKey.delete(key);
+        this.lastSecondByUniverseKey.delete(key);
+      }
+    });
   }
 
   private UpdateUniverseOpenState(universeKey: string, isOpen: boolean): void {
@@ -569,51 +618,6 @@ export class UniversePanelController {
         button.disabled = false;
       }
     }
-  }
-
-  private SyncUniverseRows(container: HTMLElement, universeStatuses: SidePanelUniverseStatus[]): void {
-    container.querySelector('.universe-empty')?.remove();
-    this.EnsureContainerDnDListeners(container);
-    const nextUniverseKeys = new Set<string>();
-
-    universeStatuses.forEach((status) => {
-      const universeKey = this.NormalizeUniverseKey(status.UniverseKey);
-      nextUniverseKeys.add(universeKey);
-
-      const existingRow = this.universeRowsByKey.get(universeKey);
-      if (existingRow) {
-        this.UpdateUniverseRow(existingRow, status);
-      } else {
-        const createdRow = this.BuildUniverseRow(status);
-        this.universeRowsByKey.set(universeKey, createdRow);
-        container.appendChild(createdRow.row);
-      }
-    });
-
-    this.universeRowsByKey.forEach((rowView, key) => {
-      if (!nextUniverseKeys.has(key)) {
-        rowView.row.remove();
-        this.universeRowsByKey.delete(key);
-        this.lastSecondByUniverseKey.delete(key);
-      }
-    });
-
-    const desiredRows: HTMLElement[] = [];
-    universeStatuses.forEach((status) => {
-      const rowView = this.universeRowsByKey.get(this.NormalizeUniverseKey(status.UniverseKey));
-      if (rowView) desiredRows.push(rowView.row);
-    });
-    let cursor: Element | null = container.firstElementChild;
-    desiredRows.forEach((row) => {
-      while (cursor && cursor.classList.contains('drop-indicator-line')) {
-        cursor = cursor.nextElementSibling;
-      }
-      if (cursor === row) {
-        cursor = row.nextElementSibling;
-      } else {
-        container.insertBefore(row, cursor);
-      }
-    });
   }
 
   private UpdateUniverseRow(rowView: UniverseRowView, status: SidePanelUniverseStatus): void {
@@ -1001,25 +1005,12 @@ export class UniversePanelController {
   }
 
   private ExtractUniverseGridFromDOM(container: HTMLElement): string[][] {
-    const items = Array.from(container.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
-    const columnsMap = new Map<number, string[]>();
-
-    items.forEach((item) => {
-      const key = item.getAttribute('data-universe-key');
-      if (!key) return;
-
-      const left = Math.round(item.getBoundingClientRect().left);
-      let matchKey = Array.from(columnsMap.keys()).find((k) => Math.abs(k - left) < 20);
-      if (matchKey === undefined) {
-        matchKey = left;
-        columnsMap.set(matchKey, []);
-      }
-      columnsMap.get(matchKey)!.push(key);
-    });
-
-    const sortedLefts = Array.from(columnsMap.keys()).sort((a, b) => a - b);
-    return sortedLefts
-      .map((left) => columnsMap.get(left)!)
+    const columns = Array.from(container.querySelectorAll<HTMLElement>('.universe-column'));
+    return columns
+      .map((col) => {
+        const items = Array.from(col.querySelectorAll<HTMLElement>('.universe-item-box:not(.dragging)'));
+        return items.map((item) => item.getAttribute('data-universe-key') || '').filter(Boolean);
+      })
       .filter((col) => col.length > 0);
   }
 
