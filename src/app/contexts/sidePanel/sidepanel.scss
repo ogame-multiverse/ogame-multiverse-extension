@@ -12,6 +12,7 @@ $ogm-text-color: #e0e1dd;
 $ogm-border-color: #2a3240;
 $ogm-surface-color: #121821;
 $ogm-surface-color-hover: #1a2230;
+$ogm-max-universe-width: 350px;
 
 @font-face {
   font-family: 'Material Symbols Outlined';
@@ -152,17 +153,24 @@ body {
     width: 100%;
     min-height: 25px; // Minimum height to ensure the list is visible even when empty
     gap: 8px;
-    /* List mode : single column, 340px wide */
+    /* List mode : single column */
     &[data-mode='list'] {
       display: flex;
       flex-direction: column;
-      max-width: 340px;
+      width: 100%;
+      max-width: $ogm-max-universe-width;
 
       .universe-column {
         display: contents;
       }
+
+      .universe-item-box {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
     }
-    /* Grid mode : multiple columns, each 340px wide, with a gap of 8px */
+    /* Grid mode : multiple columns */
     &[data-mode="grid"] {
       display: flex;
       flex-direction: row;
@@ -175,16 +183,15 @@ body {
         display: flex;
         flex-direction: column;
         gap: 8px;
-        width: 340px;
-        min-width: 340px;
+        width: $ogm-max-universe-width;
+        min-width: $ogm-max-universe-width;
         flex-shrink: 0;
       }
     }
 
     .universe-item-box {
-      width: 340px;
-      min-width: 340px;
-      flex-shrink: 0;
+      width: 100%;
+      max-width: $ogm-max-universe-width;
       box-sizing: border-box;
       margin-bottom: 0;
 
@@ -226,7 +233,16 @@ body {
           .universe-head {
             display: flex;
             flex-flow: row;
-            column-gap: 10px;
+            align-items: center;
+            column-gap: 4px;
+            min-width: 0;
+
+            .universe-title {
+              min-width: 0;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
 
             .universe-drag-handle {
               display: inline-flex;
@@ -312,20 +328,12 @@ body {
                 }
               }
             }
-
-            .universe-title {
-              display: inline-flex;
-              font-weight: 600;
-              font-size: 17px;
-            }
           }
 
           .universe-last-refresh {
             font-size: 13px;
             opacity: 0.85;
-          }
 
-          .universe-last-refresh {
             &.universe-last-refresh-warning {
               color: $ogm-color-red;
               opacity: 1;
@@ -397,63 +405,44 @@ body {
           }
         }
 
-        .universe-refresh-button {
+        .universe-actions {
           grid-row: 1;
           grid-column: 2;
-          border: 1px solid $ogm-border-color;
-          background: $ogm-background-color-lighter;
-          color: inherit;
-          border-radius: 6px;
-          display: inline-flex;
-          align-items: center;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
           align-self: start;
-          justify-content: center;
-          width: 30px;
-          height: 30px;
-          cursor: pointer;
 
-          &.universe-refresh-warning {
-            color: $ogm-color-orange;
-            border-color: $ogm-color-orange;
-            box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-orange, $alpha: -0.35);
-            animation: button-warning-pulse 1.8s ease-in-out infinite;
+          .universe-refresh-button,
+          .universe-settings-button {
+            border: 1px solid $ogm-border-color;
+            background: $ogm-background-color-lighter;
+            color: inherit;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+
+            &:hover:not(:disabled) {
+              background: $ogm-surface-color-hover;
+              border-color: color.adjust($ogm-border-color, $lightness: 10%);
+            }
+
+            &:disabled {
+              opacity: 0.5;
+              cursor: default;
+            }
           }
 
-          &:hover:not(:disabled) {
-            background: $ogm-surface-color-hover;
-            border-color: color.adjust($ogm-border-color, $lightness: 10%);
-          }
-
-          &:disabled {
-            opacity: 0.5;
-            cursor: default;
-          }
-        }
-
-        .universe-settings-button {
-          grid-row: 1;
-          grid-column: 2;
-          border: 1px solid $ogm-border-color;
-          background: $ogm-background-color-lighter;
-          color: inherit;
-          border-radius: 6px;
-          display: inline-flex;
-          align-items: center;
-          align-self: end;
-          justify-content: center;
-          width: 30px;
-          height: 30px;
-          cursor: pointer;
-
-          &:hover {
-            background: $ogm-surface-color-hover;
-            border-color: color.adjust($ogm-border-color, $lightness: 10%);
-          }
-
-          &:disabled {
-            opacity: 0.5;
-            cursor: default;
-          }
+            .universe-refresh-button.universe-refresh-warning {
+              color: $ogm-color-orange;
+              border-color: $ogm-color-orange;
+              box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-orange, $alpha: -0.35);
+              animation: button-warning-pulse 1.8s ease-in-out infinite;
+            }
         }
 
 
@@ -623,8 +612,7 @@ body {
       // Indicators are still shown, since the are only updfated when the universe is open in an active tab
       &[data-universe-open='true'] {
         &[data-universe-open-current-window='false'] {
-          .universe-refresh-button,
-          .universe-settings-button {
+          .universe-actions {
             display: none !important;
           }
         }
@@ -695,18 +683,21 @@ body {
   }
 
   .universe-controls {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 6px;
     font-size: 13px;
     opacity: 0.9;
 
     .universe-threshold-label {
       opacity: 0.85;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .universe-threshold-select {
+      flex-shrink: 0;
       font: inherit;
       color: inherit;
       background: $ogm-background-color-lighter;
@@ -715,28 +706,4 @@ body {
       padding: 1px 4px;
     }
   }
-
-
-
-  .data-source-delete {
-    border: 1px solid $ogm-border-color;
-    border-radius: 4px;
-    background: $ogm-background-color-lighter;
-    color: $ogm-color-red;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-
-    &:hover:not(:disabled) {
-      background: color.adjust($ogm-color-red, $alpha: -0.88);
-      border-color: color.adjust($ogm-color-red, $alpha: -0.4);
-    }
-  }
-
-    .data-source-delete:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
 }
