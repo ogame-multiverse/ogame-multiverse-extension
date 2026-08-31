@@ -132,7 +132,7 @@ export class UniversePanelController {
   private DetectUniverseDisplayMode(): 'list' | 'grid' {
     const parent = document.getElementById('panel-universe');
     const width = parent ? parent.clientWidth : window.innerWidth;
-    return width >= 650 ? 'grid' : 'list';
+    return width >= 717 ? 'grid' : 'list';
   }
 
   private InitResizeObserver(): void {
@@ -1067,12 +1067,14 @@ export class UniversePanelController {
               </span>
             </div>
           </div>
-          <button type="button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
-            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
-          </button>
-          <button type="button" class="universe-settings-button" title="${Localizator.Translate('SidePanelSettingsUniverse')}" aria-label="${Localizator.Translate('SidePanelSettingsUniverse')}">
-            <span class="material-symbols-outlined" aria-hidden="true">settings</span>
-          </button>
+          <div class="universe-actions">
+            <button type="button" class="universe-refresh-button refresh-tab" title="${Localizator.Translate('SidePanelReloadUniverseTab')}" aria-label="${Localizator.Translate('SidePanelReloadUniverseTab')}">
+              <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+            </button>
+            <button type="button" class="universe-settings-button" title="${Localizator.Translate('SidePanelSettingsUniverse')}" aria-label="${Localizator.Translate('SidePanelSettingsUniverse')}">
+              <span class="material-symbols-outlined" aria-hidden="true">settings</span>
+            </button>
+          </div>
           <div class="universe-settings">
             <span class="universe-settings-header">${Localizator.Translate('SidePanelSettingsUniverse')}</span>
             <div class="universe-settings-group">
