@@ -1,9 +1,19 @@
 @use 'sass:color';
+@import 'tippy.js/dist/tippy';
 
-$ogm-color-green: #99cc00;
-$ogm-color-orange: #ff9600;
-$ogm-color-red: #d43635;
-$ogm-color-blue: #00aaff;
+$ogm-color-bone: #e0e1dd;
+$ogm-color-green: #8cb845;
+$ogm-color-dark-orange: #dd8658;
+$ogm-color-orange: #c87a3b;
+$ogm-color-yellow: #d1ba52;
+$ogm-color-red: #cc5c5b;
+$ogm-color-pink: #d896c2;
+$ogm-color-blue: #4a9ede;
+$ogm-color-purple: #a561d4;
+$ogm-color-light-purple: #bb81eb;
+$ogm-color-brown: #aa6546;
+$ogm-color-light-brown: #c7af8b;
+$ogm-color-grey: #8a9ba8;
 $ogm-color-neutral-gray: #9e9e9e;
 $ogm-sidepanel-color: #0d1014;
 $ogm-background-color: #0c0f14;
@@ -14,696 +24,1615 @@ $ogm-surface-color: #121821;
 $ogm-surface-color-hover: #1a2230;
 $ogm-max-universe-width: 350px;
 
+// Actual dimensions of the "icon" column inside a .universe-section
+// (used to keep .universe-section, .universe-section-content and .event-card consistent with each other).
+$ogm-section-border-width: 1px;
+$ogm-section-content-padding: 6px;
+$ogm-card-border-width: 1px;
+$ogm-card-padding-left: 8px;
+$ogm-card-icon-badge-size: 32px;
+
+
+
+
+
 @font-face {
-  font-family: 'Material Symbols Outlined';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('assets/fonts/material-symbols-outlined-latin-400-normal.woff2') format('woff2');
+    font-family: 'Material Symbols Outlined';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('assets/fonts/MaterialIconsOutlined/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].woff2') format('woff2');
 }
 
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 20px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
 
 html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 body {
-  margin: 0;
-  background: $ogm-sidepanel-color;
-  color: $ogm-text-color;
-  font-size: 15px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-}
+    margin: 0;
+    background: $ogm-sidepanel-color;
+    color: $ogm-color-grey;
+    font-size: 15px;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 
-#app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+    input[type='checkbox'] {
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        border: 1px solid $ogm-color-grey;
+        background: $ogm-sidepanel-color;
+        cursor: pointer;
+        vertical-align: bottom;
 
-.tabs {
-  display: flex;
-  background: $ogm-background-color;
-  border-bottom: 1px solid $ogm-border-color;
-
-  .tab {
-    flex: 1;
-    padding: 10px 12px;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    font: inherit;
-    font-size: 16px;
-
-    &:hover {
-      background: color.adjust($ogm-surface-color-hover, $alpha: -0.25);
+        &:checked {
+            appearance: checkbox;
+            accent-color: $ogm-color-orange;
+        }
     }
 
-    &[aria-selected='true'] {
-      font-weight: 600;
-      color: color.adjust($ogm-color-orange, $lightness: 10%);
-      text-decoration: underline;
-      text-underline-offset: 6px;
+
+    select {
+        cursor: pointer;
+        color: $ogm-color-grey;
+
+        &:hover,
+        &:focus {
+            color: $ogm-color-orange;
+        }
+
+        option {
+            color: $ogm-color-orange;
+            background-color: $ogm-sidepanel-color;
+        }
     }
-  }
+
+
+    .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined';
+        font-weight: normal;
+        font-style: normal;
+        font-size: 20px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        font-feature-settings: 'liga';
+        -webkit-font-smoothing: antialiased;
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+
+    .material-symbols {
+        font-family: 'Material Symbols Outlined';
+        font-weight: normal;
+        font-style: normal;
+        font-size: 20px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        font-feature-settings: 'liga';
+        -webkit-font-smoothing: antialiased;
+        font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+
+    #app {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .tabs {
+        display: flex;
+        background: $ogm-background-color;
+        border-bottom: 1px solid $ogm-border-color;
+
+        .tab {
+            position: relative;
+            flex: 1;
+            padding: 10px 12px;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+            font: inherit;
+            font-size: 16px;
+            color: $ogm-color-grey;
+
+            .material-symbols-outlined {
+                vertical-align: middle;
+            }
+
+            &:hover {
+                background: color.adjust($ogm-surface-color-hover, $alpha: -0.25);
+            }
+
+            &[aria-selected='true'] {
+                font-weight: 600;
+                color: $ogm-color-orange;
+                text-decoration: underline;
+                text-underline-offset: 6px;
+            }
+            // At least one universe needs a refresh (see TabRelatedController.RefreshGlobalWarningAsync).
+            // Class is toggled from data, independently of the active tab.
+            &.has-refresh-warning::after {
+                content: "priority_high";
+                display: inline-block;
+                vertical-align: middle;
+                font-family: 'Material Symbols Outlined';
+                font-style: normal;
+                font-size: 16px;
+                font-weight: 700;
+                line-height: 1;
+                letter-spacing: normal;
+                text-transform: none;
+                white-space: nowrap;
+                text-decoration: none;
+                font-feature-settings: 'liga';
+                color: $ogm-color-red;
+            }
+        }
+    }
 }
 
 
 
-.panel {
-  display: none;
-  padding: 5px;
-  background: $ogm-sidepanel-color;
+
+@mixin event-details-content {
+    .event-header {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        row-gap: 3px;
+        gap: 4px;
 
 
-  &[data-active='true'] {
-    display: block;
-  }
+        .event-mission-tag,
+        .event-ownership-tag, .event-return-tag, .event-ghost-tag {
+            font-size: 12px;
+            padding: 1px 2px;
+            font-weight: 600;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+    }
+}
+
+.event-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 15px;
+    color: $ogm-color-grey;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 3px;
+
+    > .material-symbols-outlined {
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .position-text {
+        display: flex;
+        gap: 5px;
+        font-weight: 500;
+    }
+}
+
+@mixin event-icon-badge($size: 32px, $icon-size: 27px, $count-font-size: 15px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: $size;
+    height: $size;
+    border-radius: 6px;
+    background: color.adjust($ogm-surface-color, $lightness: 5%);
+    flex-shrink: 0;
+
+    .material-symbols-outlined {
+        font-size: $icon-size;
+    }
+
+    .event-count {
+        position: absolute;
+        bottom: -5px;
+        right: -4px;
+        background: $ogm-border-color;
+        color: $ogm-text-color;
+        font-size: $count-font-size;
+        font-weight: 700;
+        padding: 2px;
+        border-radius: 10px;
+        line-height: 12px;
+    }
+}
+// Helper pour appliquer les couleurs par type de mission
+@mixin apply-mission-colors($missions-map, $apply-all: true) {
+    @each $types, $color in $missions-map {
+        $selectors: ();
+
+        @each $type in $types {
+            $selectors: append($selectors, unquote("&.event-#{$type}"), comma);
+        }
+
+        #{$selectors} {
+            .event-mission-tag {
+                color: $color;
+                background: rgba($color, 0.2);
+            }
+
+            @if $apply-all {
+                .event-icon-badge {
+                    color: $color;
+                    background: rgba($color, 0.2);
+                }
+
+                .event-timer-badge .event-countdown:not(.finished) {
+                    color: $color;
+                }
+            }
+        }
+    }
+}
+
+@mixin event-mission-colors {
+    // Static tags
+    .event-header {
+        .event-return-tag {
+            background: rgba($ogm-color-grey, 0.15);
+            color: $ogm-color-grey;
+        }
+
+        .event-ghost-tag {
+            background: rgba($ogm-color-light-purple, 0.15);
+            color: $ogm-color-light-purple;
+        }
+    }
+    // Global status colors (hostile / friendly)
+    $status-colors: ( 'hostile': $ogm-color-red, 'friendly': $ogm-color-orange );
+
+    @each $status, $color in $status-colors {
+        &.event-#{$status} {
+            .event-header .event-ownership-tag {
+                background: rgba($color, 0.15);
+                color: $color;
+            }
+
+            .event-mission-tag,
+            .event-icon-badge {
+                color: $color;
+                background: rgba($color, 0.2);
+            }
+
+            .event-timer-badge .event-countdown:not(.finished) {
+                color: $color;
+            }
+        }
+    }
+    // Owned events
+    &.event-own {
+        .event-header .event-ownership-tag {
+            background: rgba($ogm-color-green, 0.15);
+            color: $ogm-color-green;
+        }
+
+        &:not(.event-ghost) {
+            @include apply-mission-colors(( ('spy', 'missile-attack', 'attack', 'acs-attack', 'moon-destruction', 'acs-defend'): $ogm-color-yellow, ('transport', 'deployment', 'colonisation'): $ogm-color-green, ('expedition'): $ogm-color-blue, ('anomaly-encounter'): $ogm-color-pink, ('exploration', 'recycle'): $ogm-color-brown ));
+        }
+
+        &.event-ghost {
+            @include apply-mission-colors(( ('spy'): $ogm-color-yellow, ('deployment', 'colonisation'): $ogm-color-green, ('recycle'): $ogm-color-brown ), $apply-all: false);
+
+            .event-icon-badge {
+                color: $ogm-color-light-purple;
+                background: rgba($ogm-color-light-purple, 0.2);
+            }
+
+            .event-timer-badge .event-countdown:not(.finished) {
+                color: $ogm-color-light-purple;
+            }
+        }
+    }
+    // Return events: add a small arrow icon to indicate that the event is returning
+    &.event-return .event-icon-badge {
+        position: relative;
+
+        &::before {
+            content: "arrow_top_left";
+            font-family: 'Material Symbols Outlined';
+            position: absolute;
+            top: -5px;
+            right: -4px;
+            background: $ogm-border-color;
+            color: $ogm-text-color;
+            font-size: 18px;
+            font-weight: 700;
+            padding: 1px;
+            border-radius: 10px;
+            line-height: 12px;
+            z-index: 1;
+        }
+    }
+
+    &.finished {
+        border-color: rgba($ogm-color-orange, 0.4);
+        background: rgba($ogm-color-orange, 0.05);
+    }
+
+    .event-timer-badge .event-countdown.finished {
+        color: $ogm-color-orange;
+        font-weight: 800;
+    }
+}
+
+
+@mixin panel($displayWhenActive: block) {
+    display: none;
+    padding: 5px;
+    background: $ogm-sidepanel-color;
+
+    &[data-active='true'] {
+        display: $displayWhenActive;
+    }
+}
+
+
+#panel-events {
+    @include panel(flex);
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px;
+
+    .events-empty {
+        padding: 16px;
+        text-align: center;
+        color: $ogm-color-grey;
+        font-size: 12px;
+    }
+
+    .events-toolbar {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .events-timeline-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 15px;
+        font-weight: 600;
+        color: $ogm-color-grey;
+        cursor: pointer;
+        user-select: none;
+    }
+
+
+    .events-list {
+        display: flex;
+        flex-direction: column;
+        // If no rail segment is present, add a small gap between events.
+        &:not(:has(.events-timeline-rail-segment)) {
+            gap: 12px;
+        }
+    }
+
+    .events-timeline-rail-segment {
+        align-self: center;
+        width: 2px;
+        height: 12px;
+        background: color.adjust($ogm-border-color, $lightness: 18%);
+        opacity: 0.85;
+        border-radius: 1px;
+
+        &.compact {
+            height: 6px;
+        }
+
+        &.dashed {
+            border-radius: 0;
+            background: repeating-linear-gradient( to bottom, color.adjust($ogm-border-color, $lightness: 18%) 0, color.adjust($ogm-border-color, $lightness: 18%) 3px, transparent 3px, transparent 6px );
+        }
+    }
+
+    .events-timeline-marker {
+        display: flex;
+        justify-content: center;
+        align-self: center;
+        user-select: none;
+
+        .events-timeline-time-badge {
+            display: inline-flex;
+            white-space: nowrap;
+            background: color.adjust($ogm-surface-color, $lightness: 3%);
+            border: 1px solid $ogm-border-color;
+            border-radius: 10px;
+            padding: 3px 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            line-height: 1.2;
+            color: color.adjust($ogm-color-grey, $lightness: 15%);
+        }
+
+        .events-timeline-date-badge {
+            display: inline-flex;
+            white-space: nowrap;
+            background: rgba($ogm-color-orange, 0.12);
+            border: 1px solid rgba($ogm-color-orange, 0.5);
+            border-radius: 10px;
+            padding: 3px 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.4px;
+            line-height: 1.2;
+            text-transform: uppercase;
+            color: $ogm-color-orange;
+        }
+    }
+
+    .universe-section {
+        display: flex;
+        flex-direction: column;
+        border: $ogm-section-border-width solid $ogm-border-color;
+        border-radius: 8px;
+        overflow: hidden;
+        background: $ogm-background-color;
+        max-width: 575px;
+        // `width: stretch` is not supported by Firefox (it ignores the declaration), which let the section
+        // shrink-to-fit its content and, combined with the event cards' `container-type: inline-size`,
+        // collapse to a tiny width. 100% + border-box behaves the same in both browsers.
+        width: 100%;
+        box-sizing: border-box;
+        margin-left: auto;
+        margin-right: auto;
+
+        .universe-section-header {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 700;
+            color: $ogm-color-grey;
+            letter-spacing: 0.4px;
+            padding: 3px 6px;
+            background: $ogm-background-color-lighter;
+            border-bottom: 1px solid $ogm-border-color;
+
+
+            .universe-title {
+                font-size: 15px;
+            }
+
+            .universe-status-badges {
+                display: inline-flex;
+                gap: 3px;
+                text-transform: none;
+
+                .universe-status-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    vertical-align: bottom;
+
+                    &.is-active-current-window {
+                        color: $ogm-color-green;
+                    }
+
+                    &.is-open {
+                        color: $ogm-color-green;
+                        cursor: pointer;
+
+                        .icon-hover {
+                            display: none;
+                        }
+
+                        &:hover {
+                            .icon-default {
+                                display: none;
+                            }
+
+                            .icon-hover {
+                                display: inline-flex;
+                            }
+                        }
+                    }
+
+                    &.is-closed {
+                        color: $ogm-color-red;
+                    }
+
+                    &.is-other-window {
+                        color: $ogm-color-blue;
+                        cursor: pointer;
+
+                        .icon-hover {
+                            display: none;
+                        }
+
+                        &:hover {
+                            &.close-tab {
+                                color: $ogm-color-red;
+                            }
+
+                            &.move-tab {
+                                color: $ogm-color-green;
+                            }
+
+                            .icon-default {
+                                display: none;
+                            }
+
+                            .icon-hover {
+                                display: inline-flex;
+                            }
+                        }
+                    }
+                }
+            }
+
+            .universe-refresh-button {
+                margin-left: auto;
+                flex-shrink: 0;
+                border: none;
+                background: transparent;
+                color: inherit;
+                border-radius: 5px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 18px;
+                height: 18px;
+                cursor: pointer;
+
+                &:hover:not(:disabled) {
+                    background: $ogm-surface-color-hover;
+                }
+
+                &:disabled {
+                    opacity: 0.5;
+                    cursor: default;
+                }
+
+                &.universe-refresh-warning {
+                    color: $ogm-color-orange;
+                    box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.5), 0 0 8px color.adjust($ogm-color-orange, $alpha: -0.4);
+                    animation: button-warning-pulse 1.8s ease-in-out infinite;
+                }
+            }
+        }
+
+        .universe-section-content {
+            display: flex;
+            flex-direction: column;
+            padding: $ogm-section-content-padding;
+        }
+    }
+
+    .event-card-container {
+
+        .event-card {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-rows: auto minmax(0, 1fr);
+            align-items: center;
+            gap: 7px;
+            background: $ogm-surface-color;
+            border: $ogm-card-border-width solid $ogm-border-color;
+            border-radius: 6px;
+            padding: 5px 8px 5px $ogm-card-padding-left;
+            position: relative;
+            min-height: 52px;
+            box-sizing: border-box;
+            overflow: hidden;
+            container-type: inline-size;
+            container-name: event-card;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+
+            &[data-universe-active="true"] {
+                &::before {
+                    content: "";
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    bottom: 0;
+                    width: 4px;
+                    background-color: $ogm-color-green !important;
+                    clip-path: polygon(0 0, 100% 4px, 100% calc(100% - 4px), 0 100%);
+                    z-index: 2;
+                }
+            }
+
+            &:hover {
+                background: $ogm-surface-color-hover;
+            }
+
+            .event-icon-badge {
+                @include event-icon-badge($ogm-card-icon-badge-size, 27px, 15px);
+            }
+            /*            .event-details {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 0;
+                overflow: hidden;*/
+
+            @include event-details-content;
+            /*     }*/
+
+            @container event-card (max-width: 400px) {
+                /*.event-details {*/
+                .event-label {
+                    .position-name {
+                        display: none;
+                    }
+                }
+                /*         }*/
+            }
+
+            @container event-card (max-width: 300px) {
+                /*            .event-details {*/
+                .event-label {
+                    display: none;
+                }
+                /*    }*/
+            }
+
+
+            @container event-card (max-width: 240px) {
+                /*.event-details {*/
+                .event-header {
+                    display: none;
+                }
+                /*    }*/
+            }
+
+            .event-icon-badge {
+                grid-column: 1;
+                grid-row: 1/3;
+            }
+
+            .event-header {
+                grid-column: 2;
+                grid-row: 1;
+            }
+
+            .event-label {
+                grid-column: 2;
+                grid-row: 2;
+            }
+
+            .event-timer-badge {
+                grid-column: 3;
+                grid-row: 1 / 3;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                justify-content: center;
+                flex-shrink: 0;
+
+                .event-countdown {
+                    font-family: monospace;
+                    font-weight: 700;
+                    font-size: 13px;
+                    color: $ogm-text-color;
+                    white-space: nowrap;
+                }
+
+                &.group-range {
+                    align-items: center;
+
+                    .timer-separator {
+                        font-size: 10px;
+                        line-height: 10px;
+                        color: $ogm-color-grey;
+                    }
+                }
+            }
+
+            @include event-mission-colors;
+
+            &.finished {
+                border-color: color.adjust($ogm-color-orange, $alpha: -0.6);
+                background: rgba($ogm-color-orange, 0.05);
+            }
+
+            .event-timer-badge .event-countdown.finished {
+                color: $ogm-color-orange !important;
+                font-weight: 800;
+            }
+        }
+    }
 }
 
 
 #panel-universe {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow-x: auto;
-  gap: 16px;
-  position: relative;
+    @include panel(flex);
+    flex-direction: column;
+    overflow-x: auto;
+    gap: 16px;
+    position: relative;
 
-  .drop-indicator-line {
-    position: absolute;
-    background-color: $ogm-color-orange;
-    border-radius: 2px;
-    box-shadow: 0 0 6px $ogm-color-orange;
+    .drop-indicator-line {
+        position: absolute;
+        background-color: $ogm-color-orange;
+        border-radius: 2px;
+        box-shadow: 0 0 6px $ogm-color-orange;
+        pointer-events: none;
+        z-index: 1000;
+        display: none;
+    }
+
+    .universe-section {
+        display: flex;
+        overflow-x: hidden;
+        flex-direction: column;
+        gap: 8px;
+
+        .universe-section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            border-bottom: 1px solid $ogm-border-color;
+            color: $ogm-color-orange;
+            font-weight: 600;
+            font-size: 15px;
+
+            .material-symbols-outlined {
+                font-size: 18px;
+            }
+        }
+
+        &:not(:has(.universe-item-box)),
+        &.is-empty {
+            .universe-section-header {
+                color: $ogm-color-neutral-gray;
+            }
+        }
+    }
+
+    .universe-list {
+        flex: 1;
+        position: relative;
+        width: 100%;
+        min-height: 25px;
+        gap: 8px;
+        // List mode : single column
+        &[data-mode='list'] {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: $ogm-max-universe-width;
+
+            .universe-column {
+                display: contents;
+            }
+
+            .universe-item-box {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+            }
+        }
+        // Grid mode : multiple columns
+        &[data-mode="grid"] {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 8px;
+            width: max-content;
+            min-width: 100%;
+
+            .universe-column {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                width: $ogm-max-universe-width;
+                min-width: $ogm-max-universe-width;
+                flex-shrink: 0;
+            }
+        }
+
+        .universe-item-box {
+            width: 100%;
+            max-width: $ogm-max-universe-width;
+            box-sizing: border-box;
+            margin-bottom: 0;
+
+            .universe-item-title {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            &.dragging {
+                opacity: 0.4;
+            }
+
+
+
+            .universe-item {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                column-gap: 8px;
+                row-gap: 2px;
+                align-items: center;
+                background: $ogm-surface-color;
+                border: 1px solid $ogm-border-color;
+                border-radius: 6px;
+                padding-left: 12px;
+                padding-right: 8px;
+                padding-top: 8px;
+                padding-bottom: 8px;
+
+
+                .universe-details {
+                    align-self: start;
+                    grid-row: 1;
+                    grid-column: 1;
+                    min-width: 0;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+
+                    .universe-head {
+                        display: flex;
+                        flex-flow: row;
+                        align-items: center;
+                        column-gap: 4px;
+                        min-width: 0;
+
+                        .universe-title {
+                            min-width: 0;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            color: $ogm-color-grey;
+                            font-weight: 700;
+                            font-size: 15px;
+                        }
+
+                        .universe-drag-handle {
+                            display: inline-flex;
+                            align-items: center;
+                            opacity: 0.5;
+                            cursor: grab;
+                            user-select: none;
+                            font-size: 20px;
+                            padding: 6px; // Increase the padding to make the grab area larger
+                            margin: -6px; // Negative margin to offset the padding and keep the layout consistent
+
+                            &:hover {
+                                opacity: 1;
+                            }
+
+                            &:active {
+                                cursor: grabbing;
+                            }
+                        }
+
+                        .universe-status-badges {
+                            display: inline-flex;
+
+                            .universe-status-badge {
+                                display: inline-flex;
+                                align-items: center;
+                                justify-content: center;
+                                vertical-align: bottom;
+
+                                &.is-active-current-window {
+                                    color: $ogm-color-green;
+                                }
+
+                                &.is-open {
+                                    color: $ogm-color-green;
+                                    cursor: pointer;
+
+                                    .icon-hover {
+                                        display: none;
+                                    }
+
+                                    &:hover {
+                                        .icon-default {
+                                            display: none;
+                                        }
+
+                                        .icon-hover {
+                                            display: inline-flex;
+                                        }
+                                    }
+                                }
+
+
+                                &.is-closed {
+                                    color: $ogm-color-red;
+                                }
+
+                                &.is-other-window {
+                                    color: $ogm-color-blue;
+                                    cursor: pointer;
+
+                                    .icon-hover {
+                                        display: none;
+                                    }
+
+                                    &:hover {
+                                        &.close-tab {
+                                            color: $ogm-color-red;
+                                        }
+
+                                        &.move-tab {
+                                            color: $ogm-color-green;
+                                        }
+
+                                        .icon-default {
+                                            display: none;
+                                        }
+
+                                        .icon-hover {
+                                            display: inline-flex;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    .universe-last-refresh {
+                        font-size: 13px;
+                        opacity: 0.85;
+
+                        &.universe-last-refresh-warning {
+                            color: $ogm-color-red;
+                            opacity: 1;
+                            font-weight: 600;
+                        }
+                    }
+
+
+                    .universe-indicators {
+                        display: inline-flex;
+                        align-items: center;
+                        flex-wrap: wrap;
+                        gap: 6px;
+                        font-size: 15px;
+                        opacity: 0.85;
+                    }
+
+                    .universe-value-group {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 5px;
+                        padding: 1px 6px;
+                        border: 1px solid $ogm-border-color;
+                        background: color.adjust($ogm-background-color-lighter, $alpha: -0.15);
+                        border-radius: 999px;
+
+                        &.universe-value-group-hostile,
+                        &.universe-value-group-friendly,
+                        &.universe-value-group-own,
+                        &.universe-value-group-unread-mail,
+                        &.universe-value-group-unread-chat,
+                        &.universe-value-group-expeditions {
+                            .universe-value-label {
+                                display: none;
+                            }
+
+                            .universe-value {
+                                text-align: right;
+                                font-weight: 600;
+                            }
+                        }
+
+                        &.universe-value-group-hostile {
+                            .material-symbols-outlined,
+                            .universe-value {
+                                color: $ogm-color-red;
+                            }
+                        }
+
+                        &.universe-value-group-friendly {
+                            .material-symbols-outlined,
+                            .universe-value {
+                                color: $ogm-color-orange;
+                            }
+                        }
+
+                        &.universe-value-group-own {
+                            .material-symbols-outlined,
+                            .universe-value {
+                                color: $ogm-color-green;
+                            }
+                        }
+
+                        &.universe-value-group-expeditions {
+                            .material-symbols-outlined {
+                                color: $ogm-color-blue;
+                            }
+
+                            .universe-value[ogm-state='none'] .expeditions-active {
+                                color: $ogm-color-red;
+                            }
+
+                            .universe-value[ogm-state='partial'] .expeditions-active {
+                                color: $ogm-color-orange;
+                            }
+
+                            &:has(.universe-value[ogm-max-value='0']) {
+                                display: none;
+                            }
+                        }
+
+                        &.only-if-valued {
+                            &:not(:has(.universe-value[ogm-value])),
+                            &:has(.universe-value[ogm-value='0']) {
+                                display: none;
+                            }
+                        }
+                    }
+                }
+
+                .universe-actions {
+                    grid-row: 1;
+                    grid-column: 2;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                    align-self: start;
+
+                    .universe-refresh-button,
+                    .universe-settings-button {
+                        border: 1px solid $ogm-border-color;
+                        background: $ogm-background-color-lighter;
+                        color: inherit;
+                        border-radius: 6px;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 30px;
+                        height: 30px;
+                        cursor: pointer;
+
+                        &:hover:not(:disabled) {
+                            background: $ogm-surface-color-hover;
+                            border-color: color.adjust($ogm-border-color, $lightness: 10%);
+                        }
+
+                        &:disabled {
+                            opacity: 0.5;
+                            cursor: default;
+                        }
+                    }
+
+                        .universe-refresh-button.universe-refresh-warning {
+                            color: $ogm-color-orange;
+                            border-color: $ogm-color-orange;
+                            box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-orange, $alpha: -0.35);
+                            animation: button-warning-pulse 1.8s ease-in-out infinite;
+                        }
+                }
+
+
+
+
+
+                &:has(.universe-settings-button[data-universe-settings-active='true']) {
+                    .universe-settings-button {
+                        background: $ogm-surface-color-hover;
+                        border-color: color.adjust($ogm-border-color, $lightness: 10%);
+                    }
+
+                    .universe-settings {
+                        max-height: 330px;
+                        opacity: 1;
+                        margin-top: 10px;
+                    }
+                }
+
+                &:has(.universe-settings-button[data-universe-settings-active='false']) {
+                    .universe-settings {
+                        animation: universe-settings-closing 0.2s ease-out forwards;
+                    }
+                }
+
+                .universe-settings {
+                    display: grid;
+                    grid-template-columns: 1fr auto auto;
+                    grid-template-rows: auto;
+                    grid-row: 2;
+                    grid-column: 1/3;
+                    max-height: 0;
+                    overflow: hidden;
+                    opacity: 0;
+                    color: $ogm-color-grey;
+                    transition: max-height 0.2s ease-out, opacity 0.2s ease-out, margin-top 0.2s ease-out;
+
+                    .universe-settings-header {
+                        grid-row: 1;
+                        font-weight: 600;
+                        font-size: 16px;
+                        display: inline-block;
+                        margin-top: 10px;
+                        margin-bottom: 10px;
+                        text-underline-offset: 6px;
+                        text-transform: uppercase;
+                        text-decoration: underline;
+                    }
+
+
+
+                    .universe-remove-button {
+                        grid-row: 4;
+                        grid-column: 2;
+                        align-self: end;
+                        justify-self: end;
+                        margin-bottom: 3px;
+                        border: 1px solid $ogm-border-color;
+                        background: $ogm-background-color-lighter;
+                        color: inherit;
+                        border-radius: 6px;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 30px;
+                        height: 30px;
+                        cursor: pointer;
+
+                        &:hover:not(:disabled) {
+                            color: $ogm-color-red;
+                            border-color: $ogm-color-red;
+                            box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-red, $alpha: -0.35);
+                            animation: button-danger-pulse 1.8s ease-in-out infinite;
+                        }
+
+                        &:disabled {
+                            opacity: 0.5;
+                            cursor: default;
+                        }
+                    }
+
+
+                    .universe-settings-group {
+                        margin-top: 5px;
+                        margin-bottom: 5px;
+
+                        .universe-settings-group-header {
+                            font-weight: 600;
+                            font-size: 15px;
+                        }
+
+                        &.general-settings-group {
+                            grid-row: 2;
+                        }
+
+                        &.indicators-settings-group {
+                            grid-row: 3;
+                        }
+
+                        &.events-tracking-group {
+                            grid-row: 4;
+                        }
+                    }
+
+                    .universe-setting-item {
+                        label {
+                            cursor: pointer;
+                        }
+                    }
+
+                    .indicator-fleet-hostile-display-setting,
+                    .indicator-fleet-friendly-display-setting,
+                    .indicator-fleet-own-display-setting,
+                    .indicator-unread-mail-display-setting,
+                    .indicator-unread-chat-display-setting,
+                    .indicator-expeditions-display-setting {
+                        font-weight: 600;
+
+                        .setting-item-label-text {
+                            text-align: right;
+                        }
+                    }
+
+                    .indicator-fleet-hostile-display-setting {
+                        .material-symbols-outlined {
+                            color: $ogm-color-red;
+                        }
+                    }
+
+                    .indicator-fleet-friendly-display-setting {
+                        .material-symbols-outlined {
+                            color: $ogm-color-orange;
+                        }
+                    }
+
+                    .indicator-fleet-own-display-setting {
+                        .material-symbols-outlined {
+                            color: $ogm-color-green;
+                        }
+                    }
+
+                    .indicator-expeditions-display-setting {
+                        .material-symbols-outlined {
+                            color: $ogm-color-blue;
+                        }
+                    }
+
+                    .threshold-setting {
+                        .universe-threshold-select {
+                            flex-shrink: 0;
+                            font: inherit;
+                            color: inherit;
+                            background: $ogm-background-color-lighter;
+                            border: 1px solid $ogm-border-color;
+                            border-radius: 4px;
+                            padding: 1px 4px;
+                        }
+                    }
+                }
+            }
+            // Highlight the universe item when it is the active one in the current window
+            &[data-universe-active-current-window='true'] {
+                .universe-item {
+                    background-color: color.adjust($ogm-surface-color, $lightness: 1.5%);
+                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+                    position: relative;
+                    overflow: hidden;
+                    // Soften the edges of the highlight with a pseudo-element
+                    &::before {
+                        content: '';
+                        position: absolute;
+                        left: 0;
+                        top: 6px;
+                        bottom: 6px;
+                        width: 3px;
+                        background-color: color.adjust($ogm-color-green, $lightness: -5%);
+                        box-shadow: 0 0 5px color.adjust($ogm-color-green, $alpha: -0.5);
+                        clip-path: polygon(0 0, 100% 4px, 100% calc(100% - 4px), 0 100%);
+                    }
+                }
+            }
+            // Hide the remove button when the universe is open
+            &[data-universe-open='true'] {
+                .universe-remove-button {
+                    display: none !important;
+                }
+            }
+            //Hide the indicators when the universe is closed
+            &[data-universe-open='false'] {
+                .universe-indicators {
+                    display: none !important;
+                }
+            }
+            // Hide the refresh button when the universe is open, but not in the current window
+            // Indicators are still shown, since the are only uppdated when the universe is open in an active tab
+            &[data-universe-open='true'] {
+                &[data-universe-open-current-window='false'] {
+                    .universe-actions {
+                        .universe-refresh-button {
+                            display: none !important;
+                        }
+                    }
+                }
+            }
+
+            &[show-hostile-fleets-indicator='false'] {
+                .universe-indicators .universe-value-group.universe-value-group-hostile {
+                    display: none !important;
+                }
+            }
+
+            &[show-friendly-fleets-indicator='false'] {
+                .universe-indicators .universe-value-group.universe-value-group-friendly {
+                    display: none !important;
+                }
+            }
+
+            &[show-own-fleets-indicator='false'] {
+                .universe-indicators .universe-value-group.universe-value-group-own {
+                    display: none !important;
+                }
+            }
+
+
+            &[show-unread-mail-indicator='false'] {
+                .universe-indicators .universe-value-group.universe-value-group-unread-mail {
+                    display: none !important;
+                }
+            }
+
+
+            &[show-unread-chat-indicator='false'] {
+                .universe-indicators .universe-value-group.universe-value-group-unread-chat {
+                    display: none !important;
+                }
+            }
+
+            &[show-expeditions-indicator='false'] {
+                .universe-indicators .universe-value-group.universe-value-group-expeditions {
+                    display: none !important;
+                }
+            }
+        }
+    }
+    // Define the breakpoints and corresponding column counts for the grid layout
+    $grid-paliers: ( (680px, 2, 680px), (1020px, 3, 1020px), (1280px, 4, 1280px), (1600px, 5, 1600px) );
+    // Generate media queries for each breakpoint
+    @each $width, $count, $max in $grid-paliers {
+        @media (min-width: $width) {
+            .universe-list {
+                max-width: $max;
+            }
+        }
+    }
+
+    @keyframes button-warning-pulse {
+        0%, 100% {
+            box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.55), 0 0 8px color.adjust($ogm-color-orange, $alpha: -0.4);
+        }
+
+        50% {
+            box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.35), 0 0 14px color.adjust($ogm-color-orange, $alpha: -0.2);
+        }
+    }
+
+    @keyframes button-danger-pulse {
+        0%, 100% {
+            box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.55), 0 0 8px color.adjust($ogm-color-red, $alpha: -0.4);
+        }
+
+        50% {
+            box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.35), 0 0 14px color.adjust($ogm-color-red, $alpha: -0.2);
+        }
+    }
+}
+
+.tippy-box[data-theme~='ogame'] {
+    background-color: $ogm-surface-color;
+    color: $ogm-text-color;
+    border: 1px solid color.adjust($ogm-border-color, $lightness: 15%);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    font-size: 13px;
+    line-height: 1.4;
+
+    .tippy-arrow {
+        color: color.adjust($ogm-border-color, $lightness: 15%);
+    }
+
+    .tippy-content {
+        padding: 8px 10px;
+    }
+}
+
+.tooltip-pending::after {
+    content: '';
+    display: block;
+    box-sizing: border-box;
+    position: fixed;
+    top: var(--tooltip-mouse-y, 0px);
+    left: var(--tooltip-mouse-x, 0px);
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #e29834;
+    border-radius: 50%;
+    animation: tooltip-spinner 0.6s linear infinite;
     pointer-events: none;
-    z-index: 1000;
-    display: none;
-  }
+    z-index: 999999;
+}
 
-  .universe-section {
+@keyframes tooltip-spinner {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.event-tooltip-content {
+    @include event-details-content;
+    @include event-mission-colors;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    padding: 2px;
+    box-sizing: border-box;
+    width: clamp(150px, 90vw, 630px);
+    container-type: inline-size;
+    container-name: event-tooltip-content;
 
-    .universe-section-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 0;
-      border-bottom: 1px solid $ogm-border-color;
-      color: darken($ogm-color-orange, 5%);
-      font-weight: 600;
-      font-size: 15px;
-
-      .material-symbols-outlined {
-        font-size: 18px;
-      }
-    }
-
-    &:not(:has(.universe-item-box)),
-    &.is-empty {
-      .universe-section-header {
-        color: $ogm-color-neutral-gray;
-      }
-    }
-  }
-
-  .universe-list {
-    flex: 1;
-    position: relative;
-    width: 100%;
-    min-height: 25px; // Minimum height to ensure the list is visible even when empty
-    gap: 8px;
-    /* List mode : single column */
-    &[data-mode='list'] {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      max-width: $ogm-max-universe-width;
-
-      .universe-column {
-        display: contents;
-      }
-
-      .universe-item-box {
-        width: 100%;
-        max-width: 100%;
+    .event-tooltip-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         min-width: 0;
-      }
-    }
-    /* Grid mode : multiple columns */
-    &[data-mode="grid"] {
-      display: flex;
-      flex-direction: row;
-      align-items: flex-start;
-      gap: 8px;
-      width: max-content;
-      min-width: 100%;
 
-      .universe-column {
+        .event-icon-badge {
+            @include event-icon-badge(28px, 22px, 11px);
+        }
+    }
+
+    .event-tooltip-subevents {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        width: $ogm-max-universe-width;
-        min-width: $ogm-max-universe-width;
-        flex-shrink: 0;
-      }
-    }
+        gap: 4px;
+        max-height: 240px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 10px;
+        scrollbar-gutter: stable;
+        min-width: 0;
+        scrollbar-width: thin;
+        scrollbar-color: $ogm-border-color transparent;
 
-    .universe-item-box {
-      width: 100%;
-      max-width: $ogm-max-universe-width;
-      box-sizing: border-box;
-      margin-bottom: 0;
+        &::-webkit-scrollbar {
+            width: 6px;
+        }
 
-      .universe-item-title {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+        &::-webkit-scrollbar-track {
+            background: transparent;
+            margin-block: 2px;
+        }
 
-      &.dragging {
-        opacity: 0.4;
-      }
+        &::-webkit-scrollbar-thumb {
+            background: $ogm-border-color;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
 
-
-
-      .universe-item {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        column-gap: 8px;
-        row-gap: 2px;
-        align-items: center;
-        background: $ogm-surface-color;
-        border: 1px solid $ogm-border-color;
-        border-radius: 6px;
-        padding-left: 12px;
-        padding-right: 8px;
-        padding-top: 8px;
-        padding-bottom: 8px;
-
-
-        .universe-details {
-          grid-row: 1;
-          grid-column: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-
-          .universe-head {
+        .event-sub-card {
             display: flex;
-            flex-flow: row;
             align-items: center;
-            column-gap: 4px;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 4px 6px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
             min-width: 0;
+            box-sizing: border-box;
 
-            .universe-title {
-              min-width: 0;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
+            &:hover {
+                background: rgba(255, 255, 255, 0.08);
+                border-color: rgba(255, 255, 255, 0.15);
             }
 
-            .universe-drag-handle {
-              display: inline-flex;
-              align-items: center;
-              opacity: 0.5;
-              cursor: grab;
-              user-select: none;
-              font-size: 20px;
-              padding: 6px; // Increase the padding to make the grab area larger
-              margin: -6px; // Negative margin to offset the padding and keep the layout consistent
-
-              &:hover {
-                opacity: 1;
-              }
-
-              &:active {
-                cursor: grabbing;
-              }
-            }
-
-            .universe-status-badges {
-              display: inline-flex;
-
-              .universe-status-badge {
-                display: inline-flex;
+            .sub-label {
+                display: flex;
                 align-items: center;
-                justify-content: center;
-                vertical-align: bottom;
+                gap: 4px;
+                flex: 0 0 auto;
+                font-size: 13px;
+                white-space: normal;
+                overflow-wrap: break-word;
 
-                &.is-active-current-window {
-                  color: $ogm-color-green;
+                .material-symbols-outlined {
+                    font-size: 15px;
+                    color: $ogm-color-grey;
+                    flex-shrink: 0;
                 }
 
-                &.is-open {
-                  color: $ogm-color-green;
-                  cursor: pointer;
+                .position-text {
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                    flex-wrap: wrap;
 
-                  .icon-hover {
+                    .position-type {
+                        font-size: 20px;
+                    }
+
+                    .position-coords {
+                        font-size: 13px;
+                        white-space: nowrap;
+                    }
+
+                    .position-name {
+                        white-space: nowrap;
+                    }
+                }
+            }
+
+            .sub-timer {
+                flex-shrink: 0;
+                margin-left: auto;
+
+                .event-countdown {
+                    font-family: monospace;
+                    font-weight: 700;
+                    font-size: 13px;
+                    color: $ogm-text-color;
+                    white-space: nowrap;
+                }
+            }
+
+            &.finished {
+                border-color: color.adjust($ogm-color-orange, $alpha: -0.6);
+                background: rgba($ogm-color-orange, 0.05);
+
+                .event-countdown {
+                    color: $ogm-color-orange;
+                    font-weight: 800;
+                }
+            }
+        }
+    }
+
+
+    @container event-tooltip-content (max-width: 480px) {
+        .event-tooltip-subevents {
+            .event-sub-card {
+                .sub-label {
+                    .position-text {
+                        .position-name {
+                            display: none;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @container event-tooltip-content (max-width: 350px) {
+        .event-tooltip-subevents {
+            .event-sub-card {
+                .event-exact-time {
                     display: none;
-                  }
-
-                  &:hover {
-                    .icon-default {
-                      display: none;
-                    }
-
-                    .icon-hover {
-                      display: inline-flex;
-                    }
-                  }
                 }
+            }
+        }
+    }
 
-
-                &.is-closed {
-                  color: $ogm-color-red;
-                }
-
-                &.is-other-window {
-                  color: $ogm-color-blue;
-                  cursor: pointer;
-
-                  .icon-hover {
+    @container event-tooltip-content (max-width: 250px) {
+        .event-tooltip-subevents {
+            .event-sub-card {
+                .sub-timer {
                     display: none;
-                  }
-
-                  &:hover {
-                    &.close-tab {
-                      color: $ogm-color-red;
-                    }
-
-                    &.move-tab {
-                      color: $ogm-color-green;
-                    }
-
-                    .icon-default {
-                      display: none;
-                    }
-
-                    .icon-hover {
-                      display: inline-flex;
-                    }
-                  }
                 }
-              }
             }
-          }
+        }
+    }
 
-          .universe-last-refresh {
-            font-size: 13px;
-            opacity: 0.85;
-
-            &.universe-last-refresh-warning {
-              color: $ogm-color-red;
-              opacity: 1;
-              font-weight: 600;
-            }
-          }
-
-
-          .universe-indicators {
-            display: inline-flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 6px;
-            font-size: 13px;
-            opacity: 0.85;
-          }
-
-          .universe-value-group {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 1px 6px;
-            border: 1px solid $ogm-border-color;
-            background: color.adjust($ogm-background-color-lighter, $alpha: -0.15);
-            border-radius: 999px;
-
-            &.universe-value-group-hostile,
-            &.universe-value-group-friendly,
-            &.universe-value-group-own,
-            &.universe-value-group-unread-mail,
-            &.universe-value-group-unread-chat {
-              .universe-value-label {
+    @container event-tooltip-content (max-width: 220px) {
+        .event-tooltip-header {
+            .event-icon-badge {
                 display: none;
-              }
-
-              .universe-value {
-                text-align: right;
-                font-weight: 600;
-              }
-            }
-
-            &.universe-value-group-hostile {
-              .material-symbols-outlined,
-              .universe-value {
-                color: color.adjust($ogm-color-red, $lightness: 12%);
-              }
-            }
-
-            &.universe-value-group-friendly {
-              .material-symbols-outlined,
-              .universe-value {
-                color: color.adjust($ogm-color-orange, $lightness: 12%);
-              }
-            }
-
-            &.universe-value-group-own {
-              .material-symbols-outlined,
-              .universe-value {
-                color: color.adjust($ogm-color-green, $lightness: 12%);
-              }
-            }
-
-            &.only-if-valued {
-              &:not(:has(.universe-value[ogm-value])),
-              &:has(.universe-value[ogm-value='0']) {
-                display: none;
-              }
-            }
-          }
-        }
-
-        .universe-actions {
-          grid-row: 1;
-          grid-column: 2;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          align-self: start;
-
-          .universe-refresh-button,
-          .universe-settings-button {
-            border: 1px solid $ogm-border-color;
-            background: $ogm-background-color-lighter;
-            color: inherit;
-            border-radius: 6px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 30px;
-            height: 30px;
-            cursor: pointer;
-
-            &:hover:not(:disabled) {
-              background: $ogm-surface-color-hover;
-              border-color: color.adjust($ogm-border-color, $lightness: 10%);
-            }
-
-            &:disabled {
-              opacity: 0.5;
-              cursor: default;
-            }
-          }
-
-            .universe-refresh-button.universe-refresh-warning {
-              color: $ogm-color-orange;
-              border-color: $ogm-color-orange;
-              box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-orange, $alpha: -0.35);
-              animation: button-warning-pulse 1.8s ease-in-out infinite;
             }
         }
 
+        .event-tooltip-subevents {
+            .event-sub-card {
 
+                .sub-label {
+                    .position-text {
+                        .position-type {
+                            font-size: 15px;
+                        }
 
-
-
-        &:has(.universe-settings-button[data-universe-settings-active='true']) {
-          .universe-settings-button {
-            background: $ogm-surface-color-hover;
-            border-color: color.adjust($ogm-border-color, $lightness: 10%);
-          }
-
-          .universe-settings {
-            max-height: 200px;
-            opacity: 1;
-            margin-top: 10px;
-          }
-        }
-
-        &:has(.universe-settings-button[data-universe-settings-active='false']) {
-          .universe-settings {
-            animation: universe-settings-closing 0.2s ease-out forwards;
-          }
-        }
-
-        .universe-settings {
-          display: grid;
-          grid-template-columns: 1fr auto;
-          grid-template-rows: auto;
-          grid-row: 2;
-          grid-column: 1/3;
-          max-height: 0;
-          overflow: hidden;
-          opacity: 0;
-          transition: max-height 0.2s ease-out, opacity 0.2s ease-out, margin-top 0.2s ease-out;
-
-
-
-
-
-          .universe-settings-header {
-            grid-row: 1;
-            font-weight: 600;
-            font-size: 16px;
-            display: inline-block;
-            margin-top: 10px;
-            margin-bottom: 10px;
-            text-underline-offset: 6px;
-            text-decoration: underline;
-          }
-
-
-
-          .universe-remove-button {
-            grid-row: 2;
-            grid-column: 2;
-            align-self: end;
-            justify-self: end;
-            margin-bottom: 3px;
-            border: 1px solid $ogm-border-color;
-            background: $ogm-background-color-lighter;
-            color: inherit;
-            border-radius: 6px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 30px;
-            height: 30px;
-            cursor: pointer;
-
-            &:hover:not(:disabled) {
-              color: $ogm-color-red;
-              border-color: $ogm-color-red;
-              box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-red, $alpha: -0.35);
-              animation: button-danger-pulse 1.8s ease-in-out infinite;
+                        .position-coords {
+                            font-size: 11px;
+                        }
+                    }
+                }
             }
-
-            &:disabled {
-              opacity: 0.5;
-              cursor: default;
-            }
-          }
-
-
-          .universe-settings-group {
-            grid-row: 2;
-            margin-top: 5px;
-            margin-bottom: 5px;
-
-            .universe-setting-group-header {
-              font-weight: 600;
-              font-size: 15px;
-            }
-          }
-
-          .universe-setting-item {
-            label {
-              cursor: pointer;
-            }
-          }
-
-          .indicator-fleet-hostile-display-setting,
-          .indicator-fleet-friendly-display-setting,
-          .indicator-fleet-own-display-setting,
-          .indicator-unread-mail-display-setting,
-          .indicator-unread-chat-display-setting {
-            font-weight: 600;
-
-            .setting-item-label-text {
-              text-align: right;
-            }
-          }
-
-          .indicator-fleet-hostile-display-setting {
-            .material-symbols-outlined {
-              color: color.adjust($ogm-color-red, $lightness: 12%);
-            }
-          }
-
-          .indicator-fleet-friendly-display-setting {
-            .material-symbols-outlined {
-              color: color.adjust($ogm-color-orange, $lightness: 12%);
-            }
-          }
-
-          .indicator-fleet-own-display-setting {
-            .material-symbols-outlined {
-              color: color.adjust($ogm-color-green, $lightness: 12%);
-            }
-          }
         }
-      }
-      // Highlight the universe item when it is the active one in the current window
-      &[data-universe-active-current-window='true'] {
-        .universe-item {
-          background-color: color.adjust($ogm-surface-color, $lightness: 1.5%);
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-          position: relative;
-          overflow: hidden;
-          // Soften the edges of the highlight with a pseudo-element
-          &::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 6px;
-            bottom: 6px;
-            width: 3px;
-            background-color: color.adjust($ogm-color-green, $lightness: -5%);
-            box-shadow: 0 0 5px color.adjust($ogm-color-green, $alpha: -0.5);
-            clip-path: polygon(0 0, 100% 4px, 100% calc(100% - 4px), 0 100%);
-          }
-        }
-      }
-      // Hide the remove button when the universe is open
-      &[data-universe-open='true'] {
-        .universe-remove-button {
-          display: none !important;
-        }
-      }
-      //Hide the indicators when the universe is closed
-      &[data-universe-open='false'] {
-        .universe-indicators {
-          display: none !important;
-        }
-      }
-      // Hide the refresh button, and settings button when the universe is open, but not in the current window
-      // Indicators are still shown, since the are only updfated when the universe is open in an active tab
-      &[data-universe-open='true'] {
-        &[data-universe-open-current-window='false'] {
-          .universe-actions {
-            display: none !important;
-          }
-        }
-      }
-
-      &[show-hostile-fleets-indicator='false'] {
-        .universe-indicators .universe-value-group.universe-value-group-hostile {
-          display: none !important;
-        }
-      }
-
-      &[show-friendly-fleets-indicator='false'] {
-        .universe-indicators .universe-value-group.universe-value-group-friendly {
-          display: none !important;
-        }
-      }
-
-      &[show-own-fleets-indicator='false'] {
-        .universe-indicators .universe-value-group.universe-value-group-own {
-          display: none !important;
-        }
-      }
-
-
-      &[show-unread-mail-indicator='false'] {
-        .universe-indicators .universe-value-group.universe-value-group-unread-mail {
-          display: none !important;
-        }
-      }
-
-
-      &[show-unread-chat-indicator='false'] {
-        .universe-indicators .universe-value-group.universe-value-group-unread-chat {
-          display: none !important;
-        }
-      }
     }
-  }
-  // Define the breakpoints and corresponding column counts for the grid layout
-  $grid-paliers: ( (680px, 2, 680px), (1020px, 3, 1020px), (1280px, 4, 1280px), (1600px, 5, 1600px) );
-  // Generate media queries for each breakpoint
-  @each $width, $count, $max in $grid-paliers {
-    @media (min-width: $width) {
-      .universe-list {
-        max-width: $max;
-      }
-    }
-  }
-
-  @keyframes button-warning-pulse {
-    0%, 100% {
-      box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.55), 0 0 8px color.adjust($ogm-color-orange, $alpha: -0.4);
-    }
-
-    50% {
-      box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.35), 0 0 14px color.adjust($ogm-color-orange, $alpha: -0.2);
-    }
-  }
-
-  @keyframes button-danger-pulse {
-    0%, 100% {
-      box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.55), 0 0 8px color.adjust($ogm-color-red, $alpha: -0.4);
-    }
-
-    50% {
-      box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.35), 0 0 14px color.adjust($ogm-color-red, $alpha: -0.2);
-    }
-  }
-
-  .universe-controls {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    opacity: 0.9;
-
-    .universe-threshold-label {
-      opacity: 0.85;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .universe-threshold-select {
-      flex-shrink: 0;
-      font: inherit;
-      color: inherit;
-      background: $ogm-background-color-lighter;
-      border: 1px solid $ogm-border-color;
-      border-radius: 4px;
-      padding: 1px 4px;
-    }
-  }
 }

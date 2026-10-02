@@ -9,13 +9,12 @@ export enum InjectedResourceType {
 }
 
 export class ResourceInjector {
-  constructor(private readonly logger: Logger) { }
 
   public async GetExtensionResourceUrlAsync(resourcePath: string): Promise<string> {
     return browser.runtime.getURL(resourcePath);
   }
 
-  public async InjectExtensionScriptResourceAsync(scriptName: string): Promise<void> {
+  public async InjectExtensionScriptResourceAsync(logger: Logger, scriptName: string): Promise<void> {
     try {
       const script = document.createElement('script');
 
@@ -24,18 +23,18 @@ export class ResourceInjector {
       // Append the script to the document head or document element
       (document.head || document.documentElement).appendChild(script);
     } catch (e) {
-      this.logger.error('Error injecting script resource:', e);
+      logger.error('Error injecting script resource:', e);
     }
   }
 
-  public async InjectExtensionResourceAsync(
+  public async InjectExtensionResourceAsync(logger: Logger,
     resourceUrl: string,
     resourceType: InjectedResourceType,
     target?: string | JQuery<HTMLElement> | null,
     insertion: 'append' | 'prepend' = 'append'
   ): Promise<void> {
     if (resourceType === InjectedResourceType.Script) {
-      await this.InjectExtensionScriptResourceAsync(resourceUrl);
+      await this.InjectExtensionScriptResourceAsync(logger, resourceUrl);
     } else if (resourceType === InjectedResourceType.Html) {
       const extensionResourceUrl = await this.GetExtensionResourceUrlAsync(resourceUrl);
       const extensionResourceResponse = await fetch(extensionResourceUrl);
@@ -60,12 +59,11 @@ export class ResourceInjector {
         $insertion.append(extensionResourceContent);
       }
 
-      Localizator.ApplyAll(this.logger, $insertion.get(0));
+      Localizator.ApplyAll(logger, $insertion.get(0));
     } else {
       throw new Error(`Unknown resource type: ${resourceType}`);
     }
 
-    this.logger.info(`✅ [Content] inject resource: ${resourceUrl}`);
+    logger.info(`✅ [Content] inject resource: ${resourceUrl}`);
   }
 }
-

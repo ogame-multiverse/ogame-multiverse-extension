@@ -1,147 +1,140 @@
-import { Localizator } from '../../localization/localizator';
 import browser from 'webextension-polyfill';
+import { Debouncer } from '../../async/debouncer';
 import { browserInfo } from '../../dom/browserInfos';
-import { UniversePanelController } from './universePanelController';
+import { Localizator } from '../../localization/localizator';
 import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
-import { sidePanelProtocolRegistrar } from '../../messaging/sidePanelProtocol';
-import { GlobalConstants } from '../../globalConstants';
+import { sidePanelBroadcastProtocolRegistrar } from '../../messaging/sidePanelBroadcastProtocol';
+import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
+import { SidePanelUniverseCounters } from '../../model/sidePanel/sidePanelUniverseCounters';
+import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
+import { EventsPanelController } from './eventsPanelController';
+import { LocalWindowTabsTracker } from './localWindowTabsTracker';
+import { TabRelatedController } from './tabRelatedController';
+import { UniversePanelController } from './universePanelController';
 
 class SidePanelContextApp {
-  private windowId: number | undefined;
-  private activePort: browser.Runtime.Port | null = null;
-  private reconnectTimeoutId: number | undefined;
-  private pingIntervalId: number | undefined;
+    private windowId: number | undefined;
 
-  private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
-  private readonly universePanelController = new UniversePanelController(
-    sidePanelLoggerFactory.CreateLogger('UniversePanelController')
-  );
+    private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
+    private readonly localWindowTabsTracker = new LocalWindowTabsTracker(this.logger);
+    private readonly universePanelController = new UniversePanelController(this.logger, this.localWindowTabsTracker);
+    private readonly eventsPanelController = new EventsPanelController(this.logger, this.localWindowTabsTracker);
 
-  public async StartAsync(): Promise<void> {
-    await browserInfo.InitAsync();
-    Localizator.Init(browserInfo.Language);
-    Localizator.ApplyAll(this.logger);
+    private readonly RefreshGlobalWarning = Debouncer.Debounce(() => {
+        void TabRelatedController.RefreshGlobalWarningAsync(this.logger);
+    }, 300);
 
-    const currentWindow = await browser.windows.getCurrent();
-    this.windowId = currentWindow.id;
+    public async StartAsync(): Promise<void> {
+        await browserInfo.InitAsync();
+        Localizator.Init(browserInfo.Language);
+        Localizator.ApplyAll(this.logger);
 
-    if (!this.windowId) {
-      this.logger.error("Failed to retrieve the current window ID.");
-      return;
-    }
+        const currentWindow = await browser.windows.getCurrent();
+        this.windowId = currentWindow.id;
 
-    document.documentElement.lang = browserInfo.Language;
-
-    this.InitializeSidePanelProtocol();
-    await this.InitializeTabsAsync('tab-universe');
-  }
-
-  private InitializeSidePanelProtocol(): void {
-    // Register the port connection and disconnection events
-    sidePanelProtocolRegistrar.OnClosePanel(() => {
-      window.close();
-    });
-
-    this.ConnectPort();
-  }
-
-  private ConnectPort(): void {
-    if (!this.windowId) return;
-
-    // Cleanup any existing reconnection timeout
-    if (this.reconnectTimeoutId !== undefined) {
-      window.clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = undefined;
-    }
-
-    // Cleanup any existing ping interval
-    if (this.pingIntervalId !== undefined) {
-      window.clearInterval(this.pingIntervalId);
-      this.pingIntervalId = undefined;
-    }
-
-    // Disconnect the existing port safely without triggering onDisconnect
-    if (this.activePort) {
-      const oldPort = this.activePort;
-      this.activePort = null;
-      try {
-        oldPort.disconnect();
-      } catch {
-        // Ignore any errors during disconnection
-      }
-    }
-
-    // Open a new port and connect it
-    this.logger.debug(`Opening side panel port for windowId ${this.windowId}`);
-    const newPort = sidePanelProtocolRegistrar.OpenPort(this.logger, this.windowId);
-    this.activePort = newPort;
-
-    sidePanelProtocolRegistrar.Connect(this.logger, newPort);
-
-    // 🔄 Ping Keep-Alive toutes les 20s pour éviter la coupure Chrome au bout de 30s
-    this.pingIntervalId = window.setInterval(() => {
-      if (this.activePort === newPort) {
-        try {
-          newPort.postMessage({ type: 'PING' });
-        } catch {
-          // Ignorer si le port s'est fermé
+        if (!this.windowId) {
+            this.logger.error("Failed to retrieve the current window ID.");
+            return;
         }
-      }
-    }, GlobalConstants.SIDE_PANEL_PING_SERVICE_WORKER_INTERVAL_MS);
 
-    // Handle port disconnection and attempt to reconnect after a delay
-    newPort.onDisconnect.addListener(() => {
-      // Ignorer si le port a déjà été nettoyé ou remplacé
-      if (this.activePort !== newPort) return;
+        // Connexion par port pour maintenir et notifier la présence du SidePanel sans async/await lors du toggle
+        const port = browser.runtime.connect({ name: 'ogm-sidepanel-presence' });
+        port.postMessage({ type: 'SIDEPANEL_INIT', windowId: this.windowId });
 
-      this.logger.warn("Side panel port disconnected. Attempting to reconnect...");
-      this.activePort = null;
+        document.documentElement.lang = browserInfo.Language;
 
-      if (this.pingIntervalId !== undefined) {
-        window.clearInterval(this.pingIntervalId);
-        this.pingIntervalId = undefined;
-      }
+        await this.localWindowTabsTracker.RefreshAsync();
 
-      this.reconnectTimeoutId = window.setTimeout(() => {
-        this.ConnectPort();
-        // Refresh the universe panel after reconnection
-        this.universePanelController.Refresh();
-      }, 1000);
-    });
-  }
+        this.universePanelController.Initialize();
+        await this.eventsPanelController.InitializeAsync();
 
-  private async InitializeTabsAsync(defaultTabId: string): Promise<void> {
-    const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
-    const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel'));
+        // The service worker broadcasts to every open side panel: only close if the request targets our window
+        sidePanelBroadcastProtocolRegistrar.OnClosePanel(this.logger, (data: { windowId: number }) => {
+            if (data.windowId === this.windowId) window.close();
+        });
 
-    const activateAsync = async (tabId: string): Promise<void> => {
-      tabs.forEach((tab) => {
-        const active = tab.id === tabId;
-        tab.setAttribute('aria-selected', String(active));
-      });
+        sidePanelBroadcastProtocolRegistrar.OnRegisterUniverse(this.logger, () => {
+            TabRelatedController.InvalidateSharedCaches();
+            this.universePanelController.Refresh();
+            void this.eventsPanelController.RefreshUniverseStatusesAndWarningsAsync();
+            this.RefreshGlobalWarning();
+        });
+        sidePanelBroadcastProtocolRegistrar.OnRemoveUniverse(this.logger, (universeKey: string) => {
+            this.universePanelController.RemoveSingleUniverse(universeKey);
+            this.RefreshGlobalWarning();
+        });
+        sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseStatus(
+            this.logger,
+            (data: { universeKey: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean; flyingFleetEvents: FlyingFleetEvent[] }) => {
+                this.universePanelController.UpdateSingleUniverseStatus(data);
+                this.eventsPanelController.UpdateSingleUniverseFleetEvents(data.universeKey, data.flyingFleetEvents);
+                this.RefreshGlobalWarning();
+            }
+        );
 
-      panels.forEach((panel) => {
-        const active = panel.getAttribute('aria-labelledby') === tabId;
-        panel.dataset.active = active ? 'true' : 'false';
-      });
+        sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseOpenState(this.logger, (data: { universeKey: string; isOpen: boolean }) => {
+            this.universePanelController.UpdateUniverseOpenState(data.universeKey, data.isOpen);
+            this.localWindowTabsTracker.NotifyExternalChange();
+        });
 
-      if (tabId === 'tab-universe') {
-        await this.universePanelController.ActivateAsync();
-      } else {
-        this.universePanelController.Deactivate();
-      }
-    };
+        sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseSidePanelOptions(
+            this.logger,
+            (data: { universeKey: string; options: UniverseSidePanelOptions }) => {
+                TabRelatedController.InvalidateSharedCaches();
+                this.universePanelController.UpdateSingleUniverseOptions(data.universeKey, data.options);
+                this.eventsPanelController.UpdateSingleUniverseOptions(data.universeKey, data.options);
+                this.RefreshGlobalWarning();
+            }
+        );
 
-    tabs.forEach((tab) => {
-      tab.addEventListener('click', () => activateAsync(tab.id));
-    });
+        sidePanelBroadcastProtocolRegistrar.OnUpdateSidePanelGlobalOptions(this.logger, (options) => {
+            this.eventsPanelController.OnSidePanelGlobalOptionsUpdated(options);
+        });
 
-    const initialTab =
-      tabs.find((tab) => tab.id === defaultTabId) ||
-      tabs.find((tab) => tab.getAttribute('aria-selected') === 'true');
+        sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseGrid(this.logger, () => {
+            this.universePanelController.Refresh();
+            this.RefreshGlobalWarning();
+        });
 
-    if (initialTab) activateAsync(initialTab.id);
-  }
+        this.WatchUniverseRefreshWarning();
+
+        this.InitializeTabs('tab-universe');
+    }
+
+    /** Shows a red "priority_high" icon on the universe tab whenever at least one universe
+     *  needs a refresh. State is computed from data (TabRelatedController.RefreshGlobalWarningAsync),
+     *  independently of the active tab or DOM content. */
+    private WatchUniverseRefreshWarning(): void {
+        const universeTab = document.getElementById('tab-universe');
+        if (!universeTab) return;
+
+        TabRelatedController.OnGlobalRefreshWarningChanged((hasWarning) => {
+            universeTab.classList.toggle('has-refresh-warning', hasWarning);
+        });
+
+        this.RefreshGlobalWarning();
+        window.setInterval(() => TabRelatedController.RecomputeGlobalWarningFromCache(), 10_000);
+    }
+
+    private InitializeTabs(defaultTabId: string): void {
+        const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
+        const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel'));
+
+        const activate = (tabId: string): void => {
+            tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.id === tabId)));
+            panels.forEach((panel) => panel.dataset.active = String(panel.getAttribute('aria-labelledby') === tabId));
+        };
+
+        tabs.forEach((tab) => {
+            tab.addEventListener('click', () => activate(tab.id));
+        });
+
+        const initialTab =
+            tabs.find((tab) => tab.id === defaultTabId) ||
+            tabs.find((tab) => tab.getAttribute('aria-selected') === 'true');
+
+        if (initialTab) activate(initialTab.id);
+    }
 }
 
 new SidePanelContextApp().StartAsync();

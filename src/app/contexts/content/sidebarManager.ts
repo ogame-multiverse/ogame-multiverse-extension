@@ -6,23 +6,20 @@ import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtoc
 
 export class SidebarManager {
 
-  private readonly resourceInjector: ResourceInjector;
-  constructor(private readonly logger: Logger) {
-    this.resourceInjector = new ResourceInjector(this.logger);
-  }
+  constructor(private readonly resourceInjector: ResourceInjector) { }
 
 
-  public async RenderSidebarAsync(): Promise<void> {
+  public async RenderSidebarAsync(logger: Logger): Promise<void> {
 
     /* 
      * Firefox don't allow to open the sidebar from content script, so we don't inject the sidebar HTML in Firefox.
      * It's a shitty browser behavior (as always with Firefox), but we have to deal with it.
      */
     if (browserInfo.IsChrome) {
-      await this.resourceInjector.InjectExtensionResourceAsync('views/sidebars.html', InjectedResourceType.Html);
+      await this.resourceInjector.InjectExtensionResourceAsync(logger, 'views/sidebars.html', InjectedResourceType.Html);
       $('.ogm-sidebar .ogm-sidebar-header .ogm-sidebar-header-button').off('click').on('click', (e) => {
         e.preventDefault();
-        serviceWorkerProtocolClient.ToggleSidePanel(this.logger);
+        serviceWorkerProtocolClient.ToggleSidePanel(logger);
       });
     }
   }

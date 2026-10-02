@@ -8,7 +8,7 @@ export interface ObserveConfig {
 export class Observer {
   private static MutationObserverImpl: any = (window as any).MutationObserver || (window as any).WebKitMutationObserver;
 
-  // Surcharge pour accepter un seul élément ou une liste de configurations
+  // Overload to accept a single element or a list of configurations
   public static Observe(
     configs: ObserveConfig | ObserveConfig[],
     callback: MutationCallback

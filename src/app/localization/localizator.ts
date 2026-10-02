@@ -3,11 +3,16 @@ import { Localizations } from "./translations";
 import { Logger } from '../logging/logger';
 
 export class Localizator {
+  private static currentLanguage: string | undefined;
+
   public static Init(lang: string): void {
-    I18n.Init(lang, Localizations, ["oga-data-i18n"], ["oga-data-i18n-attr"]);
+    // Only initialize if the language is different from the current one and if the language is defined
+    if (lang && Localizator.currentLanguage !== lang) {
+      I18n.Init(lang, Localizations, ["oga-data-i18n"], ["oga-data-i18n-attr"]);
+    }
   }
 
-  // 🔧 Correction : Utilisation des types et objets natifs (Document / HTMLElement)
+  // 🔧 Fix: Use native types and objects (Document / HTMLElement)
   public static ApplyAll(logger: Logger, root: HTMLElement | Document = document): void {
     I18n.ApplyAll(logger, root);
   }

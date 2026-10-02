@@ -2,32 +2,6 @@ import { GlobalConstants } from "../globalConstants";
 import { RunContextType } from "../runContextType";
 
 // --- Styles for console.log ---
-/*
-const APP_VERSION_STYLE = [
-  "font-size:1em",
-  "background-color:#195ee6",
-  "color:#b9f4ff",
-  "font-family:monospace",
-  "border-radius:0.5em",
-  "padding:0 0.25em",
-].join(";");
-const LOG_NAME_STYLE = [
-  "font-size:1em",
-  "background-color:#70ce37",
-  "color:#16531e",
-  "font-family:monospace",
-  "border-radius:0.5em",
-  "padding:0 0.25em",
-].join(";");
-const LOG_DATE_STYLE = [
-  "font-size:1em",
-  "background-color:#3C3C3C",
-  "color:#D1D1D1",
-  "font-family:monospace",
-  "border-radius:0.5em",
-  "padding:0 0.25em",
-].join(";");
-*/
 const APP_VERSION_STYLE = [
   "font-size: 0.85em",
   "background-color: #1e3a5f",
@@ -88,11 +62,8 @@ function createLogFunction(method: ConsoleMethod, runContextType: RunContextType
   const contextIcon = CONTEXT_ICONS[runContextType] ?? CONTEXT_ICONS[RunContextType.Unknown];
 
   return (message: string | Error, ...data: any[]) => {
-    let logMessage = typeof message === "string" ? message : `${message.message} ⚠️`;
+    const logMessage = typeof message === "string" ? message.trim() : `${message.message} ⚠️`;
     const logData = [...data];
-
-    // Clean and trim the log message
-    logMessage = logMessage.toString().trim();
 
     if (message instanceof Error) {
       logData.push("\n--- stack ---\n", message);
@@ -107,11 +78,11 @@ function createLogFunction(method: ConsoleMethod, runContextType: RunContextType
 
 export class Logger {
   public readonly key: string;
-  public debug: (...args: any[]) => void;
-  public error: (...args: any[]) => void;
-  public info: (...args: any[]) => void;
-  public log: (...args: any[]) => void;
-  public warn: (...args: any[]) => void;
+  public readonly debug: (...args: any[]) => void;
+  public readonly error: (...args: any[]) => void;
+  public readonly info: (...args: any[]) => void;
+  public readonly log: (...args: any[]) => void;
+  public readonly warn: (...args: any[]) => void;
 
   constructor(private readonly runContextType: RunContextType, key: string) {
     this.key = key;
@@ -122,4 +93,3 @@ export class Logger {
     this.warn = createLogFunction(console.warn, this.runContextType, this.key);
   }
 }
-

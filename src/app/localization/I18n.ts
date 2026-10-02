@@ -59,7 +59,7 @@ export class I18n {
      * - attrAttrNames: replace attributes using spec "attr:Key;attr2:OtherKey"
      */
   public static ApplyAll(logger: Logger, root: HTMLElement | Document = document): void {
-    // Vérifier que Init a été appelé
+    // Ensure Init has been called
     if (!this.textAttrNames || !this.attrAttrNames) {
       logger.warn("I18n.Init() must be called before ApplyAll()");
       return;

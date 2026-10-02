@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Expedition counter indicator showing, for each universe, the number of active expeditions out of the maximum number of expedition slots.
+- Per-universe option to show or hide the expedition counter.
+- Red exclamation mark next to the Universes tab title, displayed when one or more universes have exceeded their configured inactivity threshold.
+- New Events tab listing the fleet events as seen by the player. Like the fleet counters in the Universes tab, events reflect the state as seen by the player.
+  - Chronological fleet list
+    - Events from all universes are grouped by universe and sorted by arrival time.
+    - Each section has a universe header with its tab management badges and its reload button.
+  - Optional timeline
+    - A "Show timeline" checkbox toggles a timeline with markers every 15 minutes, linked by a rail.
+    - A date badge appears when the day changes.
+    - When many empty time slots follow one another, only the first and the last are displayed, linked by a dotted line.
+  - Real-time countdowns
+    - Countdowns update every second, using the formats `Xd XXh`, `Xh XXm` or `Xm XXs`.
+    - Once the arrival time has passed, the card switches to a "finished" state.
+    - A tooltip shows the exact arrival time.
+  - Fleet ownership
+    - Each fleet is flagged as own, hostile or friendly.
+    - Some mission types are considered friendly even when the fleet is not yours: transport, ACS defend, exploration and anomaly reward delivery.
+    - Returning fleets and ghost fleets have their own style.
+  - Ghost fleet detection
+    - Ghost fleets are detected by their mission type and composition.
+    - Only your own fleets can be flagged as ghost.
+    - Espionage: the fleet is not made up solely of espionage probes and travels between one of your moons and position 16 of a system (outbound from the moon, or returning to it).
+    - Harvest: the fleet is not made up solely of recyclers and is attached to a moon (origin on the outbound trip, destination on the return trip).
+    - Colonisation: the fleet is not made up solely of colony ships and is attached to a moon (origin on the outbound trip, destination on the return trip).
+    - Deployment: return trip only, from one of your own moons, carrying at least one resource.
+  - Automatic grouping
+    - Consecutive fleets are merged into a single group when they share:
+      - the same mission;
+      - the same return status;
+      - the same ownership (own or not);
+      - the same ghost status;
+      - arrival times at most 5 minutes apart.
+  - Other behaviors
+    - Cards of the universe active in the current window are highlighted.
+    - Tooltips (Tippy) show the details of a group's sub-cards, each with its own countdown.
+- Per-universe option to enable or disable fleet event tracking.
+- Technical informations:
+  - Parsing of the OGame page to retrieve the data required for fleet event tracking.
+  - Support for two new OGame data endpoints:
+    - Species Bonuses (`/game/index.php?page=componentOnly&component=externaldataexport&action=speciesBonuses&asJson=1`)
+      - Only fetched on page load if the last fetch is more than 1 hour old.
+      - Changing the UI language forces a new fetch, regardless of the time to live, to retrieve the matching translations.
+      - Provides the translation data used to detect fleet composition.
+      - Provides the lifeform bonuses used to compute the maximum number of expedition slots.
+      - Data not used yet is also parsed, in preparation for future features.
+    - Account Information (`/game/index.php?page=componentOnly&component=externaldataexport&action=accountInfo&asJson=1`)
+      - Only fetched on page load if the last fetch is more than 10 minutes old.
+      - Provides the account data that affects the maximum number of expedition slots (player class and Astrophysics research level).
+      - Data not used yet is also parsed, in preparation for future features.
+
+### Changed
+- Softened the interface colors to make them less harsh.
+
 ## [1.3.0.1] - 2026-08-31
 
 ### Fixed

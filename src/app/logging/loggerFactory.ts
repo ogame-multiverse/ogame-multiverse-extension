@@ -17,7 +17,7 @@ class LoggerFactory {
   }
 }
 
-
+export const pageLoggerFactory = new LoggerFactory(RunContextType.Page);
 export const contentScriptLoggerFactory = new LoggerFactory(RunContextType.ContentScript);
 export const serviceWorkerLoggerFactory = new LoggerFactory(RunContextType.ServiceWorker);
 export const sidePanelLoggerFactory = new LoggerFactory(RunContextType.SidePanel);

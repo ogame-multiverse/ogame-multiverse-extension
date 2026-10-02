@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.app.base.json",
+  "compilerOptions": {
+    "types": [ "chrome" ],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "outDir": "dist"
+  },
+  "include": [
+    "src/types/**/*",
+    "src/app/contexts/page.entry.ts",
+    "src/app/contexts/page/**/*.ts"
+  ]
+}

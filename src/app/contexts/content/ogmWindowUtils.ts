@@ -1,7 +1,11 @@
 export class OgmWindowUtils {
-  public static readonly DOMAIN = window.location.hostname;
-  public static readonly UNIVERSE_KEY = window.location.host.split(".")[0];
-  public static readonly URL = new URL(window.location.href);
+  public static readonly UNIVERSE_KEY = (window.location.host || "").split(".")[0];
+
+  // Ultra-fast access with no instantiation and no DOM dependency
+  public static readonly SEARCH_PARAMS = new URLSearchParams(window.location.search);
+
   public static readonly PAGE =
-    this.URL.searchParams.get("component") ?? this.URL.searchParams.get("page") ?? undefined;
+    this.SEARCH_PARAMS.get("component") ??
+    this.SEARCH_PARAMS.get("page") ??
+    undefined;
 }
