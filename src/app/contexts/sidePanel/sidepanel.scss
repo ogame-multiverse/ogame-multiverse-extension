@@ -1083,11 +1083,11 @@ body {
                                 color: $ogm-color-blue;
                             }
 
-                            .universe-value[ogm-state='none'] .expeditions-active {
+                            .universe-value[ogm-state='none'] .expedition-slots-active {
                                 color: $ogm-color-red;
                             }
 
-                            .universe-value[ogm-state='partial'] .expeditions-active {
+                            .universe-value[ogm-state='partial'] .expedition-slots-active {
                                 color: $ogm-color-orange;
                             }
 
@@ -1258,7 +1258,9 @@ body {
                     .indicator-fleet-own-display-setting,
                     .indicator-unread-mail-display-setting,
                     .indicator-unread-chat-display-setting,
-                    .indicator-expeditions-display-setting {
+                    .indicator-fleet-slots-display-setting,
+                    .indicator-expeditions-display-setting,
+                    .fleets-tracking-setting {
                         font-weight: 600;
 
                         .setting-item-label-text {

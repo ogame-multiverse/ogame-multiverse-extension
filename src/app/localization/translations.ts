@@ -65,13 +65,13 @@ export const Localizations = [
         tr: 'Sohbet',
         br: 'Chat',
     }),
-    new I18nValue('SidePanelExpeditionsLabel', {
-        en: 'Expeditions',
-        fr: 'Expéditions',
-        es: 'Expediciones',
-        de: 'Expeditionen',
-        tr: 'Seferler',
-        br: 'Expedições',
+    new I18nValue('SidePanelExpeditionSlotsLabel', {
+        en: 'Expeditions slots',
+        fr: 'Slots d’expédition',
+        es: 'Ranuras de expedición',
+        de: 'Expeditionsplätze',
+        tr: 'Sefer yuvaları',
+        br: 'Slots de expedição',
     }),
     new I18nValue('SidePanelFleetSlotsLabel', {
         en: 'Fleet slots',

@@ -21,14 +21,14 @@ interface UniverseRowView {
     hostileFleetCountValue: HTMLElement;
     friendlyFleetCountValue: HTMLElement;
     ownFleetCountValue: HTMLElement;
-    fleetsGroup: HTMLElement;
-    fleetsValue: HTMLElement;
-    fleetsSlots: HTMLElement;
-    fleetsMax: HTMLElement;
-    expeditionsGroup: HTMLElement;
-    expeditionsValue: HTMLElement;
-    expeditionsSlots: HTMLElement;
-    expeditionsMax: HTMLElement;
+    fleetSlotsGroup: HTMLElement;
+    fleetSlotsValue: HTMLElement;
+    fleetSlots: HTMLElement;
+    fleetSlotsMax: HTMLElement;
+    expeditionSlotsGroup: HTMLElement;
+    expeditionSlotsValue: HTMLElement;
+    expeditionSlots: HTMLElement;
+    expeditionSlotsMax: HTMLElement;
     refreshButton: HTMLButtonElement;
     settingsButton: HTMLButtonElement;
     removeButton: HTMLButtonElement;
@@ -54,7 +54,7 @@ const INDICATOR_BINDINGS: IndicatorBinding[] = [
     { checkboxIdSuffix: 'indicator-unread-mail-display-setting-checkbox', attributeName: 'show-unread-mail-indicator', optionKey: 'ShowUnreadMessagesIndicator', labelKey: 'SidePanelUnreadMessagesLabel', icon: 'mail', containerClass: 'indicator-unread-mail-display-setting' },
     { checkboxIdSuffix: 'indicator-unread-chat-display-setting-checkbox', attributeName: 'show-unread-chat-indicator', optionKey: 'ShowUnreadChatMessagesIndicator', labelKey: 'SidePanelUnreadChatLabel', icon: 'chat', containerClass: 'indicator-unread-chat-display-setting' },
     { checkboxIdSuffix: 'indicator-fleet-slots-display-setting-checkbox', attributeName: 'show-fleet-slots-indicator', optionKey: 'ShowFleetSlotsIndicator', labelKey: 'SidePanelFleetSlotsLabel', icon: 'rocket', containerClass: 'indicator-fleet-slots-display-setting' },
-    { checkboxIdSuffix: 'indicator-expeditions-display-setting-checkbox', attributeName: 'show-expeditions-indicator', optionKey: 'ShowExpeditionsIndicator', labelKey: 'SidePanelExpeditionsLabel', icon: 'explore', containerClass: 'indicator-expeditions-display-setting' },
+    { checkboxIdSuffix: 'indicator-expeditions-display-setting-checkbox', attributeName: 'show-expeditions-indicator', optionKey: 'ShowExpeditionsIndicator', labelKey: 'SidePanelExpeditionSlotsLabel', icon: 'explore', containerClass: 'indicator-expeditions-display-setting' },
 ];
 
 export class UniversePanelController extends TabRelatedController {
@@ -458,15 +458,15 @@ export class UniversePanelController extends TabRelatedController {
 
 
 
-            fleetsGroup: q('.fleet-slots-group'),
-            fleetsValue: q('.fleet-slots'),
-            fleetsSlots: q('.fleet-slots-active'),
-            fleetsMax: q('.fleet-slots-max'),
+            fleetSlotsGroup: q('.fleet-slots-group'),
+            fleetSlotsValue: q('.fleet-slots'),
+            fleetSlots: q('.fleet-slots-active'),
+            fleetSlotsMax: q('.fleet-slots-max'),
 
-            expeditionsGroup: q('.expeditions-group'),
-            expeditionsValue: q('.expeditions'),
-            expeditionsSlots: q('.expeditions-active'),
-            expeditionsMax: q('.expeditions-max'),
+            expeditionSlotsGroup: q('.expedition-slots-group'),
+            expeditionSlotsValue: q('.expedition-slots'),
+            expeditionSlots: q('.expedition-slots-active'),
+            expeditionSlotsMax: q('.expedition-slots-max'),
             refreshButton,
             settingsButton,
             removeButton,
@@ -607,16 +607,16 @@ export class UniversePanelController extends TabRelatedController {
                     : 'partial';
 
         const nextActiveFleetSlotsText = String(activeOwnFleetSlots);
-        if (rowView.fleetsSlots.textContent !== nextActiveFleetSlotsText) {
-            rowView.fleetsSlots.textContent = nextActiveFleetSlotsText;
+        if (rowView.fleetSlots.textContent !== nextActiveFleetSlotsText) {
+            rowView.fleetSlots.textContent = nextActiveFleetSlotsText;
         }
         const nextMaxFleetText = String(maxFleetSlots);
-        if (rowView.fleetsMax.textContent !== nextMaxFleetText) {
-            rowView.fleetsMax.textContent = nextMaxFleetText;
+        if (rowView.fleetSlotsMax.textContent !== nextMaxFleetText) {
+            rowView.fleetSlotsMax.textContent = nextMaxFleetText;
         }
-        updateAttribute(rowView.fleetsValue, 'ogm-max-value', nextMaxFleetText);
-        updateAttribute(rowView.fleetsValue, 'ogm-value', nextActiveFleetSlotsText);
-        updateAttribute(rowView.fleetsValue, 'ogm-state', fleetSlotsState);
+        updateAttribute(rowView.fleetSlotsValue, 'ogm-max-value', nextMaxFleetText);
+        updateAttribute(rowView.fleetSlotsValue, 'ogm-value', nextActiveFleetSlotsText);
+        updateAttribute(rowView.fleetSlotsValue, 'ogm-state', fleetSlotsState);
 
 
         // Update the expeditions state
@@ -625,16 +625,16 @@ export class UniversePanelController extends TabRelatedController {
         const expeditionsState = activeExpeditions <= 0 ? 'none' : activeExpeditions < maxExpeditionSlots ? 'partial' : 'full';
 
         const nextActiveExpeditionsText = String(activeExpeditions);
-        if (rowView.expeditionsSlots.textContent !== nextActiveExpeditionsText) {
-            rowView.expeditionsSlots.textContent = nextActiveExpeditionsText;
+        if (rowView.expeditionSlots.textContent !== nextActiveExpeditionsText) {
+            rowView.expeditionSlots.textContent = nextActiveExpeditionsText;
         }
         const nextMaxExpeditionsText = String(maxExpeditionSlots);
-        if (rowView.expeditionsMax.textContent !== nextMaxExpeditionsText) {
-            rowView.expeditionsMax.textContent = nextMaxExpeditionsText;
+        if (rowView.expeditionSlotsMax.textContent !== nextMaxExpeditionsText) {
+            rowView.expeditionSlotsMax.textContent = nextMaxExpeditionsText;
         }
-        updateAttribute(rowView.expeditionsValue, 'ogm-max-value', nextMaxExpeditionsText);
-        updateAttribute(rowView.expeditionsValue, 'ogm-value', nextActiveExpeditionsText);
-        updateAttribute(rowView.expeditionsValue, 'ogm-state', expeditionsState);
+        updateAttribute(rowView.expeditionSlotsValue, 'ogm-max-value', nextMaxExpeditionsText);
+        updateAttribute(rowView.expeditionSlotsValue, 'ogm-value', nextActiveExpeditionsText);
+        updateAttribute(rowView.expeditionSlotsValue, 'ogm-state', expeditionsState);
 
         rowView.updateWarningState();
     }
@@ -1054,10 +1054,10 @@ export class UniversePanelController extends TabRelatedController {
                 <span class="universe-value-label">${Localizator.Translate('SidePanelFleetSlotsLabel')}</span>
                 <span class="universe-value fleet-slots"><span class="fleet-slots-active"></span>/<span class="fleet-slots-max"></span></span>
               </span>
-              <span class="universe-value-group universe-value-group-expeditions expeditions-group">
+              <span class="universe-value-group universe-value-group-expeditions expedition-slots-group">
                 <span class="material-symbols-outlined" aria-hidden="true">explore</span>
-                <span class="universe-value-label">${Localizator.Translate('SidePanelExpeditionsLabel')}</span>
-                <span class="universe-value expeditions"><span class="expeditions-active"></span>/<span class="expeditions-max"></span></span>
+                <span class="universe-value-label">${Localizator.Translate('SidePanelExpeditionSlotsLabel')}</span>
+                <span class="universe-value expedition-slots"><span class="expedition-slots-active"></span>/<span class="expedition-slots-max"></span></span>
               </span>
             </div>
           </div>
@@ -1093,7 +1093,7 @@ export class UniversePanelController extends TabRelatedController {
             <div class="universe-settings-group events-tracking-group">
               <span class="universe-settings-group-header">${Localizator.Translate('SidePanelSettingsGroupEventsTracking')}:</span>
               <div class="universe-settings-group-content">
-                <div class="universe-setting-item fleets-tracking">
+                <div class="universe-setting-item fleets-tracking-setting">
                   <label for="enable-fleets-tracking-${universeKey}" class="setting-item-label">
                     <span class="material-symbols-outlined">event_upcoming</span>
                     <span class="setting-item-label-text">${Localizator.Translate('SidePanelSettingsEnableFleetsTracking')}</span>
