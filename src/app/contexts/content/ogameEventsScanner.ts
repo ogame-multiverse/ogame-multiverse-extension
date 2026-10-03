@@ -138,8 +138,16 @@ export class OgameEventsScanner {
             const { messages, chat } = this.ogameDomParser.AnalyseMessageCounters();
             const flyingFleetEvents = this.ogameDomParser.AnalyseFlyings(logger, removeFinishedFlyings);
 
-            // Count the number of active own fleets (returning fleets that are either own fleets or have mission type Exploration)
-            const activeOwnFleetSlots = flyingFleetEvents.filter(e => e.IsReturn && (e.IsOwnFleet || e.MissionType === MissionType.Exploration)).length;
+            // Count the number of active fleet slots
+            const missionTypesWithoutReturn = new Set([
+                MissionType.Deployment,
+                MissionType.MissileAttack
+            ]);
+            const activeOwnFleetSlots = flyingFleetEvents.filter(e => {
+                const IOwnFleetOrExploration = e.IsOwnFleet || e.MissionType === MissionType.Exploration;// Only count own fleets or exploration missions, as they consume fleet slots
+                const IsReturnOrOneShotFlight = e.IsReturn || (e.IsOwnFleet && missionTypesWithoutReturn.has(e.MissionType));// Count returning fleets or own fleets with mission types that do not require a return (Deployment and MissileAttack)
+                return IOwnFleetOrExploration && IsReturnOrOneShotFlight;
+            }).length;
 
             // Count the number of active expeditions (returning fleets with mission type Expedition)
             const activeExpeditions = flyingFleetEvents.reduce((count, e) => (e.IsReturn && e.MissionType === MissionType.Expedition) ? count + 1 : count, 0);
