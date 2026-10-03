@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Expedition counter indicator showing, for each universe, the number of active expeditions out of the maximum number of expedition slots.
+- Fleet slots indicator showing, for each universe, the number of active fleets out of the maximum number of fleet slots.
+- Expedition slots indicator showing, for each universe, the number of active expeditions out of the maximum number of expedition slots.
 - Per-universe option to show or hide the expedition counter.
 - Red exclamation mark next to the Universes tab title, displayed when one or more universes have exceeded their configured inactivity threshold.
 - New Events tab listing the fleet events as seen by the player. Like the fleet counters in the Universes tab, events reflect the state as seen by the player.

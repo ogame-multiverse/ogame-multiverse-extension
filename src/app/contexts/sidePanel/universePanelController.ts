@@ -21,9 +21,13 @@ interface UniverseRowView {
     hostileFleetCountValue: HTMLElement;
     friendlyFleetCountValue: HTMLElement;
     ownFleetCountValue: HTMLElement;
+    fleetsGroup: HTMLElement;
+    fleetsValue: HTMLElement;
+    fleetsSlots: HTMLElement;
+    fleetsMax: HTMLElement;
     expeditionsGroup: HTMLElement;
     expeditionsValue: HTMLElement;
-    expeditionsActive: HTMLElement;
+    expeditionsSlots: HTMLElement;
     expeditionsMax: HTMLElement;
     refreshButton: HTMLButtonElement;
     settingsButton: HTMLButtonElement;
@@ -49,6 +53,7 @@ const INDICATOR_BINDINGS: IndicatorBinding[] = [
     { checkboxIdSuffix: 'indicator-fleet-own-display-setting-checkbox', attributeName: 'show-own-fleets-indicator', optionKey: 'ShowOwnFleetIndicator', labelKey: 'SidePanelOwnFleetsLabel', icon: 'rocket_launch', containerClass: 'indicator-fleet-own-display-setting' },
     { checkboxIdSuffix: 'indicator-unread-mail-display-setting-checkbox', attributeName: 'show-unread-mail-indicator', optionKey: 'ShowUnreadMessagesIndicator', labelKey: 'SidePanelUnreadMessagesLabel', icon: 'mail', containerClass: 'indicator-unread-mail-display-setting' },
     { checkboxIdSuffix: 'indicator-unread-chat-display-setting-checkbox', attributeName: 'show-unread-chat-indicator', optionKey: 'ShowUnreadChatMessagesIndicator', labelKey: 'SidePanelUnreadChatLabel', icon: 'chat', containerClass: 'indicator-unread-chat-display-setting' },
+    { checkboxIdSuffix: 'indicator-fleet-slots-display-setting-checkbox', attributeName: 'show-fleet-slots-indicator', optionKey: 'ShowFleetSlotsIndicator', labelKey: 'SidePanelFleetSlotsLabel', icon: 'rocket', containerClass: 'indicator-fleet-slots-display-setting' },
     { checkboxIdSuffix: 'indicator-expeditions-display-setting-checkbox', attributeName: 'show-expeditions-indicator', optionKey: 'ShowExpeditionsIndicator', labelKey: 'SidePanelExpeditionsLabel', icon: 'explore', containerClass: 'indicator-expeditions-display-setting' },
 ];
 
@@ -252,7 +257,12 @@ export class UniversePanelController extends TabRelatedController {
                 if (rowView) {
                     this.UpdateUniverseRow(rowView, status);
                 } else {
-                    rowView = this.BuildUniverseRow(status);
+                    try {
+                        rowView = this.BuildUniverseRow(status);
+                    } catch (error) {
+                        this.logger.error(`Failed to build row for universe ${universeKey}`, error);
+                        return;
+                    }
                     this.universeRowsByKey.set(universeKey, rowView);
                 }
 
@@ -314,7 +324,7 @@ export class UniversePanelController extends TabRelatedController {
     private ApplyIndicatorState(row: HTMLElement, universeKey: string, options: UniverseSidePanelOptions | undefined): void {
         INDICATOR_BINDINGS.forEach(({ checkboxIdSuffix, attributeName, optionKey }) => {
             const checkbox = row.querySelector(`#${checkboxIdSuffix}-${universeKey}`) as HTMLInputElement | null;
-            const value = Boolean(options?.[optionKey]);
+            const value = Boolean(options?.[optionKey] ?? true);
             if (checkbox) checkbox.checked = value;
             row.setAttribute(attributeName, String(value));
         });
@@ -428,21 +438,35 @@ export class UniversePanelController extends TabRelatedController {
 
         const selectedThreshold = status.SidePanelOptions?.WarningThresholdMinutes ?? DEFAULT_WARNING_THRESHOLD_MINUTES;
 
+        const q = (selector: string): HTMLElement => {
+            const element = row.querySelector<HTMLElement>(selector);
+            if (!element) throw new Error(`Universe row template: element "${selector}" not found`);
+            return element;
+        };
+
         const rowView: UniverseRowView = {
             row,
-            title: row.querySelector('.universe-title')!,
+            title: q('.universe-title'),
             badgesContainer,
             lastRefresh,
-            unreadMessagesValue: row.querySelector('.unread-mail')!,
-            unreadChatMessagesValue: row.querySelector('.unread-chat')!,
-            hostileFleetGroup: row.querySelector('.fleet-hostile-group')!,
-            hostileFleetCountValue: row.querySelector('.fleet-hostile')!,
-            friendlyFleetCountValue: row.querySelector('.fleet-friendly')!,
-            ownFleetCountValue: row.querySelector('.fleet-own')!,
-            expeditionsGroup: row.querySelector('.expeditions-group')!,
-            expeditionsValue: row.querySelector('.expeditions')!,
-            expeditionsActive: row.querySelector('.expeditions-active')!,
-            expeditionsMax: row.querySelector('.expeditions-max')!,
+            unreadMessagesValue: q('.unread-mail'),
+            unreadChatMessagesValue: q('.unread-chat'),
+            hostileFleetGroup: q('.fleet-hostile-group'),
+            hostileFleetCountValue: q('.fleet-hostile'),
+            friendlyFleetCountValue: q('.fleet-friendly'),
+            ownFleetCountValue: q('.fleet-own'),
+
+
+
+            fleetsGroup: q('.fleet-slots-group'),
+            fleetsValue: q('.fleet-slots'),
+            fleetsSlots: q('.fleet-slots-active'),
+            fleetsMax: q('.fleet-slots-max'),
+
+            expeditionsGroup: q('.expeditions-group'),
+            expeditionsValue: q('.expeditions'),
+            expeditionsSlots: q('.expeditions-active'),
+            expeditionsMax: q('.expeditions-max'),
             refreshButton,
             settingsButton,
             removeButton,
@@ -573,20 +597,43 @@ export class UniversePanelController extends TabRelatedController {
         updateCounter(rowView.friendlyFleetCountValue, status.SidePanelUniverseCounters.FriendlyFleetCount);
         updateCounter(rowView.ownFleetCountValue, status.SidePanelUniverseCounters.OwnFleetCount);
 
-        const activeExpeditions = status.SidePanelUniverseCounters.ActiveExpeditions ?? 0;
+
+        // Update the fleet slots state
+        const activeOwnFleetSlots = status.SidePanelUniverseCounters.ActiveOwnFleetSlots ?? 0;
+        const maxFleetSlots = Math.max(status.SidePanelUniverseCounters.MaximumFleetSlots ?? 0, activeOwnFleetSlots)
+        const fleetSlotsState = activeOwnFleetSlots <= 0 ? 'none'
+            : activeOwnFleetSlots === maxFleetSlots ? 'full'
+                : activeOwnFleetSlots === maxFleetSlots - 1 ? 'nearly-full'
+                    : 'partial';
+
+        const nextActiveFleetSlotsText = String(activeOwnFleetSlots);
+        if (rowView.fleetsSlots.textContent !== nextActiveFleetSlotsText) {
+            rowView.fleetsSlots.textContent = nextActiveFleetSlotsText;
+        }
+        const nextMaxFleetText = String(maxFleetSlots);
+        if (rowView.fleetsMax.textContent !== nextMaxFleetText) {
+            rowView.fleetsMax.textContent = nextMaxFleetText;
+        }
+        updateAttribute(rowView.fleetsValue, 'ogm-max-value', nextMaxFleetText);
+        updateAttribute(rowView.fleetsValue, 'ogm-value', nextActiveFleetSlotsText);
+        updateAttribute(rowView.fleetsValue, 'ogm-state', fleetSlotsState);
+
+
+        // Update the expeditions state
+        const activeExpeditions = status.SidePanelUniverseCounters.ActiveExpeditionSlots ?? 0;
         const maxExpeditionSlots = Math.max(status.SidePanelUniverseCounters.MaximumExpeditionSlots ?? 0, activeExpeditions)
         const expeditionsState = activeExpeditions <= 0 ? 'none' : activeExpeditions < maxExpeditionSlots ? 'partial' : 'full';
 
-        const nextActiveText = String(activeExpeditions);
-        if (rowView.expeditionsActive.textContent !== nextActiveText) {
-            rowView.expeditionsActive.textContent = nextActiveText;
+        const nextActiveExpeditionsText = String(activeExpeditions);
+        if (rowView.expeditionsSlots.textContent !== nextActiveExpeditionsText) {
+            rowView.expeditionsSlots.textContent = nextActiveExpeditionsText;
         }
-        const nextMaxText = String(maxExpeditionSlots);
-        if (rowView.expeditionsMax.textContent !== nextMaxText) {
-            rowView.expeditionsMax.textContent = nextMaxText;
+        const nextMaxExpeditionsText = String(maxExpeditionSlots);
+        if (rowView.expeditionsMax.textContent !== nextMaxExpeditionsText) {
+            rowView.expeditionsMax.textContent = nextMaxExpeditionsText;
         }
-        updateAttribute(rowView.expeditionsValue, 'ogm-max-value', nextMaxText);
-        updateAttribute(rowView.expeditionsValue, 'ogm-value', nextActiveText);
+        updateAttribute(rowView.expeditionsValue, 'ogm-max-value', nextMaxExpeditionsText);
+        updateAttribute(rowView.expeditionsValue, 'ogm-value', nextActiveExpeditionsText);
         updateAttribute(rowView.expeditionsValue, 'ogm-state', expeditionsState);
 
         rowView.updateWarningState();
@@ -1001,6 +1048,11 @@ export class UniversePanelController extends TabRelatedController {
                 <span class="material-symbols-outlined" aria-hidden="true">chat</span>
                 <span class="universe-value-label">${Localizator.Translate('SidePanelUnreadChatLabel')}</span>
                 <span class="universe-value unread-chat"></span>
+              </span>
+              <span class="universe-value-group universe-value-group-fleet-slots fleet-slots-group">
+                <span class="material-symbols-outlined" aria-hidden="true">rocket</span>
+                <span class="universe-value-label">${Localizator.Translate('SidePanelFleetSlotsLabel')}</span>
+                <span class="universe-value fleet-slots"><span class="fleet-slots-active"></span>/<span class="fleet-slots-max"></span></span>
               </span>
               <span class="universe-value-group universe-value-group-expeditions expeditions-group">
                 <span class="material-symbols-outlined" aria-hidden="true">explore</span>

@@ -7,6 +7,7 @@ export class UniverseSidePanelOptions {
     public ShowUnreadChatMessagesIndicator: boolean = true;
     public FleetTrackingEnabled: boolean = true;
     public ShowExpeditionsIndicator: boolean = true;
+    public ShowFleetSlotsIndicator: boolean = true;
 
     constructor(data: Partial<UniverseSidePanelOptions>) {
         this.WarningThresholdMinutes = data.WarningThresholdMinutes ?? 15;
@@ -17,5 +18,6 @@ export class UniverseSidePanelOptions {
         this.ShowUnreadChatMessagesIndicator = data.ShowUnreadChatMessagesIndicator ?? true;
         this.FleetTrackingEnabled = data.FleetTrackingEnabled ?? true;
         this.ShowExpeditionsIndicator = data.ShowExpeditionsIndicator ?? true;
+        this.ShowFleetSlotsIndicator = data.ShowFleetSlotsIndicator ?? true;
     }
 }

@@ -4,8 +4,10 @@ export class SidePanelUniverseCounters {
     public HostileFleetCount: number | 0;
     public FriendlyFleetCount: number | 0;
     public OwnFleetCount: number | 0;
+    public MaximumFleetSlots: number | 0;
     public MaximumExpeditionSlots: number | 0;
-    public ActiveExpeditions: number | 0;
+    public ActiveOwnFleetSlots: number | 0;
+    public ActiveExpeditionSlots: number | 0;
 
     constructor(data: Partial<SidePanelUniverseCounters>) {
         this.NewMessages = data.NewMessages ?? 0;
@@ -13,7 +15,9 @@ export class SidePanelUniverseCounters {
         this.HostileFleetCount = data.HostileFleetCount ?? 0;
         this.FriendlyFleetCount = data.FriendlyFleetCount ?? 0;
         this.OwnFleetCount = data.OwnFleetCount ?? 0;
+        this.MaximumFleetSlots = data.MaximumFleetSlots ?? 0;
+        this.ActiveOwnFleetSlots = data.ActiveOwnFleetSlots ?? 0;
         this.MaximumExpeditionSlots = data.MaximumExpeditionSlots ?? 0;
-        this.ActiveExpeditions = data.ActiveExpeditions ?? 0;
+        this.ActiveExpeditionSlots = data.ActiveExpeditionSlots ?? 0;
     }
 }

@@ -149,6 +149,7 @@ export class ApiDataMerger {
                 }
 
                 data.Account.CalculatedData.MaximumExpeditionSlots = dataCalculator.CalculateMaximumExpeditionSlots(data.Account);
+                data.Account.CalculatedData.MaximumFleetSlots = dataCalculator.CalculateMaximumFleetSlots(data.Account);
             }
 
             return data;

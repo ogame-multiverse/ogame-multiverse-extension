@@ -89,6 +89,8 @@ export class OgameEventsScanner {
         if (this.observer) return; // Already observing
 
         try {
+            // Wait for the loading indicator to disappear and for all the necessary DOM elements to be present before starting observation
+            await DomDelayer.WaitForVisibility('#eventboxLoading', false, 50, AbortSignal.timeout(DateUtils.FiveSecondsInMilliseconds));
             await DomDelayer.WaitForAllQuerySelectors(this.waitedSelectors, 50, AbortSignal.timeout(DateUtils.FiveSecondsInMilliseconds));
 
             // Security check: Ensure that the tab is still visible and monitoring is enabled before starting observation
@@ -135,6 +137,10 @@ export class OgameEventsScanner {
             const { hostile, friendly, own } = this.ogameDomParser.AnalyseFleetCounters();
             const { messages, chat } = this.ogameDomParser.AnalyseMessageCounters();
             const flyingFleetEvents = this.ogameDomParser.AnalyseFlyings(logger, removeFinishedFlyings);
+
+            // Count the number of active own fleets (returning fleets that are either own fleets or have mission type Exploration)
+            const activeOwnFleetSlots = flyingFleetEvents.filter(e => e.IsReturn && (e.IsOwnFleet || e.MissionType === MissionType.Exploration)).length;
+
             // Count the number of active expeditions (returning fleets with mission type Expedition)
             const activeExpeditions = flyingFleetEvents.reduce((count, e) => (e.IsReturn && e.MissionType === MissionType.Expedition) ? count + 1 : count, 0);
 
@@ -144,7 +150,8 @@ export class OgameEventsScanner {
                 HostileFleetCount: hostile,
                 FriendlyFleetCount: friendly,
                 OwnFleetCount: own,
-                ActiveExpeditions: activeExpeditions,
+                ActiveOwnFleetSlots: activeOwnFleetSlots,
+                ActiveExpeditionSlots: activeExpeditions,
             }), flyingFleetEvents);
 
         }, 100);

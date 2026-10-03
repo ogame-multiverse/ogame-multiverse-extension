@@ -2,58 +2,77 @@ import $ from 'jquery';
 import { Delayer } from './delayer';
 
 export class DomDelayer {
-  /**
-   * Wait until a DOM element matching the selector exists or times out.
-   */
-  public static WaitForQuerySelector(
-    selector: string,
-    checkIntervals = 10,
-    abortSignal: AbortSignal
-  ): Promise<JQuery<HTMLElement> | null> {
-    return Delayer.WaitFor(() => $(selector).length > 0, checkIntervals, abortSignal).then(() => {
-      return $(selector) ?? null;
-    });
-  }
-
-  /**
-   * Wait until ALL DOM elements matching the given selectors exist or times out.
-   */
-  public static WaitForAllQuerySelectors(
-    selectors: string[],
-    checkIntervals = 10,
-    abortSignal: AbortSignal
-  ): Promise<JQuery<HTMLElement>[]> {
-    if (!selectors || selectors.length === 0) {
-      return Promise.resolve([]);
+    /**
+     * Wait until a DOM element matching the selector exists or times out.
+     */
+    public static WaitForQuerySelector(
+        selector: string,
+        checkIntervals = 10,
+        abortSignal: AbortSignal
+    ): Promise<JQuery<HTMLElement> | null> {
+        return Delayer.WaitFor(() => $(selector).length > 0, checkIntervals, abortSignal).then(() => {
+            return $(selector) ?? null;
+        });
     }
 
-    return Delayer.WaitFor(
-      () => selectors.every((selector) => $(selector).length > 0),
-      checkIntervals,
-      abortSignal
-    ).then(() => selectors.map((selector) => $(selector)));
-  }
+    /**
+     * Wait until ALL DOM elements matching the given selectors exist or times out.
+     */
+    public static WaitForAllQuerySelectors(
+        selectors: string[],
+        checkIntervals = 10,
+        abortSignal: AbortSignal
+    ): Promise<JQuery<HTMLElement>[]> {
+        if (!selectors || selectors.length === 0) {
+            return Promise.resolve([]);
+        }
 
-  /**
-   * Wait until AT LEAST ONE DOM element matching any of the given selectors exists or times out.
-   * Returns the first matched element found.
-   */
-  public static WaitForAnyQuerySelector(
-    selectors: string[],
-    checkIntervals = 10,
-    abortSignal: AbortSignal
-  ): Promise<JQuery<HTMLElement> | null> {
-    if (!selectors || selectors.length === 0) {
-      return Promise.resolve(null);
+        return Delayer.WaitFor(
+            () => selectors.every((selector) => $(selector).length > 0),
+            checkIntervals,
+            abortSignal
+        ).then(() => selectors.map((selector) => $(selector)));
     }
 
-    return Delayer.WaitFor(
-      () => selectors.some((selector) => $(selector).length > 0),
-      checkIntervals,
-      abortSignal
-    ).then(() => {
-      const matchedSelector = selectors.find((selector) => $(selector).length > 0);
-      return matchedSelector ? $(matchedSelector) : null;
-    });
-  }
+    /**
+     * Wait until AT LEAST ONE DOM element matching any of the given selectors exists or times out.
+     * Returns the first matched element found.
+     */
+    public static WaitForAnyQuerySelector(
+        selectors: string[],
+        checkIntervals = 10,
+        abortSignal: AbortSignal
+    ): Promise<JQuery<HTMLElement> | null> {
+        if (!selectors || selectors.length === 0) {
+            return Promise.resolve(null);
+        }
+
+        return Delayer.WaitFor(
+            () => selectors.some((selector) => $(selector).length > 0),
+            checkIntervals,
+            abortSignal
+        ).then(() => {
+            const matchedSelector = selectors.find((selector) => $(selector).length > 0);
+            return matchedSelector ? $(matchedSelector) : null;
+        });
+    }
+
+    /**
+   * Wait until a DOM element matching the selector becomes visible or invisible.
+   */
+    public static WaitForVisibility(
+        selector: string,
+        visible = true,
+        checkIntervals = 10,
+        abortSignal: AbortSignal
+    ): Promise<JQuery<HTMLElement> | null> {
+        return Delayer.WaitFor(
+            () => $(selector).is(':visible') === visible,
+            checkIntervals,
+            abortSignal
+        ).then(() => {
+            const $el = $(selector);
+            return $el.length > 0 ? $el : null;
+        });
+    }
 }
