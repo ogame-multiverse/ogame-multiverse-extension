@@ -83,7 +83,7 @@ class ServiceWorkerContextApp {
 
             await this.apiDataMerger.MergeOgameQueryResultAsync(extensionLocalData, results);
 
-            await this.universeManager.ApplyQueryResultAsync(data.universeKey, extensionLocalData);
+            await this.universeManager.UpdateUniverseSaveAsync(data.universeKey, extensionLocalData);
         });
 
         // Handle the application of OGame DOM data

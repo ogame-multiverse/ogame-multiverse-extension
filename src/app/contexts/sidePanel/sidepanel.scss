@@ -1,7 +1,7 @@
 @use 'sass:color';
 @import 'tippy.js/dist/tippy';
 
-$ogm-color-bone: #e0e1dd;
+$ogm-color-bone: #bbbbbb;
 $ogm-color-green: #8cb845;
 $ogm-color-dark-orange: #dd8658;
 $ogm-color-orange: #c87a3b;
@@ -1026,6 +1026,7 @@ body {
                         &.universe-value-group-own,
                         &.universe-value-group-unread-mail,
                         &.universe-value-group-unread-chat,
+                        &.universe-value-group-fleet-slots,
                         &.universe-value-group-expeditions {
                             .universe-value-label {
                                 display: none;
@@ -1055,6 +1056,25 @@ body {
                             .material-symbols-outlined,
                             .universe-value {
                                 color: $ogm-color-green;
+                            }
+                        }
+
+                        &.universe-value-group-fleet-slots {
+
+                            .material-symbols-outlined {
+                                color: $ogm-color-bone;
+                            }
+
+                            .universe-value[ogm-state='nearly-full'] .fleet-slots-active {
+                                color: $ogm-color-orange;
+                            }
+
+                            .universe-value[ogm-state='full'] .fleet-slots-active {
+                                color: $ogm-color-red;
+                            }
+
+                            &:has(.universe-value[ogm-max-value='0']) {
+                                display: none;
                             }
                         }
 
@@ -1264,6 +1284,12 @@ body {
                         }
                     }
 
+                    .indicator-fleet-slots-display-setting {
+                        .material-symbols-outlined {
+                            color: $ogm-color-bone;
+                        }
+                    }
+
                     .indicator-expeditions-display-setting {
                         .material-symbols-outlined {
                             color: $ogm-color-blue;
@@ -1356,6 +1382,12 @@ body {
 
             &[show-unread-chat-indicator='false'] {
                 .universe-indicators .universe-value-group.universe-value-group-unread-chat {
+                    display: none !important;
+                }
+            }
+
+            &[show-fleet-slots-indicator='false'] {
+                .universe-indicators .universe-value-group.universe-value-group-fleet-slots {
                     display: none !important;
                 }
             }

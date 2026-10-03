@@ -43,31 +43,15 @@ export class UniverseManager {
         }
     }
 
-    public UpdateUniverseSave(universeKey: string, data: ExtensionLocalData) {
-        if (data.UniverseKey) this.savesByUniverse.set(universeKey, data);
-    }
-
-    public async ApplyQueryResultAsync(universeKey: string, data: ExtensionLocalData): Promise<void> {
+    public async UpdateUniverseSaveAsync(universeKey: string, data: ExtensionLocalData): Promise<void> {
         await this.InitializeAsync();
-
-        const current = this.savesByUniverse.get(universeKey);
-        if (current?.SidePanelOptions) data.SidePanelOptions = current.SidePanelOptions;
-        if (current?.FlyingFleetEvents) data.FlyingFleetEvents = current.FlyingFleetEvents;
-
-        this.UpdateUniverseSave(universeKey, data);
-
-        const options = data.SidePanelOptions;
-        const events = data.FlyingFleetEvents;
-        await this.saveManager.UpdateExtensionLocalDataAsync(universeKey, (d) => {
-            if (options) d.SidePanelOptions = options;
-            if (events) d.FlyingFleetEvents = events;
-        });
+        if (data.UniverseKey) this.savesByUniverse.set(universeKey, data);
     }
 
     public async RegisterUniverseAsync(universeKey: string, universeName: string, universeDomain: string, lastRefreshDate: number): Promise<void> {
         await this.InitializeAsync();
         const localSave = await this.saveManager.RegisterUniverseAsync(universeKey, universeName, universeDomain, lastRefreshDate);
-        this.UpdateUniverseSave(universeKey, localSave);
+        await this.UpdateUniverseSaveAsync(universeKey, localSave);
         await this.saveManager.AppendToUniverseOrderAndGridAsync(universeKey);
     }
 
@@ -86,9 +70,10 @@ export class UniverseManager {
             return d;
         });
 
+        universeCounters.MaximumFleetSlots = localSave?.Account?.CalculatedData?.MaximumFleetSlots ?? 0;
         universeCounters.MaximumExpeditionSlots = localSave?.Account?.CalculatedData?.MaximumExpeditionSlots ?? 0;
         this.universeDataByUniverse.set(universeKey, { universeCounters });
-        this.UpdateUniverseSave(universeKey, localSave);
+        await this.UpdateUniverseSaveAsync(universeKey, localSave);
     }
 
     public async ListUniverseStatusesAsync(mode: 'list' | 'grid'): Promise<SidePanelUniversesSections> {

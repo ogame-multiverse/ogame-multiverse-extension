@@ -85,12 +85,7 @@ export class OgameQuery {
         */
 
         if (tasks.length > 0) {
-            const settledResults = await Promise.allSettled(tasks);
-            for (const res of settledResults) {
-                if (res.status === 'rejected') {
-                    this.logger.error(`A query failed during universe updates for ${extensionLocalData.UniverseKey}`, res.reason);
-                }
-            }
+            await Promise.all(tasks);
         }
 
         return results;
