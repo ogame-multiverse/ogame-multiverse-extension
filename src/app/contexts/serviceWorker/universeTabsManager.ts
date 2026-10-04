@@ -127,11 +127,10 @@ export class UniverseTabsManager {
         else await browser.tabs.reload(tabToReload.id, { bypassCache: true });
     }
 
-
     private readonly OnTabUpdated = (tabId: number, changeInfo: { status?: string; url?: string }, tab: browser.Tabs.Tab): void => {
         if (changeInfo.url === undefined && changeInfo.status !== 'complete') return;
 
-        const universeFromUrl = this.ExtractUniverseKeyFromUrl(changeInfo.url || tab.url);
+        const universeFromUrl = this.ExtractUniverseKeyFromUrl(changeInfo.url ?? tab.url);
         const previousUniverse = this.universeByTabId.get(tabId);
 
         if (universeFromUrl) {
@@ -141,7 +140,7 @@ export class UniverseTabsManager {
             if (previousUniverse) {
                 sidePanelBroadcastProtocolClient.UpdateUniverseOpenState(this.logger, previousUniverse, this.HasOpenTabForUniverse(previousUniverse));
             }
-        } else if (changeInfo.url && previousUniverse) {
+        } else if (previousUniverse) {
             this.universeByTabId.delete(tabId);
             sidePanelBroadcastProtocolClient.UpdateUniverseOpenState(this.logger, previousUniverse, this.HasOpenTabForUniverse(previousUniverse));
         }
