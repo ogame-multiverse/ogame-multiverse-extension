@@ -36,6 +36,7 @@ class ServiceWorkerContextApp {
     private readonly ogameQuery: OgameQuery;
     private readonly dataMerger: DataMerger;
     private readonly apiDataParser: OgameApiDataParser;
+    private initialization?: Promise<void>;
 
     constructor() {
         this.extensionStorageService = new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService"));
@@ -50,9 +51,23 @@ class ServiceWorkerContextApp {
         this.ogameQuery = new OgameQuery(serviceWorkerLoggerFactory.CreateLogger("OgameQuery"), this.saveManager);
         this.apiDataParser = new OgameApiDataParser();
         this.dataMerger = new DataMerger(serviceWorkerLoggerFactory.CreateLogger("DataMerger"), this.saveManager, this.apiDataParser);
+
         this.RegisterServiceWorkerEvents();
+        this.RegisterBrowserEvents();
+    }
+
+    /**
+     * Every browser event listener must be registered synchronously at service worker start-up,
+     * otherwise the event that woke the service worker up can be missed.
+     */
+    private RegisterBrowserEvents(): void {
+        this.universeTabsManager.Start();
+        this.sidePanelManager.Start();
+        this.contextMenusManager.RegisterClickListener();
+        this.keyboardCommandsManager.RegisterKeyboardCommands();
 
         browser.runtime.onInstalled.addListener(this.OnExtensionInstallation);
+        browser.runtime.onStartup.addListener(this.OnBrowserStartup);
     }
 
     private RegisterServiceWorkerEvents(): void {
@@ -79,11 +94,8 @@ class ServiceWorkerContextApp {
             const extensionSessionData = await this.ogameQuery.RunOgameQueriesAsync(data.universeKey, data.universeDomain, data.options);
 
             // Merge the session data obtained from the OGame queries onto the local data stored in the service worker, ensuring that we have the most up-to-date information.
-            const extensionLocalData = await this.dataMerger.MergeOgameSessionDataOntoLocalDataAsync(extensionSessionData);
-
-
-
-            await this.universeManager.UpdateUniverseSaveAsync(data.universeKey, extensionLocalData);
+            // The universe cache is refreshed by SaveManager.OnLocalDataSaved, in the exact order the writes hit the storage.
+            await this.dataMerger.MergeOgameSessionDataOntoLocalDataAsync(extensionSessionData);
         });
 
         // Handle the application of OGame DOM data
@@ -170,26 +182,43 @@ class ServiceWorkerContextApp {
         });
     }
 
+    private EnsureInitializedAsync(): Promise<void> {
+        if (!this.initialization) {
+            this.initialization = (async () => {
+                await browserInfo.InitAsync();
+                Localizator.Init(browserInfo.Language);
+            })();
+        }
+        return this.initialization;
+    }
+
+    private async CreateContextMenusAsync(): Promise<void> {
+        try {
+            await this.EnsureInitializedAsync();
+            await this.contextMenusManager.CreateContextMenusAsync();
+        } catch (error) {
+            this.logger.error('Failed to create context menus', error);
+        }
+    }
+
     /**
-     * Handles the extension installation or update event. When the extension is installed or updated, it triggers a rebuild of the open tabs state in the UniverseTabsManager.
+     * Handles the extension installation or update event. When the extension is installed or updated, it triggers a rebuild of the open tabs state in the UniverseTabsManager
+     * and (re)creates the context menus, which persist across service worker restarts.
      * @param details
      */
     private readonly OnExtensionInstallation = (details: { reason: string }): void => {
         if (details.reason === 'install' || details.reason === 'update') {
             void this.universeTabsManager.RebuildOpenTabsStateAsync();
+            void this.CreateContextMenusAsync();
         }
     };
 
+    private readonly OnBrowserStartup = (): void => {
+        void this.CreateContextMenusAsync();
+    };
+
     public async StartAsync(): Promise<void> {
-        await browserInfo.InitAsync();
-        Localizator.Init(browserInfo.Language);
-
-        await this.universeManager.InitializeAsync();
-        this.universeTabsManager.Start();
-        this.sidePanelManager.Start();
-
-        await this.contextMenusManager.RegisterContextMenusAsync();
-        this.keyboardCommandsManager.RegisterKeyboardCommands();
+        await this.EnsureInitializedAsync();
         this.logger.info('OGame Multiverse ✅ Started.');
     }
 }

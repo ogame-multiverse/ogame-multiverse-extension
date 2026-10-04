@@ -37,9 +37,7 @@ class SidePanelContextApp {
             return;
         }
 
-        // Connexion par port pour maintenir et notifier la présence du SidePanel sans async/await lors du toggle
-        const port = browser.runtime.connect({ name: 'ogm-sidepanel-presence' });
-        port.postMessage({ type: 'SIDEPANEL_INIT', windowId: this.windowId });
+        this.ConnectPresencePort();
 
         document.documentElement.lang = browserInfo.Language;
 
@@ -60,6 +58,7 @@ class SidePanelContextApp {
             this.RefreshGlobalWarning();
         });
         sidePanelBroadcastProtocolRegistrar.OnRemoveUniverse(this.logger, (universeKey: string) => {
+            TabRelatedController.InvalidateSharedCaches();
             this.universePanelController.RemoveSingleUniverse(universeKey);
             this.RefreshGlobalWarning();
         });
@@ -68,7 +67,6 @@ class SidePanelContextApp {
             (data: { universeKey: string; universeCounters: SidePanelUniverseCounters; isOpen: boolean; flyingFleetEvents: FlyingFleetEvent[] }) => {
                 this.universePanelController.UpdateSingleUniverseStatus(data);
                 this.eventsPanelController.UpdateSingleUniverseFleetEvents(data.universeKey, data.flyingFleetEvents);
-                this.RefreshGlobalWarning();
             }
         );
 
@@ -93,12 +91,25 @@ class SidePanelContextApp {
 
         sidePanelBroadcastProtocolRegistrar.OnUpdateUniverseGrid(this.logger, () => {
             this.universePanelController.Refresh();
-            this.RefreshGlobalWarning();
         });
 
         this.WatchUniverseRefreshWarning();
 
         this.InitializeTabs('tab-universe');
+    }
+
+    /** Keeps the presence port alive: the service worker can be terminated at any time, which closes the port
+     *  without closing this panel. Reconnecting lets the new service worker instance know this window is open. */
+    private ConnectPresencePort(): void {
+        try {
+            const port = browser.runtime.connect({ name: 'ogm-sidepanel-presence' });
+            port.postMessage({ type: 'SIDEPANEL_INIT', windowId: this.windowId });
+            port.onDisconnect.addListener(() => {
+                window.setTimeout(() => this.ConnectPresencePort(), 1000);
+            });
+        } catch (error) {
+            this.logger.error('Failed to connect the side panel presence port', error);
+        }
     }
 
     /** Shows a red "priority_high" icon on the universe tab whenever at least one universe

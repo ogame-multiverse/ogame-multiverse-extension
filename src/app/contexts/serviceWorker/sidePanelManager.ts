@@ -1,5 +1,4 @@
 import browser from 'webextension-polyfill';
-import { browserInfo } from '../../dom/browserInfos';
 import { Logger } from '../../logging/logger';
 import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
 
@@ -12,9 +11,30 @@ export class SidePanelManager {
 
     constructor(private readonly logger: Logger) { }
 
+    public get IsSidebarActionBrowser(): boolean {
+        return typeof (browser as any).sidebarAction !== 'undefined';
+    }
+
     public Start(): void {
         this.SetupSidePanelBehavior();
         this.ListenPortConnections();
+        void this.HydrateOpenWindowsAsync();
+    }
+
+    private async HydrateOpenWindowsAsync(): Promise<void> {
+        try {
+            const runtime = (globalThis as any).chrome?.runtime;
+            if (typeof runtime?.getContexts !== 'function') return;
+
+            const contexts: Array<{ windowId?: number }> = await runtime.getContexts({ contextTypes: ['SIDE_PANEL'] });
+            for (const context of contexts) {
+                if (typeof context.windowId === 'number' && context.windowId >= 0) {
+                    this.openWindowIds.add(context.windowId);
+                }
+            }
+        } catch (error) {
+            this.logger.error('SidePanelManager.HydrateOpenWindowsAsync failed', error);
+        }
     }
 
     private ListenPortConnections(): void {
@@ -41,6 +61,7 @@ export class SidePanelManager {
             });
         });
     }
+
     private SetupSidePanelBehavior(): void {
         try {
             if (!browserPolyfill?.sidePanel) return;
@@ -53,7 +74,6 @@ export class SidePanelManager {
             this.logger.error('SidePanelManager.SetupSidePanelBehavior failed', error);
         }
     }
-
 
     public IsSidePanelOpen(windowId: number): boolean {
         return this.openWindowIds.has(windowId);
@@ -81,7 +101,7 @@ export class SidePanelManager {
             } else {
                 this.logger.debug(`SidePanelManager.ToggleSidePanel: opening side panel for windowId ${windowId}`);
                 this.openWindowIds.add(windowId);
-                if (browserInfo.IsFirefox) {
+                if (this.IsSidebarActionBrowser) {
                     void (browserPolyfill as any).sidebarAction.open()
                         .catch((error: unknown) => {
                             this.openWindowIds.delete(windowId);

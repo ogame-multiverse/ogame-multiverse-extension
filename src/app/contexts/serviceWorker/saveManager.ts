@@ -16,10 +16,27 @@ export const SIDE_PANEL_GLOBAL_OPTIONS_STORAGE_KEY = '__ogm_side_panel_global_op
 export class SaveManager {
     private readonly localDataQueues = new Map<string, Promise<unknown>>();
     private readonly sessionDataQueues = new Map<string, Promise<unknown>>();
+    private readonly layoutQueues = new Map<string, Promise<unknown>>();
+    private readonly localDataSavedListeners = new Set<(universeKey: string, data: ExtensionLocalData) => void>();
 
     constructor(private readonly extensionStorageService: ExtensionStorageService) { }
 
 
+
+    public OnLocalDataSaved(listener: (universeKey: string, data: ExtensionLocalData) => void): void {
+        this.localDataSavedListeners.add(listener);
+    }
+
+    private EnqueueAsync<T>(queues: Map<string, Promise<unknown>>, queueKey: string, task: () => Promise<T>): Promise<T> {
+        const previous = queues.get(queueKey) ?? Promise.resolve();
+        const run = previous.catch(() => undefined).then(task);
+        const tail = run.catch(() => undefined);
+        queues.set(queueKey, tail);
+        void tail.then(() => {
+            if (queues.get(queueKey) === tail) queues.delete(queueKey);
+        });
+        return run;
+    }
 
     public UpdateExtensionSessionDataAsync(universeKey: string, mutator: DataMutator<ExtensionSessionData>): Promise<ExtensionSessionData> {
         return this.UpdateDataAsync(
@@ -48,16 +65,18 @@ export class SaveManager {
         read: (universeKey: string) => Promise<T>,
         mutator: DataMutator<T>
     ): Promise<T> {
-        const previous = queues.get(universeKey) ?? Promise.resolve();
-        const run = previous.catch(() => undefined).then(async () => {
+        return this.EnqueueAsync(queues, universeKey, async () => {
             const currentData = await read(universeKey);
             const updatedData = await mutator(currentData);
             if (updatedData === DataChanges.None) return currentData;
             await this.extensionStorageService.Set(area, universeKey, updatedData);
+            if (area === StorageArea.Local) this.NotifyLocalDataSaved(universeKey, updatedData as unknown as ExtensionLocalData);
             return updatedData;
         });
-        queues.set(universeKey, run.catch(() => undefined));
-        return run;
+    }
+
+    private NotifyLocalDataSaved(universeKey: string, data: ExtensionLocalData): void {
+        this.localDataSavedListeners.forEach((listener) => listener(universeKey, data));
     }
 
     private isExtensionLocalData(val: unknown): val is ExtensionLocalData {
@@ -208,7 +227,11 @@ export class SaveManager {
         });
     }
 
-    public async SaveUniverseLayoutConfigAsync(config: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
+    public SaveUniverseLayoutConfigAsync(config: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
+        return this.EnqueueAsync(this.layoutQueues, 'layout', () => this.SaveUniverseLayoutConfigCoreAsync(config));
+    }
+
+    private async SaveUniverseLayoutConfigCoreAsync(config: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
         const current = await this.GetUniverseLayoutConfigAsync();
 
         // Favorites
@@ -249,7 +272,11 @@ export class SaveManager {
         return updatedConfig;
     }
 
-    public async AppendToUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
+    public AppendToUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
+        return this.EnqueueAsync(this.layoutQueues, 'layout', () => this.AppendToUniverseOrderAndGridCoreAsync(universeKey));
+    }
+
+    private async AppendToUniverseOrderAndGridCoreAsync(universeKey: string): Promise<void> {
         const key = this.normalizeKey(universeKey);
         if (!key) return;
 
@@ -271,10 +298,14 @@ export class SaveManager {
             }
         }
 
-        await this.SaveUniverseLayoutConfigAsync(layout);
+        await this.SaveUniverseLayoutConfigCoreAsync(layout);
     }
 
-    public async RemoveFromUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
+    public RemoveFromUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
+        return this.EnqueueAsync(this.layoutQueues, 'layout', () => this.RemoveFromUniverseOrderAndGridCoreAsync(universeKey));
+    }
+
+    private async RemoveFromUniverseOrderAndGridCoreAsync(universeKey: string): Promise<void> {
         const key = this.normalizeKey(universeKey);
         if (!key) return;
 
@@ -284,7 +315,7 @@ export class SaveManager {
         layout.favoriteGridOrder = layout.favoriteGridOrder.map((col) => col.filter((k) => k !== key)).filter((col) => col.length > 0);
         layout.gridOrder = layout.gridOrder.map((col) => col.filter((k) => k !== key)).filter((col) => col.length > 0);
 
-        await this.SaveUniverseLayoutConfigAsync(layout);
+        await this.SaveUniverseLayoutConfigCoreAsync(layout);
     }
     public async GetExtensionDataAsync(universeKey: string): Promise<{ sessionData: ExtensionSessionData, localizationData: LocalizationData }> {
         const extensionSessionData = await this.GetExtensionSessionDataAsync(universeKey);
@@ -340,8 +371,8 @@ export class SaveManager {
 
 
     public async RemoveUniverseAsync(universeKey: string): Promise<void> {
-        await this.extensionStorageService.Remove(StorageArea.Local, universeKey);
-        await this.extensionStorageService.Remove(StorageArea.Session, universeKey);
+        await this.EnqueueAsync(this.localDataQueues, universeKey, () => this.extensionStorageService.Remove(StorageArea.Local, universeKey));
+        await this.EnqueueAsync(this.sessionDataQueues, universeKey, () => this.extensionStorageService.Remove(StorageArea.Session, universeKey));
     }
 
     public async RegisterUniverseAsync(universeKey: string, universeName: string, universeDomain: string, lastRefreshDate: number): Promise<ExtensionLocalData> {

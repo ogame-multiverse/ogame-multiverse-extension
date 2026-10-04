@@ -192,7 +192,9 @@ export class UniverseTabsManager {
             openTabsCountByUniverse.set(universeKey, (openTabsCountByUniverse.get(universeKey) || 0) + 1);
         });
 
-        openTabsCountByUniverse.forEach((_, universeKey) => allUniverseKeys.push(universeKey));
+        openTabsCountByUniverse.forEach((_, universeKey) => {
+            if (!allUniverseKeys.includes(universeKey)) allUniverseKeys.push(universeKey);
+        });
         return openTabsCountByUniverse;
     }
 

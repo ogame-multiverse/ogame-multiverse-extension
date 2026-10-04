@@ -32,10 +32,9 @@ export class DataMerger {
 
     private MergePlanets(fromPageData: Planet[] | undefined, fromApi: Planet[] | undefined): Planet[] {
         if (!fromPageData || fromPageData.length === 0) return fromApi ?? [];// If no page data, return API data
-        else if (!fromApi || fromApi.length === 0) return fromPageData ?? [];// If no API data, return page data
+        else if (!fromApi || fromApi.length === 0) return fromPageData;// If no API data, return page data
 
         const apiById = new Map<number, Planet>(fromApi.map(p => [p.Id, p]));
-        const localIds = new Set<number>();
 
         const merged: Planet[] = [];
         for (const planetFromPage of fromPageData) {
@@ -56,17 +55,15 @@ export class DataMerger {
                 planetFromPage.LifeformResearch = planetFromApi.LifeformResearch;
             }
             merged.push(planetFromPage);
-            localIds.add(planetFromPage.Id);
         }
 
         return merged;
     }
     private MergeMoons(fromPageData: Moon[] | undefined, fromApi: Moon[] | undefined): Moon[] {
         if (!fromPageData || fromPageData.length === 0) return fromApi ?? [];// If no page data, return API data
-        else if (!fromApi || fromApi.length === 0) return fromPageData ?? [];// If no API data, return page data
+        else if (!fromApi || fromApi.length === 0) return fromPageData;// If no API data, return page data
 
         const apiById = new Map<number, Moon>(fromApi.map(p => [p.Id, p]));
-        const localIds = new Set<number>();
 
         const merged: Moon[] = [];
         for (const moonFromPage of fromPageData) {
@@ -83,7 +80,6 @@ export class DataMerger {
                 moonFromPage.Buffs = moonFromApi.Buffs;
             }
             merged.push(moonFromPage);
-            localIds.add(moonFromPage.Id);
         }
 
         return merged;
