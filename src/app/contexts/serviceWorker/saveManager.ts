@@ -1,30 +1,62 @@
+import { LocalizationStrings } from '../../../types/LocalizationStrings';
+import { DataMutator, DataChanges } from '../../dataMutator';
+import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
 import { ExtensionLocalData } from '../../model/save/extensionLocalData';
 import { ExtensionSessionData } from '../../model/save/extensionSessionData';
+import { LocalizationData } from '../../model/save/localizationData';
+import { SidePanelGlobalOptions } from '../../model/sidePanel/sidePanelGlobalOptions';
 import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
-import { SidePanelGlobalOptions } from '../../model/sidePanel/sidePanelGlobalOptions';
 import { ExtensionStorageService, StorageArea } from './extensionStorageService';
-import { LocalizationData } from '../../model/save/localizationData';
-import { LocalizationStrings } from '../../../types/LocalizationStrings';
-import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
 
 export const UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY = '__ogm_universe_layout_config';
 export const SIDE_PANEL_GLOBAL_OPTIONS_STORAGE_KEY = '__ogm_side_panel_global_options';
 
+
 export class SaveManager {
     private readonly localDataQueues = new Map<string, Promise<unknown>>();
+    private readonly sessionDataQueues = new Map<string, Promise<unknown>>();
 
     constructor(private readonly extensionStorageService: ExtensionStorageService) { }
 
-    public UpdateExtensionLocalDataAsync<T>(universeKey: string, mutator: (data: ExtensionLocalData) => T | Promise<T>): Promise<T> {
-        const previous = this.localDataQueues.get(universeKey) ?? Promise.resolve();
+
+
+    public UpdateExtensionSessionDataAsync(universeKey: string, mutator: DataMutator<ExtensionSessionData>): Promise<ExtensionSessionData> {
+        return this.UpdateDataAsync(
+            this.sessionDataQueues,
+            StorageArea.Session,
+            universeKey,
+            (key) => this.GetExtensionSessionDataAsync(key),
+            mutator
+        );
+    }
+
+    public UpdateExtensionLocalDataAsync(universeKey: string, mutator: DataMutator<ExtensionLocalData>): Promise<ExtensionLocalData> {
+        return this.UpdateDataAsync(
+            this.localDataQueues,
+            StorageArea.Local,
+            universeKey,
+            (key) => this.GetExtensionLocalDataAsync(key),
+            mutator
+        );
+    }
+
+    private UpdateDataAsync<T>(
+        queues: Map<string, Promise<unknown>>,
+        area: StorageArea,
+        universeKey: string,
+        read: (universeKey: string) => Promise<T>,
+        mutator: DataMutator<T>
+    ): Promise<T> {
+        const previous = queues.get(universeKey) ?? Promise.resolve();
         const run = previous.catch(() => undefined).then(async () => {
-            const data = await this.GetExtensionLocalDataAsync(universeKey);
-            const result = await mutator(data);
-            await this.SaveExtensionLocalDataAsync(universeKey, data);
-            return result;
+            const currentData = await read(universeKey);
+            const updatedData = await mutator(currentData);
+            if (updatedData === DataChanges.None) return currentData;
+            await this.extensionStorageService.Set(area, universeKey, updatedData);
+            return updatedData;
         });
-        this.localDataQueues.set(universeKey, run.catch(() => undefined));
+        queues.set(universeKey, run.catch(() => undefined));
         return run;
     }
 
@@ -264,9 +296,10 @@ export class SaveManager {
 
     /* LOCALIZATION */
     public async SaveLocalizationStringsAsync(universeKey: string, language: string, localizationStrings: LocalizationStrings): Promise<void> {
-        await this.UpdateExtensionLocalDataAsync(universeKey, (d) => {
-            d.LocalizationData.Language = language;
-            d.LocalizationData.LocalizationStrings = localizationStrings;
+        await this.UpdateExtensionLocalDataAsync(universeKey, (extensionLocalData) => {
+            extensionLocalData.LocalizationData.Language = language;
+            extensionLocalData.LocalizationData.LocalizationStrings = localizationStrings;
+            return extensionLocalData;
         });
     }
 
@@ -276,28 +309,19 @@ export class SaveManager {
     }
 
     public async SaveFlyingFleetEventsAsync(universeKey: string, flyingFleetEvents: FlyingFleetEvent[]): Promise<void> {
-        await this.UpdateExtensionLocalDataAsync(universeKey, (d) => {
-            d.FlyingFleetEvents = flyingFleetEvents;
+        await this.UpdateExtensionLocalDataAsync(universeKey, (extensionLocalData) => {
+            extensionLocalData.FlyingFleetEvents = flyingFleetEvents;
+            return extensionLocalData;
         });
     }
 
     public async GetExtensionLocalDataAsync(universeKey: string): Promise<ExtensionLocalData> {
         const raw = await this.extensionStorageService.Get<Partial<ExtensionLocalData>>(StorageArea.Local, universeKey);
-        if (!raw) {
-            const localSave = new ExtensionLocalData({ UniverseKey: universeKey });
-            await this.SaveExtensionLocalDataAsync(universeKey, localSave);
-            return localSave;
-        }
-        return new ExtensionLocalData(raw);
+        return new ExtensionLocalData(raw ?? { UniverseKey: universeKey });
     }
     public async GetExtensionSessionDataAsync(universeKey: string): Promise<ExtensionSessionData> {
         const raw = await this.extensionStorageService.Get<Partial<ExtensionSessionData>>(StorageArea.Session, universeKey);
-        if (!raw) {
-            const sessionSave = new ExtensionSessionData({ UniverseKey: universeKey });
-            await this.SaveExtensionSessionDataAsync(universeKey, sessionSave);
-            return sessionSave;
-        }
-        return new ExtensionSessionData(raw);
+        return new ExtensionSessionData(raw ?? { UniverseKey: universeKey });
     }
 
 
@@ -307,17 +331,13 @@ export class SaveManager {
     }
 
     public async SaveUniverseSidePanelOptionsAsync(universeKey: string, options: UniverseSidePanelOptions): Promise<void> {
-        await this.UpdateExtensionLocalDataAsync(universeKey, (d) => {
-            d.SidePanelOptions = options;
+        await this.UpdateExtensionLocalDataAsync(universeKey, (extensionLocalData) => {
+            extensionLocalData.SidePanelOptions = options;
+            return extensionLocalData;
         });
     }
 
-    private async SaveExtensionLocalDataAsync(universeKey: string, localSave: ExtensionLocalData): Promise<void> {
-        await this.extensionStorageService.Set(StorageArea.Local, universeKey, localSave);
-    }
-    public async SaveExtensionSessionDataAsync(universeKey: string, sessionSave: ExtensionSessionData): Promise<void> {
-        await this.extensionStorageService.Set(StorageArea.Session, universeKey, sessionSave);
-    }
+
 
     public async RemoveUniverseAsync(universeKey: string): Promise<void> {
         await this.extensionStorageService.Remove(StorageArea.Local, universeKey);

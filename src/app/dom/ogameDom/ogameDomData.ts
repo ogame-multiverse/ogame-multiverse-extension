@@ -1,10 +1,10 @@
-// import { Alliance } from '../../model/alliance';
+import { Alliance } from '../../model/alliance';
 // import { LifeformType } from '../../model/enums/lifeformType';
 // import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
 import { Moon } from '../../model/moon';
-// import { Officers } from '../../model/officers';
+import { Officers } from '../../model/officers';
 import { Planet } from '../../model/planet';
-// import { Player } from '../../model/player';
+import { Player } from '../../model/player';
 // import { Position } from '../../model/position';
 // import { QueuedTech } from '../../model/queuedTech';
 // import { Resources } from '../../model/resources';
@@ -12,10 +12,10 @@ import { Planet } from '../../model/planet';
 
 export class OgameDomData {
     OGameVersion?: string;
-    OGameTimestamp?: string;
-    // Player?: Player;
-    // Alliance?: Alliance;
-    // Officers?: Officers;
+    PaseDateISO?: string;
+    Player?: Player;
+    Alliance?: Alliance;
+    Officers?: Officers;
     // Position?: Position;
     Planets: Planet[];
     Moons: Moon[];
@@ -29,9 +29,9 @@ export class OgameDomData {
 
     constructor(data: Partial<OgameDomData> = {}) {
         this.OGameVersion = data.OGameVersion;
-        this.OGameTimestamp = data.OGameTimestamp;
-        // this.Player = data.Player;
-        // this.Alliance = data.Alliance;
+        this.PaseDateISO = data.PaseDateISO;
+        this.Player = data.Player;
+        this.Alliance = data.Alliance;
         // this.Officers = data.Officers;
         // this.Position = data.Position;
         this.Planets = data.Planets ?? [];
