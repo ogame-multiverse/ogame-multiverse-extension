@@ -13,7 +13,7 @@ import { ShipBonus } from "../../../../model/bonus/shipBonus";
 import { SpeciesInfo } from "../../../../model/bonus/speciesInfo";
 import { TechnologyBonus } from "../../../../model/bonus/technologyBonus";
 import { WarriorClassBonus } from "../../../../model/bonus/warriorClassBonus";
-import { Buff, BuffType, BuffScope, BUFF_TYPES } from "../../../../model/buff";
+import { Buff, BUFF_TYPES, BuffScope, BuffType } from "../../../../model/buff";
 import { Coordinates } from "../../../../model/coordinates";
 import { AllianceClass } from "../../../../model/enums/allianceClass";
 import { LifeformType } from "../../../../model/enums/lifeformType";
@@ -34,14 +34,13 @@ const SPECIES_TO_LIFEFORM: Record<number, LifeformType> = {
 
 export class OgameApiDataParser {
 
-    public ParseOfficers(accountInfo: any): Officers | undefined {
-        if (!accountInfo?.officers) return undefined;
+    public ParseOfficers(accountInfo: any): Officers {
         return new Officers({
-            Admiral: accountInfo.admiral ?? false,
-            Commander: accountInfo.commander ?? false,
-            Engineer: accountInfo.engineer ?? false,
-            Geologist: accountInfo.geologist ?? false,
-            Technocrat: accountInfo.technocrat ?? false,
+            Admiral: accountInfo.officers?.admiral ?? false,
+            Commander: accountInfo.officers?.commander ?? false,
+            Engineer: accountInfo.officers?.engineer ?? false,
+            Geologist: accountInfo.officers?.geologist ?? false,
+            Technocrat: accountInfo.officers?.technocrat ?? false,
         });
     }
 

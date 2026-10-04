@@ -1,4 +1,5 @@
 import { LocalizationStrings } from '../../../types/LocalizationStrings';
+import { DataMutator, DataChanges } from '../../dataMutator';
 import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
 import { ExtensionLocalData } from '../../model/save/extensionLocalData';
 import { ExtensionSessionData } from '../../model/save/extensionSessionData';
@@ -11,6 +12,7 @@ import { ExtensionStorageService, StorageArea } from './extensionStorageService'
 export const UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY = '__ogm_universe_layout_config';
 export const SIDE_PANEL_GLOBAL_OPTIONS_STORAGE_KEY = '__ogm_side_panel_global_options';
 
+
 export class SaveManager {
     private readonly localDataQueues = new Map<string, Promise<unknown>>();
     private readonly sessionDataQueues = new Map<string, Promise<unknown>>();
@@ -18,33 +20,43 @@ export class SaveManager {
     constructor(private readonly extensionStorageService: ExtensionStorageService) { }
 
 
-    public UpdateExtensionSessionDataAsync(universeKey: string, mutator: (data: ExtensionSessionData) => ExtensionSessionData | Promise<ExtensionSessionData>): Promise<ExtensionSessionData> {
-        const previous = this.sessionDataQueues.get(universeKey) ?? Promise.resolve();
-        const run = previous.catch(() => undefined).then(async () => {
-            const currentData = await this.GetExtensionSessionDataAsync(universeKey);
-            const updatedData = await mutator(currentData);
-            await this.extensionStorageService.Set(StorageArea.Session, universeKey, updatedData);
 
-            return updatedData;
-        });
-
-        this.sessionDataQueues.set(universeKey, run.catch(() => undefined));
-        return run;
+    public UpdateExtensionSessionDataAsync(universeKey: string, mutator: DataMutator<ExtensionSessionData>): Promise<ExtensionSessionData> {
+        return this.UpdateDataAsync(
+            this.sessionDataQueues,
+            StorageArea.Session,
+            universeKey,
+            (key) => this.GetExtensionSessionDataAsync(key),
+            mutator
+        );
     }
 
-    public UpdateExtensionLocalDataAsync(
-        universeKey: string,
-        mutator: (data: ExtensionLocalData) => ExtensionLocalData | Promise<ExtensionLocalData>
-    ): Promise<ExtensionLocalData> {
-        const previous = this.localDataQueues.get(universeKey) ?? Promise.resolve();
-        const run = previous.catch(() => undefined).then(async () => {
-            const currentData = await this.GetExtensionLocalDataAsync(universeKey);
-            const updatedData = await mutator(currentData);
-            await this.extensionStorageService.Set(StorageArea.Local, universeKey, updatedData);
+    public UpdateExtensionLocalDataAsync(universeKey: string, mutator: DataMutator<ExtensionLocalData>): Promise<ExtensionLocalData> {
+        return this.UpdateDataAsync(
+            this.localDataQueues,
+            StorageArea.Local,
+            universeKey,
+            (key) => this.GetExtensionLocalDataAsync(key),
+            mutator
+        );
+    }
 
+    private UpdateDataAsync<T>(
+        queues: Map<string, Promise<unknown>>,
+        area: StorageArea,
+        universeKey: string,
+        read: (universeKey: string) => Promise<T>,
+        mutator: DataMutator<T>
+    ): Promise<T> {
+        const previous = queues.get(universeKey) ?? Promise.resolve();
+        const run = previous.catch(() => undefined).then(async () => {
+            const currentData = await read(universeKey);
+            const updatedData = await mutator(currentData);
+            if (updatedData === DataChanges.None) return currentData;
+            await this.extensionStorageService.Set(area, universeKey, updatedData);
             return updatedData;
         });
-        this.localDataQueues.set(universeKey, run.catch(() => undefined));
+        queues.set(universeKey, run.catch(() => undefined));
         return run;
     }
 

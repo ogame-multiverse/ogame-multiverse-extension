@@ -22,8 +22,7 @@ export class GlobalConstants {
     /* Flag to enable or disable protocol logging for debugging purposes. */
     public static readonly PROTOCOL_LOGGING_ENABLED: boolean = false;
 
-    /* Flag to determine whether to store OGame queries results in session storage, for debugging and development purposes. */
-    public static readonly STORE_OGAME_QUERIES_RESULTS_TO_SESSION_STORAGE: boolean = false;
-    /* Flag to determine whether to store OGame parsing results in session storage, for debugging and development purposes. */
-    public static readonly STORE_OGAME_PAGE_PARSING_RESULTS_TO_SESSION_STORAGE: boolean = false;
+
+    /* Flag to enable or disable verbose debug mode for detailed logging. */
+    public static readonly VERBOSE_DEBUG_MODE: boolean = true;
 }

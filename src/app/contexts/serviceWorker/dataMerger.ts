@@ -1,3 +1,5 @@
+import { DataChanges } from "../../dataMutator";
+import { GlobalConstants } from "../../globalConstants";
 import { Logger } from "../../logging/logger";
 import { Account } from "../../model/account";
 import { CalculatedData } from "../../model/calculatedData";
@@ -10,10 +12,23 @@ import { OgameApiDataParser } from "./ogameRequest/api/ogameApiDataParser";
 import { SaveManager } from "./saveManager";
 
 export class DataMerger {
-
     constructor(private readonly logger: Logger, private readonly saveManager: SaveManager, private readonly apiDataParser: OgameApiDataParser) { }
 
+    private SortByCoordinates<T extends { Coordinates: { Galaxy: number; System: number; Position: number } }>(items: T[]): T[] {
+        return [...items].sort((a, b) =>
+            a.Coordinates.Galaxy - b.Coordinates.Galaxy
+            || a.Coordinates.System - b.Coordinates.System
+            || a.Coordinates.Position - b.Coordinates.Position);
+    }
 
+    private KeepKnownNames<T extends { Id: number; Name?: string }>(items: T[], existing: T[] | undefined): T[] {
+        if (!existing?.length) return items;
+        const existingById = new Map(existing.map(e => [e.Id, e]));
+        for (const item of items) {
+            if (!item.Name) item.Name = existingById.get(item.Id)?.Name ?? item.Name;
+        }
+        return items;
+    }
 
     private MergePlanets(fromPageData: Planet[] | undefined, fromApi: Planet[] | undefined): Planet[] {
         if (!fromPageData || fromPageData.length === 0) return fromApi ?? [];// If no page data, return API data
@@ -76,17 +91,29 @@ export class DataMerger {
 
     private CreateAccount(extensionSessionData: ExtensionSessionData, extensionLocalData: ExtensionLocalData): Account {
 
+
+
         // Create a new Account object based on the existing local data or initialize it if not present
         const account = new Account(extensionLocalData.Account ?? {});
 
 
         if (extensionSessionData.PageData) {
             // Merge Player data
-            if (extensionSessionData.PageData.Player) account.Player = extensionSessionData.PageData.Player;
-            if (!account.Player.Class) account.Player.Class = this.apiDataParser.ParsePlayerClass(extensionSessionData.AccountInfo);
+            const player = extensionSessionData.PageData.Player;
+            if (player && !player.Class) player.Class = this.apiDataParser.ParsePlayerClass(extensionSessionData.AccountInfo);
+            if (player) {
+                if (GlobalConstants.VERBOSE_DEBUG_MODE) this.logger.debug(`Player data has changed for universe ${extensionSessionData.UniverseKey}`, DataChanges.FindFirstDifference(account.Player, player));
+                account.Player = player;
+            }
+
+
 
             // Merge Alliance data
-            if (extensionSessionData.PageData.Alliance) account.Alliance = extensionSessionData.PageData.Alliance;
+            const alliance = extensionSessionData.PageData.Alliance;
+            if (alliance) {
+                if (!alliance.Class && extensionSessionData.AccountInfo) alliance.Class = this.apiDataParser.ParseAllianceClass(extensionSessionData.AccountInfo);
+                account.Alliance = alliance;
+            }
 
             // Merge Officers data
             const officers = extensionSessionData.PageData.Officers ?? this.apiDataParser.ParseOfficers(extensionSessionData.AccountInfo);
@@ -95,26 +122,26 @@ export class DataMerger {
 
 
         if (extensionSessionData.AccountInfo) {
-            // Merge Alliance Class data if not already present
-            if (account.Alliance && !account.Alliance.Class) account.Alliance.Class = this.apiDataParser.ParseAllianceClass(extensionSessionData.AccountInfo);
-
             // Merge Planets data
-            const planets = this.MergePlanets(extensionSessionData.PageData?.Planets,
-                extensionSessionData.AccountInfo ? this.apiDataParser.ParsePlanets(extensionSessionData.AccountInfo) : account.Planets);
+            const planets = this.SortByCoordinates(this.KeepKnownNames(this.MergePlanets(extensionSessionData.PageData?.Planets, this.apiDataParser.ParsePlanets(extensionSessionData.AccountInfo)), account.Planets));
             if (planets) account.Planets = planets;
 
+
             // Merge Moons data
-            const moons = this.MergeMoons(extensionSessionData.PageData?.Moons,
-                extensionSessionData.AccountInfo ? this.apiDataParser.ParseMoons(extensionSessionData.AccountInfo) : account.Moons);
+            const moons = this.SortByCoordinates(this.KeepKnownNames(this.MergeMoons(extensionSessionData.PageData?.Moons, this.apiDataParser.ParseMoons(extensionSessionData.AccountInfo)), account.Moons));
             if (moons) account.Moons = moons;
+
 
             // Merge Buffs data
             const buffs = this.apiDataParser.ParseAccountBuffs(extensionSessionData.AccountInfo);
             if (buffs) account.Buffs = buffs;
 
+
+
             // Merge Researches data
             const researches = this.apiDataParser.ParseResearches(extensionSessionData.AccountInfo);
             if (researches) account.Researches = researches;
+
         }
 
         // Merge LifeformBonuses data if available
@@ -128,7 +155,6 @@ export class DataMerger {
             MaximumExpeditionSlots: dataCalculator.CalculateMaximumExpeditionSlots(account),
             MaximumFleetSlots: dataCalculator.CalculateMaximumFleetSlots(account),
         });
-
         account.CalculatedData = calculatedData;
 
         return account;
@@ -142,8 +168,12 @@ export class DataMerger {
             const account = this.CreateAccount(extensionSessionData, extensionLocalData);
             if (account) extensionLocalData.Account = account;
 
+
             const techsLocalizations = this.apiDataParser.ParseTechsLocalizations(extensionSessionData.LifeformBonuses);
-            if (techsLocalizations) extensionLocalData.LocalizationData.TechsLocalizations = techsLocalizations;
+            if (techsLocalizations) {
+                extensionLocalData.LocalizationData.TechsLocalizations = techsLocalizations;
+            }
+
 
             return extensionLocalData;
         });
