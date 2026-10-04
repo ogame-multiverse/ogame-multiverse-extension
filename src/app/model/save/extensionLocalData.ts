@@ -16,9 +16,6 @@ export class ExtensionLocalData {
 
     public Account: Account;
 
-    
-    public LastAccountInfoFetchDateISO: string | undefined;
-    public LastLifeformBonusesFetchDateISO: string | undefined;
 
     /* Localization data from page context and lifeform bonuses api */
     public LocalizationData: LocalizationData;
@@ -35,12 +32,9 @@ export class ExtensionLocalData {
         this.LastRefreshDate = data.LastRefreshDate;
 
         this.SidePanelOptions = new UniverseSidePanelOptions(data.SidePanelOptions || {});
-        this.LocalizationData = data.LocalizationData ? new LocalizationData(data.LocalizationData) : new LocalizationData({});
+        this.LocalizationData = new LocalizationData(data.LocalizationData ?? {});
 
-        this.Account = data.Account ? new Account(data.Account) : new Account({});
-
-        this.LastAccountInfoFetchDateISO = data.LastAccountInfoFetchDateISO;
-        this.LastLifeformBonusesFetchDateISO = data.LastLifeformBonusesFetchDateISO;
+        this.Account = new Account(data.Account ?? {});
 
         this.FlyingFleetEvents = data.FlyingFleetEvents ?? [];
     }

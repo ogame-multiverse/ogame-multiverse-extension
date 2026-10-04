@@ -83,8 +83,9 @@ export class ExtensionStorageService extends BaseExtensionStorageService {
    * @param value The value to save (must match type T).
    * @returns An empty Promise.
    */
-  public async Set<T>(area: StorageArea, key: string, value: T): Promise<void> {
-    this.logger.debug(`💾 About to save key '${key}' into ${area} storage`);
+    public async Set<T>(area: StorageArea, key: string, value: T): Promise<void> {
+        const sizeInBytes = BaseExtensionStorageService.GetByteSize(value);
+        this.logger.debug(`💾 About to save key '${key}' into ${area} storage (${sizeInBytes} bytes)`);
     try {
       await this.getArea(area).set({ [key]: value });
       this.logger.debug(`✅ Successfully saved key '${key}' to '${area}' storage`);

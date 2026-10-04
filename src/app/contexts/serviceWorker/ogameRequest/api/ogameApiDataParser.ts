@@ -32,16 +32,16 @@ const SPECIES_TO_LIFEFORM: Record<number, LifeformType> = {
     704: LifeformType.Kaelesh
 };
 
-export class ApiDataParser {
+export class OgameApiDataParser {
 
-    public ParseOfficers(accountInfo: any): Officers {
-        const rawOfficers = accountInfo?.officers ?? {};
+    public ParseOfficers(accountInfo: any): Officers | undefined {
+        if (!accountInfo?.officers) return undefined;
         return new Officers({
-            Admiral: rawOfficers.admiral ?? false,
-            Commander: rawOfficers.commander ?? false,
-            Engineer: rawOfficers.engineer ?? false,
-            Geologist: rawOfficers.geologist ?? false,
-            Technocrat: rawOfficers.technocrat ?? false,
+            Admiral: accountInfo.admiral ?? false,
+            Commander: accountInfo.commander ?? false,
+            Engineer: accountInfo.engineer ?? false,
+            Geologist: accountInfo.geologist ?? false,
+            Technocrat: accountInfo.technocrat ?? false,
         });
     }
 
@@ -52,12 +52,15 @@ export class ApiDataParser {
         return accountInfo?.allianceClassId in AllianceClass ? accountInfo.allianceClassId : AllianceClass.Unknown;
     }
 
-    public ParseResearches(accountInfo: any): Record<ResearchType, number> {
+    public ParseResearches(accountInfo: any): Record<ResearchType, number> | undefined {
+        if (!accountInfo?.researches) return undefined;
         return this.ToRecord<ResearchType>(ResearchType, accountInfo?.researches);
     }
 
-    public ParseAccountBuffs(accountInfo: any): Buff[] {
+    public ParseAccountBuffs(accountInfo: any): Buff[] | undefined {
+        if (!accountInfo?.planets) return undefined;
         const firstPlanet = Object.values<any>(accountInfo?.planets ?? {})[0];
+        if (!firstPlanet?.buffs) return undefined;
         const firstPlanetBuffs = (firstPlanet?.buffs ?? []).map((b: any) => this.ToBuff(b)) as Buff[];
         const accountScopeBuffs = firstPlanetBuffs.filter(x => x.Scope === BuffScope.Account);
         return accountScopeBuffs;
@@ -132,13 +135,22 @@ export class ApiDataParser {
         return new Coordinates(true, `${raw.galaxy}:${raw.system}:${raw.position}`);
     }
 
+    private ToPercentRatio(value: unknown): number {
+        if (typeof value === "number") return value / 100;
+        if (typeof value !== "string") return 0;
+        const match = /^(.*?)(?:[.,](\d{1,2}))?$/.exec(value.replace("%", "").trim());
+        if (!match) return 0;
+        const parsed = parseFloat(`${match[1].replace(/[.,\s]/g, "")}.${match[2] ?? "0"}`);
+        return isNaN(parsed) ? 0 : parsed / 100;
+    }
+
     private ToBuff(raw: any): Buff {
         const { scope, type, bonus } = this.buffTypeFromUuid(raw.itemUuid);
         return new Buff({
             Scope: scope,
             Type: type,
             Bonus: bonus,
-            ItenUiid: raw.itemUuid,
+            ItemUuid: raw.itemUuid,
             Name: raw.name,
             BuffEnd: raw.buffEnd ?? undefined
         });
@@ -165,8 +177,9 @@ export class ApiDataParser {
         return result;
     }
 
-    public ParseLifeformBonuses(lifeformBonuses: any): LifeformBonuses {
-        const rawData = lifeformBonuses?.data ?? {};
+    public ParseLifeformBonuses(lifeformBonuses: any): LifeformBonuses | undefined {
+        const rawData = lifeformBonuses?.data;
+        if (!rawData || typeof rawData !== 'object') return undefined;
 
         // 1. Species
         const species: Record<number, SpeciesInfo> = {};
@@ -261,9 +274,9 @@ export class ApiDataParser {
         // 7. Character Classes (601: Mineur, 602: Guerrier, 603: Explorateur)
         const classes = rawData.characterclasses ?? {};
 
-        const minerNode = classes['601'] ?? classes.collector ?? classes.miner ?? {};
-        const warriorNode = classes['602'] ?? classes.general ?? classes.warrior ?? {};
-        const explorerNode = classes['603'] ?? classes.discoverer ?? classes.explorer ?? {};
+        const minerNode = classes['601'] ?? {};
+        const warriorNode = classes['602'] ?? {};
+        const explorerNode = classes['603'] ?? {};
 
         const classBonus = new ClassBonus({
             MinerInfo: this.parseClassBonusInfo(minerNode),
@@ -314,35 +327,35 @@ export class ApiDataParser {
     private parseExplorerBonus(details: any[]): ExplorerClassBonus {
         const map = new Map<string, any>(details.map(d => [d.nameKey, d.withBonusValue]));
         return new ExplorerClassBonus({
-            research: map.get("LOCA_CHARACTER_CLASS_BONUS_RESEARCH_NAME"),
-            expedition: map.get("LOCA_CHARACTER_CLASS_BONUS_EXPEDITION_NAME"),
-            colonization: map.get("LOCA_CHARACTER_CLASS_BONUS_COLONIZATION_NAME"),
+            research: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_RESEARCH_NAME")),
+            expedition: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_EXPEDITION_NAME")),
+            colonization: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_COLONIZATION_NAME")),
             expeditionSlots: Number(map.get("LOCA_CHARACTER_CLASS_BONUS_EXPEDITION_SLOT_NAME") ?? 0),
-            enemyReduction: map.get("LOCA_CHARACTER_CLASS_BONUS_EXPEDITION_ENEMY_REDUCTION_NAME"),
-            phalanxRange: map.get("LOCA_CHARACTER_CLASS_BONUS_PHALANX_RANGE_NAME"),
-            plunderInactive: map.get("LOCA_CHARACTER_CLASS_BONUS_PLUNDER_INACTIVE_NAME")
+            enemyReduction: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_EXPEDITION_ENEMY_REDUCTION_NAME")),
+            phalanxRange: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_PHALANX_RANGE_NAME")),
+            plunderInactive: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_PLUNDER_INACTIVE_NAME"))
         });
     }
 
     private parseMinerBonus(details: any[]): MinerClassBonus {
         const map = new Map<string, any>(details.map(d => [d.nameKey, d.withBonusValue]));
         return new MinerClassBonus({
-            resourceProduction: map.get("LOCA_CHARACTER_CLASS_BONUS_RESOURCE_NAME"),
-            energyProduction: map.get("LOCA_CHARACTER_CLASS_BONUS_ENERGY_NAME"),
-            crawlerBonus: map.get("LOCA_CHARACTER_CLASS_BONUS_RESOURCE_BUGGY_NAME"),
-            transporterSpeed: map.get("LOCA_CHARACTER_CLASS_BONUS_TRADINGSHIP_SPEED_NAME"),
-            transporterCargo: map.get("LOCA_CHARACTER_CLASS_BONUS_TRADINGSHIP_CARGO_CAPACITY_NAME"),
-            maxCrawlerBonus: map.get("LOCA_CHARACTER_CLASS_BONUS_MAX_BUGGY_NAME")
+            resourceProduction: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_RESOURCE_NAME")),
+            energyProduction: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_ENERGY_NAME")),
+            crawlerBonus: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_RESOURCE_BUGGY_NAME")),
+            transporterSpeed: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_TRADINGSHIP_SPEED_NAME")),
+            transporterCargo: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_TRADINGSHIP_CARGO_CAPACITY_NAME")),
+            maxCrawlerBonus: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_MAX_BUGGY_NAME"))
         });
     }
 
     private parseWarriorBonus(details: any[]): WarriorClassBonus {
         const map = new Map<string, any>(details.map(d => [d.nameKey, d.withBonusValue]));
         return new WarriorClassBonus({
-            combatShipSpeed: map.get("LOCA_CHARACTER_CLASS_BONUS_COMBATSHIP_SPEED_NAME"),
-            recyclerSpeed: map.get("LOCA_CHARACTER_CLASS_BONUS_RECYCLER_SPEED_NAME"),
-            recyclerCargo: map.get("LOCA_CHARACTER_CLASS_BONUS_RECYCLING_CARGO_CAPACITY_NAME"),
-            fuelConsumption: map.get("LOCA_CHARACTER_CLASS_BONUS_FUEL_CONSUMPTION_NAME"),
+            combatShipSpeed: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_COMBATSHIP_SPEED_NAME")),
+            recyclerSpeed: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_RECYCLER_SPEED_NAME")),
+            recyclerCargo: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_RECYCLING_CARGO_CAPACITY_NAME")),
+            fuelConsumption: this.ToPercentRatio(map.get("LOCA_CHARACTER_CLASS_BONUS_FUEL_CONSUMPTION_NAME")),
             combatResearch: Number(map.get("LOCA_CHARACTER_CLASS_BONUS_COMBAT_RESEARCH_NAME") ?? 0),
             fleetSlots: Number(map.get("LOCA_CHARACTER_CLASS_BONUS_FLEET_SLOT_NAME") ?? 0),
             moonFields: Number(map.get("LOCA_CHARACTER_CLASS_BONUS_MOON_FIELD_NAME") ?? 0)

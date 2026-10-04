@@ -22,8 +22,7 @@ class DataCalculator {
 
         // Buffs that provide additional expedition slots
         const buffBonus = (account.Buffs ?? [])
-            .reduce((sum, buff) => buff.Type === BuffType.ExpeditionSLot ? sum + (buff.Bonus ?? 0) : sum, 0);
-
+            .reduce((sum, buff) => buff.Type === BuffType.ExpeditionSlot ? sum + (buff.Bonus ?? 0) : sum, 0);
         return baseSlots + classBonus + admiralBonus + buffBonus;
     }
 

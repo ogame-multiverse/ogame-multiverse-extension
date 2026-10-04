@@ -8,21 +8,21 @@ import { OgameQueriesOptions } from '../../messaging/data/ogameQueriesOptions';
 import { serviceWorkerProtocolRegistrar } from '../../messaging/serviceWorkerProtocol';
 import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
 import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
+import { ExtensionSessionData } from '../../model/save/extensionSessionData';
+import { SidePanelGlobalOptions } from '../../model/sidePanel/sidePanelGlobalOptions';
 import { SidePanelUniverseCounters } from '../../model/sidePanel/sidePanelUniverseCounters';
 import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
-import { SidePanelGlobalOptions } from '../../model/sidePanel/sidePanelGlobalOptions';
+import { DataMerger } from './dataMerger';
 import { ContextMenusManager } from './contextMenusManager';
 import { ExtensionStorageService } from './extensionStorageService';
 import { KeyboardCommandsManager } from './keyboardCommandsManager';
-import { ApiDataParser } from './ogameRequest/api/apiDataParser';
-import { OgameQuery, OgameQueryResult } from './ogameRequest/ogameQuery';
+import { OgameApiDataParser } from './ogameRequest/api/ogameApiDataParser';
+import { OgameQuery } from './ogameRequest/ogameQuery';
 import { SaveManager } from './saveManager';
 import { SidePanelManager } from './sidePanelManager';
 import { UniverseManager } from './universeManager';
 import { UniverseTabsManager } from './universeTabsManager';
-import { ApiDataMerger } from './ogameRequest/api/apiDataMerger';
-import { GlobalConstants } from '../../globalConstants';
 
 class ServiceWorkerContextApp {
     private readonly extensionStorageService: ExtensionStorageService;
@@ -34,8 +34,8 @@ class ServiceWorkerContextApp {
     private readonly keyboardCommandsManager: KeyboardCommandsManager
     private readonly logger = serviceWorkerLoggerFactory.CreateLogger("ServiceWorkerContextApp");
     private readonly ogameQuery: OgameQuery;
-    private readonly apiDataMerger: ApiDataMerger;
-    private readonly apiDataParser: ApiDataParser;
+    private readonly dataMerger: DataMerger;
+    private readonly apiDataParser: OgameApiDataParser;
 
     constructor() {
         this.extensionStorageService = new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService"));
@@ -47,9 +47,9 @@ class ServiceWorkerContextApp {
         this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), this.saveManager, this.universeTabsManager);
         this.contextMenusManager = new ContextMenusManager(serviceWorkerLoggerFactory.CreateLogger("ContextMenusManager"), this.sidePanelManager);
         this.keyboardCommandsManager = new KeyboardCommandsManager(serviceWorkerLoggerFactory.CreateLogger("KeyboardCommandsManager"), this.sidePanelManager);
-        this.ogameQuery = new OgameQuery(serviceWorkerLoggerFactory.CreateLogger("OgameQuery"));
-        this.apiDataParser = new ApiDataParser();
-        this.apiDataMerger = new ApiDataMerger(serviceWorkerLoggerFactory.CreateLogger("ApiDataMerger"), this.saveManager, this.apiDataParser);
+        this.ogameQuery = new OgameQuery(serviceWorkerLoggerFactory.CreateLogger("OgameQuery"), this.saveManager);
+        this.apiDataParser = new OgameApiDataParser();
+        this.dataMerger = new DataMerger(serviceWorkerLoggerFactory.CreateLogger("DataMerger"), this.saveManager, this.apiDataParser);
         this.RegisterServiceWorkerEvents();
 
         browser.runtime.onInstalled.addListener(this.OnExtensionInstallation);
@@ -74,25 +74,24 @@ class ServiceWorkerContextApp {
         serviceWorkerProtocolRegistrar.OnRunOgameQueries(this.logger, async (data: { universeKey: string, universeDomain: string, options: OgameQueriesOptions }) => {
             if (!data.universeDomain) return; // If universeDomain is not provided, we cannot run the queries, so we return early.
 
-            const extensionLocalData = await this.saveManager.GetExtensionLocalDataAsync(data.universeKey);
+
+            // Run the OGame queries and get the session data, which includes account info, lifeform bonuses, tech quantities, and import/export info.
+            const extensionSessionData = await this.ogameQuery.RunOgameQueriesAsync(data.universeKey, data.universeDomain, data.options);
+
+            // Merge the session data obtained from the OGame queries onto the local data stored in the service worker, ensuring that we have the most up-to-date information.
+            const extensionLocalData = await this.dataMerger.MergeOgameSessionDataOntoLocalDataAsync(extensionSessionData);
 
 
-            // Run the OGame queries based on the provided options and update the session data accordingly
-            var results = await this.ogameQuery.RunOgameQueriesAsync(extensionLocalData, data.universeDomain, data.options);
-
-
-            await this.apiDataMerger.MergeOgameQueryResultAsync(extensionLocalData, results);
 
             await this.universeManager.UpdateUniverseSaveAsync(data.universeKey, extensionLocalData);
         });
 
         // Handle the application of OGame DOM data
         serviceWorkerProtocolRegistrar.OnApplyDomData(this.logger, async (data: { universeKey: string, data: OgameDomData }) => {
-            if (GlobalConstants.STORE_OGAME_PAGE_PARSING_RESULTS_TO_SESSION_STORAGE) {
-                const universeSessionData = await this.saveManager.GetExtensionSessionDataAsync(data.universeKey);
-                universeSessionData.PageData = data.data;
-                await this.saveManager.SaveExtensionSessionDataAsync(data.universeKey, universeSessionData);
-            }
+            await this.saveManager.UpdateExtensionSessionDataAsync(data.universeKey, (sessionData: ExtensionSessionData) => {
+                sessionData.PageData = data.data;
+                return sessionData;
+            });
         });
 
         // Handle the registration of a new universe, including its key, name, domain, and last refresh date

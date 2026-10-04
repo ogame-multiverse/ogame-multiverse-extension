@@ -12,7 +12,7 @@ export enum BuffType {
     EnergyProduction,
     AllThreeResourcesProduction,
     FleetSlot,
-    ExpeditionSLot,
+    ExpeditionSlot,
     ExpeditionResources,
     PlanetSlot,
     MoonSlot,
@@ -20,14 +20,15 @@ export enum BuffType {
 export class Buff {
     public Scope: BuffScope;
     public Type: BuffType;
-    public ItenUiid: string;
+    public ItemUuid: string;
     public Name: string;
     public Bonus?: number;
+    /** Timestamp Unix en secondes (valeur brute de l'API), undefined = permanent */
     public BuffEnd?: number;
     constructor(data: Partial<Buff>) {
         this.Scope = data.Scope ?? BuffScope.Unknown;
         this.Type = data.Type ?? BuffType.Unknown;
-        this.ItenUiid = data.ItenUiid ?? '';
+        this.ItemUuid = data.ItemUuid ?? '';
         this.Name = data.Name ?? '';
         this.Bonus = data.Bonus;
         this.BuffEnd = data.BuffEnd;
@@ -38,14 +39,14 @@ export class Buff {
 /*
 (()=>{const d=s=>new DOMParser().parseFromString(s.replace(/<br\s*\/?>/gi,' '),'text/html').body.textContent.replace(/\s+/g,' ').trim();
 const n=(t,r)=>{const m=t.match(r);return m?parseFloat(m[1].replace(',','.')):0};
-const R=[[/énergie en plus/i,'Planet','EnergyProduction','p'],[/Booste\w+ de métal/i,'Planet','MetalProduction','p'],[/Booste\w+ de cristal/i,'Planet','CrystalProduction','p'],[/Booste\w+ de deutérium/i,'Planet','DeuteriumProduction','p'],[/Booste\w+ de ressources d.expédition/i,'Account','ExpeditionResources','p'],[/Booste\w+ de ressources \(/i,'Planet','AllThreeResourcesProduction','p'],[/Slots d.expédition/i,'Account','ExpeditionSLot','n'],[/Slots pour flottes/i,'Account','FleetSlot','n'],[/Extension planétaire/i,'Planet','PlanetSlot','n'],[/Extension lunaire/i,'Moon','MoonSlot','n']];
+const R=[[/énergie en plus/i,'Planet','EnergyProduction','p'],[/Booste\w+ de métal/i,'Planet','MetalProduction','p'],[/Booste\w+ de cristal/i,'Planet','CrystalProduction','p'],[/Booste\w+ de deutérium/i,'Planet','DeuteriumProduction','p'],[/Booste\w+ de ressources d.expédition/i,'Account','ExpeditionResources','p'],[/Booste\w+ de ressources \(/i,'Planet','AllThreeResourcesProduction','p'],[/Slots d.expédition/i,'Account','ExpeditionSlot','n'],[/Slots pour flottes/i,'Account','FleetSlot','n'],[/Extension planétaire/i,'Planet','PlanetSlot','n'],[/Extension lunaire/i,'Moon','MoonSlot','n']];
 const seen=new Map();
 document.querySelectorAll('.item_img_box .detail_button').forEach(a=>{const ref=a.getAttribute('ref');if(!ref||seen.has(ref))return;
 const t=d(a.getAttribute('data-tooltip-title')||a.title||'');const r=R.find(x=>x[0].test(t));if(!r)return;
 const bonus=r[3]=='p'?n(t,/\+\s?(\d+(?:[.,]\d+)?)\s?%/)/100:n(t,/\+\s?(\d+)/);
 const duration=({'1s':'7j','4s 2j':'30j','12s 6j':'90j'})[(t.match(/Durée : (.+?) Prix/)||[])[1]]||'permanent';
-seen.set(ref,{ItenUiid:ref,Name:t.split('|')[0].replace(/`/g,"'"),Scope:r[1],Type:r[2],Bonus:bonus,Duration:duration})});
-const L=[...seen.values()].sort((a,b)=>a.Type.localeCompare(b.Type)||a.Bonus-b.Bonus||a.Name.localeCompare(b.Name)||a.ItenUiid.localeCompare(b.ItenUiid));
+seen.set(ref,{ItemUuid:ref,Name:t.split('|')[0].replace(/`/g,"'"),Scope:r[1],Type:r[2],Bonus:bonus,Duration:duration})});
+const L=[...seen.values()].sort((a,b)=>a.Type.localeCompare(b.Type)||a.Bonus-b.Bonus||a.Name.localeCompare(b.Name)||a.ItemUuid.localeCompare(b.ItemUuid));
 const json=JSON.stringify(L,null,2);console.log(L.length+' items');copy(json);return L})()   
  
 */
@@ -108,15 +109,15 @@ export const BUFF_TYPES: Readonly<Record<string, { scope: BuffScope, type: BuffT
     '3876b353a7f99b28520a82df01cd86c31b4cbfe0': { scope: BuffScope.Account, type: BuffType.ExpeditionResources, bonus: 0.4 }, // Boosteur de ressources d'expédition (40 %) Bronze - 30j
     '505fa6275e34b816d5059e26632dcaa8c18bde9a': { scope: BuffScope.Account, type: BuffType.ExpeditionResources, bonus: 0.4 }, // Boosteur de ressources d'expédition (40 %) Bronze - 7j
     'b0f6477d68c9683170cb8d32be2df1177669c5a0': { scope: BuffScope.Account, type: BuffType.ExpeditionResources, bonus: 0.4 }, // Boosteur de ressources d'expédition (40 %) Bronze - 90j
-    '8c1f6c6849d1a5e4d9de6ae9bb1b861f6f7b5d4d': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 1 }, // Slots d'expédition bronze - 30j
-    'a5784c685c0e1e6111d9c18aeaf80af2e0777ab4': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 1 }, // Slots d'expédition bronze - 90j
-    'e54ecc0416d6e96b4165f24238b03a1b32c1df47': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 1 }, // Slots d'expédition bronze - 7j
-    '31a504be1195149a3bef05b9cc6e3af185d24ef2': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 2 }, // Slots d'expédition argent - 30j
-    '4f6f941bbf2a8527b0424b3ad11014502d8f4fb8': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 2 }, // Slots d'expédition argent - 90j
-    'b2bc9789df7c1ef5e058f72d61380b696dde54e8': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 2 }, // Slots d'expédition argent - 7j
-    '540410439514ac09363c5c47cf47117a8b8ae79a': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 3 }, // Slots d'expédition or - 90j
-    '9336b9f29d36e3f69b0619c9523d8bec5e09ab8e': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 3 }, // Slots d'expédition or - 7j
-    'fd7d35e73d0e09e83e30812b738ef966ea9ef790': { scope: BuffScope.Account, type: BuffType.ExpeditionSLot, bonus: 3 }, // Slots d'expédition or - 30j
+    '8c1f6c6849d1a5e4d9de6ae9bb1b861f6f7b5d4d': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 1 }, // Slots d'expédition bronze - 30j
+    'a5784c685c0e1e6111d9c18aeaf80af2e0777ab4': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 1 }, // Slots d'expédition bronze - 90j
+    'e54ecc0416d6e96b4165f24238b03a1b32c1df47': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 1 }, // Slots d'expédition bronze - 7j
+    '31a504be1195149a3bef05b9cc6e3af185d24ef2': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 2 }, // Slots d'expédition argent - 30j
+    '4f6f941bbf2a8527b0424b3ad11014502d8f4fb8': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 2 }, // Slots d'expédition argent - 90j
+    'b2bc9789df7c1ef5e058f72d61380b696dde54e8': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 2 }, // Slots d'expédition argent - 7j
+    '540410439514ac09363c5c47cf47117a8b8ae79a': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 3 }, // Slots d'expédition or - 90j
+    '9336b9f29d36e3f69b0619c9523d8bec5e09ab8e': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 3 }, // Slots d'expédition or - 7j
+    'fd7d35e73d0e09e83e30812b738ef966ea9ef790': { scope: BuffScope.Account, type: BuffType.ExpeditionSlot, bonus: 3 }, // Slots d'expédition or - 30j
     '0684c6a5a42acbb3cd134913d421fc28dae6b90d': { scope: BuffScope.Account, type: BuffType.FleetSlot, bonus: 2 }, // Slots pour flottes bronze - 7j
     '94a28491b6fd85003f1cb151e88dde106f1d7596': { scope: BuffScope.Account, type: BuffType.FleetSlot, bonus: 2 }, // Slots pour flottes bronze - 30j
     'bb47add58876240199a18ddacc2db07789be1934': { scope: BuffScope.Account, type: BuffType.FleetSlot, bonus: 2 }, // Slots pour flottes bronze - 90j

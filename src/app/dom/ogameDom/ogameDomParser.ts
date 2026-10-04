@@ -3,20 +3,20 @@ import $ from 'jquery';
 import { LocalizationStrings } from '../../../types/LocalizationStrings';
 // import { DateUtils } from '../../dateUtils';
 import { Logger } from '../../logging/logger';
-// import { Alliance } from '../../model/alliance';
+import { Alliance } from '../../model/alliance';
 import { Coordinates } from '../../model/coordinates';
 // import { LifeformType } from '../../model/enums/lifeformType';
 import { MissionType } from '../../model/enums/missionType';
-// import { PlayerClass } from '../../model/enums/playerClass';
+import { PlayerClass } from '../../model/enums/playerClass';
 import { PositionType } from '../../model/enums/positionType';
 // import { StationBuildingTypes, SuppliesBuildingTypes, TechGroup } from '../../model/enums/techGroup';
 import { ShipType } from '../../model/enums/techTypes';
 import { Fleet } from '../../model/fleet';
 import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
 import { Moon } from '../../model/moon';
-// import { Officers } from '../../model/officers';
+import { Officers } from '../../model/officers';
 import { Planet } from '../../model/planet';
-// import { Player } from '../../model/player';
+import { Player } from '../../model/player';
 import { Position } from '../../model/position';
 // import { QueuedTech } from '../../model/queuedTech';
 import { Resources } from '../../model/resources';
@@ -26,6 +26,7 @@ import { NumberUtils } from '../../numberUtils';
 import { OgameDomData } from './ogameDomData';
 import { OgameMetadatas } from './ogameMetadatas';
 import { ImperialProperty } from '../../model/imperialProperty';
+import { DateUtils } from '../../dateUtils';
 
 export class OgameDomParser {
 
@@ -55,26 +56,26 @@ export class OgameDomParser {
 
         // const hasLifeforms = $('.lifeform').length > 0;
 
-        // const { player, alliance } = this.GetPlayerAndAlliance(logger);
+        const { player, alliance } = this.GetPlayerAndAlliance(logger);
         const { planets, moons } = this.GetPlanetListData(logger);
 
         // const { energyProduction, availableEnergy } = this.AnalyseEnergyProduction(logger);
 
         const domData = new OgameDomData({
             OGameVersion: OgameMetadatas.OGameVersion(),
-            OGameTimestamp: OgameMetadatas.OGameTimestamp(),
             // HasLifeforms: hasLifeforms,
             // Position: this.GetPosition(logger),
-            // Player: player,
-            // Alliance: alliance,
+            Player: player,
+            Alliance: alliance,
             Planets: planets,
             Moons: moons,
             // QueuedTechs: this.AnalyseQueuedTechs(logger),
-            // Officers: this.AnalyseOfficers(logger),
+            Officers: this.AnalyseOfficers(logger),
             // LifeformType: this.AnalyseLifeformType(logger),
             // Resources: this.AnalyseResources(logger),
             // AvailableEnergy: availableEnergy,
             // EnergyProduction: energyProduction
+            PaseDateISO: DateUtils.NowAsIsoString(),
         });
 
         // Store the analysis result in the instance for later retrieval, and merge with any existing analysis result to preserve previous data.
@@ -647,7 +648,7 @@ export class OgameDomParser {
         return { energyProduction, availableEnergy };
     }
     */
-    /*
+    
     private AnalyseOfficers(logger: Logger): Officers {
         logger.debug('Parsing officers data');
         const domOfficers = $('#officers');
@@ -668,8 +669,8 @@ export class OgameDomParser {
 
         return officers;
     }
-    */
-   /*
+   
+   
     private GetPlayerAndAlliance(logger: Logger): { player: Player; alliance: Alliance | undefined } {
         logger.debug('Parsing alliance data');
         const allianceId = OgameMetadatas.AllianceId();
@@ -700,7 +701,7 @@ export class OgameDomParser {
 
         return { player, alliance };
     }
-*/
+
 
     private GetPlanetListData(logger: Logger): { planets: Planet[]; moons: Moon[] } {
         const planets: Planet[] = [];
