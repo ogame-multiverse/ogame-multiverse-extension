@@ -1,6 +1,7 @@
 import browser from 'webextension-polyfill';
 import { LocalizationStrings } from '../../../types/LocalizationStrings';
 import { browserInfo } from '../../dom/browserInfos';
+import { DataChanges } from '../../dataMutator';
 import { OgameDomData } from '../../dom/ogameDom/ogameDomData';
 import { Localizator } from '../../localization/localizator';
 import { serviceWorkerLoggerFactory } from '../../logging/loggerFactory';
@@ -91,19 +92,25 @@ class ServiceWorkerContextApp {
 
 
             // Run the OGame queries and get the session data, which includes account info, lifeform bonuses, tech quantities, and import/export info.
-            const extensionSessionData = await this.ogameQuery.RunOgameQueriesAsync(data.universeKey, data.universeDomain, data.options);
+            const { sessionData, hasFetchedNewData } = await this.ogameQuery.RunOgameQueriesWithStatusAsync(data.universeKey, data.universeDomain, data.options);
 
-            // Merge the session data obtained from the OGame queries onto the local data stored in the service worker, ensuring that we have the most up-to-date information.
+            // Merge only when new API data has just been fetched. The page data is merged in OnApplyDomData, as soon as it is up to date.
             // The universe cache is refreshed by SaveManager.OnLocalDataSaved, in the exact order the writes hit the storage.
-            await this.dataMerger.MergeOgameSessionDataOntoLocalDataAsync(extensionSessionData);
+            if (hasFetchedNewData) await this.dataMerger.MergeOgameSessionDataOntoLocalDataAsync(sessionData);
         });
 
         // Handle the application of OGame DOM data
         serviceWorkerProtocolRegistrar.OnApplyDomData(this.logger, async (data: { universeKey: string, data: OgameDomData }) => {
-            await this.saveManager.UpdateExtensionSessionDataAsync(data.universeKey, (sessionData: ExtensionSessionData) => {
-                sessionData.PageData = data.data;
-                return sessionData;
+            let hasPageDataChanged = false;
+            const sessionData = await this.saveManager.UpdateExtensionSessionDataAsync(data.universeKey, (currentSessionData: ExtensionSessionData) => {
+                if (JSON.stringify(currentSessionData.PageData) === JSON.stringify(data.data)) return DataChanges.None;
+                hasPageDataChanged = true;
+                currentSessionData.PageData = data.data;
+                return currentSessionData;
             });
+
+            // Merge the freshly applied page data onto the local data (account, planets, moons, officers...).
+            if (hasPageDataChanged) await this.dataMerger.MergeOgameSessionDataOntoLocalDataAsync(sessionData);
         });
 
         // Handle the registration of a new universe, including its key, name, domain, and last refresh date

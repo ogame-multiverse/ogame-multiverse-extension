@@ -282,10 +282,13 @@ export class SaveManager {
 
         const layout = await this.GetUniverseLayoutConfigAsync();
 
+        let hasChanged = false;
+
         const inFavList = layout.favoriteListOrder.includes(key);
         const inOtherList = layout.listOrder.includes(key);
         if (!inFavList && !inOtherList) {
             layout.listOrder.push(key);
+            hasChanged = true;
         }
 
         const inFavGrid = layout.favoriteGridOrder.some((col) => col.includes(key));
@@ -296,8 +299,10 @@ export class SaveManager {
             } else {
                 layout.gridOrder[layout.gridOrder.length - 1].push(key);
             }
+            hasChanged = true;
         }
 
+        if (!hasChanged) return;
         await this.SaveUniverseLayoutConfigCoreAsync(layout);
     }
 

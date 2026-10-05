@@ -159,17 +159,22 @@ export class DataMerger {
 
     public async MergeOgameSessionDataOntoLocalDataAsync(extensionSessionData: ExtensionSessionData): Promise<ExtensionLocalData> {
         const updatedExtensionLocalData = await this.saveManager.UpdateExtensionLocalDataAsync(extensionSessionData.UniverseKey, (extensionLocalData) => {
-            this.logger.debug(`Merging session data onto local data for universe ${extensionSessionData.UniverseKey}`, { extensionSessionData, extensionLocalData });
+            this.logger.debug(`Merging session data onto local data for universe ${extensionSessionData.UniverseKey}`);
+
+            const previousAccountJson = JSON.stringify(extensionLocalData.Account);
+            const previousTechsLocalizationsJson = JSON.stringify(extensionLocalData.LocalizationData?.TechsLocalizations);
 
             const account = this.CreateAccount(extensionSessionData, extensionLocalData);
-            if (account) extensionLocalData.Account = account;
-
-
             const techsLocalizations = this.apiDataParser.ParseTechsLocalizations(extensionSessionData.LifeformBonuses);
+
+            const isAccountUnchanged = !account || JSON.stringify(account) === previousAccountJson;
+            const isTechsLocalizationsUnchanged = !techsLocalizations || JSON.stringify(techsLocalizations) === previousTechsLocalizationsJson;
+            if (isAccountUnchanged && isTechsLocalizationsUnchanged) return DataChanges.None;
+
+            if (account) extensionLocalData.Account = account;
             if (techsLocalizations) {
                 extensionLocalData.LocalizationData.TechsLocalizations = techsLocalizations;
             }
-
 
             return extensionLocalData;
         });

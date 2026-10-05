@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill';
 import { Debouncer } from '../../async/debouncer';
+import { GlobalConstants } from '../../globalConstants';
 import { Logger } from '../../logging/logger';
 
 const REFRESH_DEBOUNCE_KEY = 'local-window-tabs-refresh';
@@ -12,7 +13,7 @@ export class LocalWindowTabsTracker {
 
     private isRefreshing = false;
     private isRefreshQueued = false;
-    private lastSnapshot = '';
+    private lastSnapshot: string | undefined;
     private currentWindowId?: number;
     private readonly localTabIds = new Set<number>();
     private readonly activeLocalTabIds = new Set<number>();
@@ -106,6 +107,10 @@ export class LocalWindowTabsTracker {
         }
     }
 
+    private static IsOgameTab(tab: browser.Tabs.Tab): boolean {
+        return LocalWindowTabsTracker.ToHost(tab.url).endsWith(`.${GlobalConstants.OGAME_DOMAIN}`);
+    }
+
     private async InitCurrentWindowIdAsync(): Promise<void> {
         try {
             const win = await browser.windows.getCurrent();
@@ -135,7 +140,7 @@ export class LocalWindowTabsTracker {
             }
             if (this.currentWindowId === undefined) return;
 
-            const tabs = await browser.tabs.query({ windowId: this.currentWindowId });
+            const tabs = (await browser.tabs.query({ windowId: this.currentWindowId })).filter((tab) => LocalWindowTabsTracker.IsOgameTab(tab));
 
             const snapshot = tabs
                 .map((tab) => tab.active ? `${tab.id}|1|${LocalWindowTabsTracker.ToHost(tab.url)}` : `${tab.id}|0`)

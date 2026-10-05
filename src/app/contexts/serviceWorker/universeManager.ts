@@ -5,6 +5,7 @@ import { SidePanelUniverseStatus } from "../../model/sidePanel/sidePanelUniverse
 import { SidePanelUniversesSections } from "../../model/sidePanel/sidePanelUniversesSections";
 import { UniverseLayoutConfig } from "../../model/sidePanel/universeLayoutConfig";
 import { UniverseSidePanelOptions } from "../../model/sidePanel/universeSidePanelOptions";
+import { DataChanges } from "../../dataMutator";
 import { UniverseDataNormalizer } from "../../universeDataNormalizer";
 import { SaveManager } from "./saveManager";
 import { UniverseTabsManager } from "./universeTabsManager";
@@ -104,6 +105,7 @@ export class UniverseManager {
     public async UpdateUniverseStatusAsync(universeKey: string, universeCounters: SidePanelUniverseCounters, flyingFleetEvents: FlyingFleetEvent[]): Promise<void> {
         await this.InitializeAsync();
         const localSave = await this.saveManager.UpdateExtensionLocalDataAsync(universeKey, (d) => {
+            if (JSON.stringify(d.FlyingFleetEvents ?? []) === JSON.stringify(flyingFleetEvents ?? [])) return DataChanges.None;
             d.FlyingFleetEvents = flyingFleetEvents;
             return d;
         });
