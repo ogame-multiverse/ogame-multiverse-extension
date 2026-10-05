@@ -10,6 +10,7 @@ export enum MissionType {
     Harvest = 8,
     MoonDestruction = 9,
     MissileAttack = 10,
+    AcsAnomalyEncounter = 13,
     AnomalyEncounter = 14,
     Expedition = 15,
     Exploration = 18,

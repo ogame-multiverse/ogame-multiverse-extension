@@ -156,6 +156,8 @@ export class OgameDomParser {
 
         const events: FlyingFleetEvent[] = [];
         const hasRecallByEventId = new Map<number, boolean>();
+        // Union id (grouped attack / grouped anomaly encounter) of each parsed row, used to merge the going flights.
+        const unionIdByEvent = new Map<FlyingFleetEvent, string>();
 
         rows.forEach((row) => {
             const $el = $(row as any);
@@ -169,10 +171,32 @@ export class OgameDomParser {
             const returnFlight = $el.attr('data-return-flight') === 'true';
             let missionType = parseInt($el.attr('data-mission-type') || '0', 10);
 
-            // Rows of a grouped attack keep data-mission-type="1" (Attack),
-            // so we reclassify them as AcsAttack.
-            if (missionType === MissionType.Attack && OgameDomParser.BelongsToAllianceAttack($el, allianceAttackUnionIds)) {
-                missionType = MissionType.AcsAttack;
+            const belongsToUnion = OgameDomParser.BelongsToAllianceAttack($el, allianceAttackUnionIds);
+
+            // Only the going flights can be grouped; return flights are never grouped.
+            if (!returnFlight) {
+                // Rows of a grouped attack keep data-mission-type="1" (Attack),
+                // so we reclassify them as AcsAttack.
+                if (missionType === MissionType.Attack && belongsToUnion) {
+                    missionType = MissionType.AcsAttack;
+                }
+                // Rows of a grouped anomaly encounter: the first fleet is 14 (AnomalyEncounter), the following
+                // ones are 13, all flagged with the `acsAnomalyIcon` icon.
+                else if (OgameDomParser.IsAcsAnomalyEncounterRow($el, missionType, belongsToUnion)) {
+                    missionType = MissionType.AcsAnomalyEncounter;
+                }
+            }
+            else {
+                // A return flight is never grouped: OGame may keep the grouped code on it (2 = AcsAttack),
+                // so we always bring it back to the plain mission.
+                if (missionType === MissionType.AcsAttack) {
+                    missionType = MissionType.Attack;
+                }
+                // The return flight of a fleet of a grouped anomaly encounter may carry the follower code (13):
+                // it is a plain AnomalyEncounter return.
+                else if (missionType === MissionType.AcsAnomalyEncounter && $el.find('.acsAnomalyIcon').length > 0) {
+                    missionType = MissionType.AnomalyEncounter;
+                }
             }
 
             const arrivalSec = Number($el.attr('data-arrival-time') || '0');
@@ -201,28 +225,34 @@ export class OgameDomParser {
 
             const isGhost = OgameDomParser.IsGhostEvent(missionType, isOwnFleet, returnFlight, origin, destination, parsed.fleet, parsed.cargo);
 
-            events.push(
-                new FlyingFleetEvent({
-                    Id: id,
-                    IsReturn: returnFlight,
-                    IsOwnFleet: isOwnFleet,
-                    MissionType: missionType,
-                    ArrivalTime: arrival,
-                    FleetCount: fleetCount,
-                    Origin: origin,
-                    Destination: destination,
-                    Fleet: parsed.fleet,
-                    Cargo: parsed.cargo,
-                    IsGhost: isGhost,
-                })
-            );
+            const flyingEvent = new FlyingFleetEvent({
+                Id: id,
+                IsReturn: returnFlight,
+                IsOwnFleet: isOwnFleet,
+                MissionType: missionType,
+                ArrivalTime: arrival,
+                FleetCount: fleetCount,
+                Origin: origin,
+                Destination: destination,
+                Fleet: parsed.fleet,
+                Cargo: parsed.cargo,
+                IsGhost: isGhost,
+            });
+            events.push(flyingEvent);
+
+            const unionId = OgameDomParser.GetUnionId($el);
+            if (unionId !== undefined) unionIdByEvent.set(flyingEvent, unionId);
         });
 
-        this.CorrelateFleetEvents(events, hasRecallByEventId);
+        // Going flights of a grouped attack / grouped anomaly encounter are a single fleet: merge them.
+        // Return flights are left untouched (one event per returning fleet).
+        const mergedEvents = OgameDomParser.MergeGroupedGoingEvents(events, unionIdByEvent, hasRecallByEventId);
+
+        this.CorrelateFleetEvents(mergedEvents, hasRecallByEventId);
 
         const result = removeFinished
-            ? events.filter((e) => !e.ArrivalTime || e.ArrivalTime > Date.now())
-            : events;
+            ? mergedEvents.filter((e) => !e.ArrivalTime || e.ArrivalTime > Date.now())
+            : mergedEvents;
         logger.debug(`Found ${result.length} flight events (removeFinished=${removeFinished})`);
 
         return result;
@@ -436,8 +466,14 @@ export class OgameDomParser {
         const goings = events.filter((e) => !e.IsReturn && e.Id !== undefined && e.ArrivalTime !== undefined);
         const returns = events.filter((e) => e.IsReturn && e.Id !== undefined && e.ArrivalTime !== undefined);
 
+        // A grouped going flight (AcsAttack / AcsAnomalyEncounter) comes back as a plain Attack / AnomalyEncounter.
+        const baseMission = (m: MissionType): MissionType =>
+            m === MissionType.AcsAttack ? MissionType.Attack
+                : m === MissionType.AcsAnomalyEncounter ? MissionType.AnomalyEncounter
+                    : m;
+
         const isSamePath = (goEvent: FlyingFleetEvent, returnEvent: FlyingFleetEvent): boolean => {
-            if (returnEvent.MissionType !== goEvent.MissionType || !returnEvent.ArrivalTime || !goEvent.ArrivalTime) return false;
+            if (baseMission(returnEvent.MissionType) !== baseMission(goEvent.MissionType) || !returnEvent.ArrivalTime || !goEvent.ArrivalTime) return false;
             if (returnEvent.ArrivalTime <= goEvent.ArrivalTime || goEvent.Id === undefined || returnEvent.Id === undefined || returnEvent.Id <= goEvent.Id) return false;
 
             const swapped = Position.AreSame(returnEvent.Origin, goEvent.Destination) && Position.AreSame(returnEvent.Destination, goEvent.Origin);
@@ -539,6 +575,114 @@ export class OgameDomParser {
         });
 
         return unionIds;
+    }
+
+    /** Extracts the union id (`unionXXX` class) of a fleet row, if it belongs to a group. */
+    private static GetUnionId($el: JQuery<HTMLElement>): string | undefined {
+        for (const cls of ($el.attr('class') || '').split(/\s+/)) {
+            const match = cls.match(/^union(\d+)$/);
+            if (match) return match[1];
+        }
+        return undefined;
+    }
+
+    /**
+     * Merges the going events of each grouped attack (AcsAttack) / grouped anomaly encounter
+     * (AcsAnomalyEncounter) into a single event: ships and cargo are summed, fleet count is summed.
+     * The merged event keeps the id, times and positions of the first fleet of the group.
+     * Return events and ungrouped events are returned as is.
+     */
+    private static MergeGroupedGoingEvents(
+        events: FlyingFleetEvent[],
+        unionIdByEvent: Map<FlyingFleetEvent, string>,
+        hasRecallByEventId: Map<number, boolean>
+    ): FlyingFleetEvent[] {
+        const isMergeable = (e: FlyingFleetEvent): boolean =>
+            !e.IsReturn
+            && unionIdByEvent.has(e)
+            && (e.MissionType === MissionType.AcsAttack || e.MissionType === MissionType.AcsAnomalyEncounter);
+        const groupKey = (e: FlyingFleetEvent): string => `${unionIdByEvent.get(e)}|${e.MissionType}`;
+
+        const groups = new Map<string, FlyingFleetEvent[]>();
+        for (const e of events) {
+            if (!isMergeable(e)) continue;
+            const key = groupKey(e);
+            const group = groups.get(key);
+            if (group) group.push(e);
+            else groups.set(key, [e]);
+        }
+
+        const result: FlyingFleetEvent[] = [];
+        for (const e of events) {
+            if (!isMergeable(e)) {
+                result.push(e);
+                continue;
+            }
+
+            const group = groups.get(groupKey(e))!;
+            if (group[0] !== e) continue; // already represented by the first event of its group
+            result.push(group.length === 1 ? e : OgameDomParser.MergeEvents(group, hasRecallByEventId));
+        }
+        return result;
+    }
+
+    private static MergeEvents(group: FlyingFleetEvent[], hasRecallByEventId: Map<number, boolean>): FlyingFleetEvent {
+        const first = group[0];
+
+        let ships: any;
+        let cargo: Resources | undefined;
+        let fleetCount: number | undefined;
+
+        for (const e of group) {
+            if (e.Fleet?.Ships) {
+                ships ??= Tech.DefaultFleet();
+                for (const [shipId, count] of Object.entries(e.Fleet.Ships)) {
+                    const n = Number(count);
+                    if (Number.isFinite(n) && n > 0) ships[shipId] = (ships[shipId] ?? 0) + n;
+                }
+            }
+
+            if (e.Cargo) {
+                cargo ??= new Resources({});
+                cargo.Metal = (cargo.Metal ?? 0) + (e.Cargo.Metal ?? 0);
+                cargo.Crystal = (cargo.Crystal ?? 0) + (e.Cargo.Crystal ?? 0);
+                cargo.Deuterium = (cargo.Deuterium ?? 0) + (e.Cargo.Deuterium ?? 0);
+            }
+
+            if (e.FleetCount !== undefined) fleetCount = (fleetCount ?? 0) + e.FleetCount;
+        }
+
+        // The recall of any member of the group must remain detectable through the merged event id.
+        if (first.Id !== undefined) {
+            hasRecallByEventId.set(first.Id, group.some((e) => e.Id !== undefined && hasRecallByEventId.get(e.Id) === true));
+        }
+
+        return new FlyingFleetEvent({
+            Id: first.Id,
+            IsReturn: first.IsReturn,
+            IsOwnFleet: first.IsOwnFleet,
+            MissionType: first.MissionType,
+            ArrivalTime: first.ArrivalTime,
+            FleetCount: fleetCount,
+            Origin: first.Origin,
+            Destination: first.Destination,
+            Fleet: ships ? new Fleet({ Ships: ships }) : undefined,
+            Cargo: cargo,
+            IsGhost: first.IsGhost,
+        });
+    }
+
+    /**
+     * Indicates whether a going fleet row is part of a grouped anomaly encounter.
+     * The row must carry a mission code of the anomaly family (14, or 13 for the following fleets) and
+     * either belong to a `unionXXX` group or display the `acsAnomalyIcon` icon.
+     */
+    private static IsAcsAnomalyEncounterRow($el: JQuery<HTMLElement>, rawMissionType: number, belongsToUnion: boolean): boolean {
+        const isAnomalyFamily = rawMissionType === MissionType.AnomalyEncounter
+            || rawMissionType === MissionType.AcsAnomalyEncounter;
+        if (!isAnomalyFamily) return false;
+
+        return belongsToUnion || $el.find('.acsAnomalyIcon').length > 0;
     }
 
     /**
@@ -648,7 +792,7 @@ export class OgameDomParser {
         return { energyProduction, availableEnergy };
     }
     */
-    
+
     private AnalyseOfficers(logger: Logger): Officers {
         logger.debug('Parsing officers data');
         const domOfficers = $('#officers');
@@ -669,8 +813,8 @@ export class OgameDomParser {
 
         return officers;
     }
-   
-   
+
+
     private GetPlayerAndAlliance(logger: Logger): { player: Player; alliance: Alliance | undefined } {
         logger.debug('Parsing alliance data');
         const allianceId = OgameMetadatas.AllianceId();

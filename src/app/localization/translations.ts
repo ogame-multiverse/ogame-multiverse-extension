@@ -329,6 +329,14 @@ export const Localizations = [
         tr: 'Anomali Karşılaşması',
         br: 'Encontro de Anomalia',
     }),
+    new I18nValue('AcsAnomalyEncounter', {
+        en: 'ACS Anomaly Encounter',
+        fr: 'Rencontre groupée d’anomalie',
+        es: 'Encuentro de anomalía ACS',
+        de: 'ACS-Anomaliebegegnung',
+        tr: 'ACS Anomali Karşılaşması',
+        br: 'Encontro de Anomalia ACS',
+    }),
     new I18nValue('AnomalyRewardDelivery', {
         en: 'Reward Delivery',
         fr: 'Livraison de récompense',
