@@ -32,10 +32,9 @@ export class DataMerger {
 
     private MergePlanets(fromPageData: Planet[] | undefined, fromApi: Planet[] | undefined): Planet[] {
         if (!fromPageData || fromPageData.length === 0) return fromApi ?? [];// If no page data, return API data
-        else if (!fromApi || fromApi.length === 0) return fromPageData ?? [];// If no API data, return page data
+        else if (!fromApi || fromApi.length === 0) return fromPageData;// If no API data, return page data
 
         const apiById = new Map<number, Planet>(fromApi.map(p => [p.Id, p]));
-        const localIds = new Set<number>();
 
         const merged: Planet[] = [];
         for (const planetFromPage of fromPageData) {
@@ -56,17 +55,15 @@ export class DataMerger {
                 planetFromPage.LifeformResearch = planetFromApi.LifeformResearch;
             }
             merged.push(planetFromPage);
-            localIds.add(planetFromPage.Id);
         }
 
         return merged;
     }
     private MergeMoons(fromPageData: Moon[] | undefined, fromApi: Moon[] | undefined): Moon[] {
         if (!fromPageData || fromPageData.length === 0) return fromApi ?? [];// If no page data, return API data
-        else if (!fromApi || fromApi.length === 0) return fromPageData ?? [];// If no API data, return page data
+        else if (!fromApi || fromApi.length === 0) return fromPageData;// If no API data, return page data
 
         const apiById = new Map<number, Moon>(fromApi.map(p => [p.Id, p]));
-        const localIds = new Set<number>();
 
         const merged: Moon[] = [];
         for (const moonFromPage of fromPageData) {
@@ -83,7 +80,6 @@ export class DataMerger {
                 moonFromPage.Buffs = moonFromApi.Buffs;
             }
             merged.push(moonFromPage);
-            localIds.add(moonFromPage.Id);
         }
 
         return merged;
@@ -163,17 +159,22 @@ export class DataMerger {
 
     public async MergeOgameSessionDataOntoLocalDataAsync(extensionSessionData: ExtensionSessionData): Promise<ExtensionLocalData> {
         const updatedExtensionLocalData = await this.saveManager.UpdateExtensionLocalDataAsync(extensionSessionData.UniverseKey, (extensionLocalData) => {
-            this.logger.debug(`Merging session data onto local data for universe ${extensionSessionData.UniverseKey}`, { extensionSessionData, extensionLocalData });
+            this.logger.debug(`Merging session data onto local data for universe ${extensionSessionData.UniverseKey}`);
+
+            const previousAccountJson = JSON.stringify(extensionLocalData.Account);
+            const previousTechsLocalizationsJson = JSON.stringify(extensionLocalData.LocalizationData?.TechsLocalizations);
 
             const account = this.CreateAccount(extensionSessionData, extensionLocalData);
-            if (account) extensionLocalData.Account = account;
-
-
             const techsLocalizations = this.apiDataParser.ParseTechsLocalizations(extensionSessionData.LifeformBonuses);
+
+            const isAccountUnchanged = !account || JSON.stringify(account) === previousAccountJson;
+            const isTechsLocalizationsUnchanged = !techsLocalizations || JSON.stringify(techsLocalizations) === previousTechsLocalizationsJson;
+            if (isAccountUnchanged && isTechsLocalizationsUnchanged) return DataChanges.None;
+
+            if (account) extensionLocalData.Account = account;
             if (techsLocalizations) {
                 extensionLocalData.LocalizationData.TechsLocalizations = techsLocalizations;
             }
-
 
             return extensionLocalData;
         });

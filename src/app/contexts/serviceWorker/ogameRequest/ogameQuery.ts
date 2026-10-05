@@ -17,6 +17,15 @@ export class OgameQuery {
         options: OgameQueriesOptions,
         abortSignal: AbortSignal = new AbortController().signal
     ): Promise<ExtensionSessionData> {
+        return (await this.RunOgameQueriesWithStatusAsync(universeKey, universeDomain, options, abortSignal)).sessionData;
+    }
+
+    public async RunOgameQueriesWithStatusAsync(
+        universeKey: string,
+        universeDomain: string,
+        options: OgameQueriesOptions,
+        abortSignal: AbortSignal = new AbortController().signal
+    ): Promise<{ sessionData: ExtensionSessionData; hasFetchedNewData: boolean }> {
         this.logger.debug(`Running Ogame queries for universe ${universeKey} with options:`, options);
 
         const extensionSessionData = await this.saveManager.GetExtensionSessionDataAsync(universeKey);
@@ -56,7 +65,7 @@ export class OgameQuery {
         }
 
         if (OgameQueryResultValidator.HasAnyDataFetched(results)) {
-            return await this.saveManager.UpdateExtensionSessionDataAsync(universeKey, (sessionData: ExtensionSessionData) => {
+            const updatedSessionData = await this.saveManager.UpdateExtensionSessionDataAsync(universeKey, (sessionData: ExtensionSessionData) => {
                 if (results.AccountInfoFetched) {
                     sessionData.AccountInfo = results.AccountInfo;
                     sessionData.LastAccountInfoFetchDateISO = results.LastAccountInfoFetchDateISO;
@@ -67,8 +76,9 @@ export class OgameQuery {
                 }
                 return sessionData;
             });
+            return { sessionData: updatedSessionData, hasFetchedNewData: true };
         }
 
-        return extensionSessionData;
+        return { sessionData: extensionSessionData, hasFetchedNewData: false };
     }
 }

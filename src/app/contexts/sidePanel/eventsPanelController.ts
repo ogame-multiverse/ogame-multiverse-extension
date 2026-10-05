@@ -1003,6 +1003,12 @@ export class EventsPanelController extends TabRelatedController {
                 missionTypeIcon = 'hexagon';
                 classes.push('event-anomaly-encounter');
                 break;
+            case MissionType.AcsAnomalyEncounter:
+                missionTypeName = Localizator.Translate('AcsAnomalyEncounter');
+                missionTypeIcon = 'hexagon';
+                // Keep the base anomaly styling and add a dedicated class for the grouped variant.
+                classes.push('event-anomaly-encounter', 'event-acs-anomaly-encounter');
+                break;
             case MissionType.AnomalyRewardDelivery:
                 missionTypeName = Localizator.Translate('AnomalyRewardDelivery');
                 missionTypeIcon = 'redeem';

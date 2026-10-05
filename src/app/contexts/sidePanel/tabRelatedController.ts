@@ -26,6 +26,8 @@ export abstract class TabRelatedController {
     // to the same event.
     private static cachedStatusesPromise: Promise<Map<string, SidePanelUniverseStatus>> | null = null;
 
+    private static readonly trackersWithCacheInvalidation = new WeakSet<LocalWindowTabsTracker>();
+
     /**
      * Shared cache of the raw SidePanelUniversesSections payload, keyed by mode ('list' | 'grid').
      * Avoids duplicate GetUniversesStatusesAsync network calls when several call sites (UniversePanelController.Refresh,
@@ -48,9 +50,12 @@ export abstract class TabRelatedController {
     private loopIntervalId?: number;
 
     constructor(protected readonly logger: Logger, protected readonly localWindowTabsTracker: LocalWindowTabsTracker) {
-        localWindowTabsTracker.onLocalTabChanged.addListener(async () => {
-            this.InvalidateStatusesCache();
-            await this.TabsChangedAsync();
+        if (!TabRelatedController.trackersWithCacheInvalidation.has(localWindowTabsTracker)) {
+            TabRelatedController.trackersWithCacheInvalidation.add(localWindowTabsTracker);
+            localWindowTabsTracker.onLocalTabChanged.addListener(() => TabRelatedController.InvalidateSharedCaches());
+        }
+        localWindowTabsTracker.onLocalTabChanged.addListener(() => {
+            this.TabsChangedAsync().catch((error) => this.logger.error('TabsChangedAsync failed', error));
         });
     }
 
@@ -82,7 +87,13 @@ export abstract class TabRelatedController {
      */
     protected async GetFreshUniverseStatusesAsync(): Promise<Map<string, SidePanelUniverseStatus>> {
         if (!TabRelatedController.cachedStatusesPromise) {
-            TabRelatedController.cachedStatusesPromise = this.FetchUniverseStatusesMapAsync();
+            const statusesPromise = this.FetchUniverseStatusesMapAsync();
+            TabRelatedController.cachedStatusesPromise = statusesPromise;
+            statusesPromise.catch(() => {
+                if (TabRelatedController.cachedStatusesPromise === statusesPromise) {
+                    TabRelatedController.cachedStatusesPromise = null;
+                }
+            });
         }
 
         const sharedStatuses = await TabRelatedController.cachedStatusesPromise;
@@ -112,10 +123,20 @@ export abstract class TabRelatedController {
             TabRelatedController.cachedSectionsPromises.delete(mode);
         }
 
+        return TabRelatedController.GetSharedSectionsPromise(this.logger, mode);
+    }
+
+    private static GetSharedSectionsPromise(logger: Logger, mode: 'list' | 'grid'): Promise<SidePanelUniversesSections> {
         let promise = TabRelatedController.cachedSectionsPromises.get(mode);
         if (!promise) {
-            promise = serviceWorkerProtocolClient.GetUniversesStatusesAsync(this.logger, mode);
-            TabRelatedController.cachedSectionsPromises.set(mode, promise);
+            const sectionsPromise = serviceWorkerProtocolClient.GetUniversesStatusesAsync(logger, mode);
+            promise = sectionsPromise;
+            TabRelatedController.cachedSectionsPromises.set(mode, sectionsPromise);
+            sectionsPromise.catch(() => {
+                if (TabRelatedController.cachedSectionsPromises.get(mode) === sectionsPromise) {
+                    TabRelatedController.cachedSectionsPromises.delete(mode);
+                }
+            });
         }
         return promise;
     }
@@ -207,12 +228,7 @@ export abstract class TabRelatedController {
         TabRelatedController.isFetchingGlobalWarning = true;
 
         try {
-            let promise = TabRelatedController.cachedSectionsPromises.get('list');
-            if (!promise) {
-                promise = serviceWorkerProtocolClient.GetUniversesStatusesAsync(logger, 'list');
-                TabRelatedController.cachedSectionsPromises.set('list', promise);
-            }
-            const rawData: SidePanelUniversesSections = await promise;
+            const rawData: SidePanelUniversesSections = await TabRelatedController.GetSharedSectionsPromise(logger, 'list');
             TabRelatedController.lastKnownStatuses = [
                 ...(rawData?.favorites || []).flat(),
                 ...(rawData?.others || []).flat(),

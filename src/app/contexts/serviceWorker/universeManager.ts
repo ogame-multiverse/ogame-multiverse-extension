@@ -1,9 +1,11 @@
+import browser from 'webextension-polyfill';
 import { ExtensionLocalData } from "../../model/save/extensionLocalData";
 import { SidePanelUniverseCounters } from "../../model/sidePanel/sidePanelUniverseCounters";
 import { SidePanelUniverseStatus } from "../../model/sidePanel/sidePanelUniverseStatus";
 import { SidePanelUniversesSections } from "../../model/sidePanel/sidePanelUniversesSections";
 import { UniverseLayoutConfig } from "../../model/sidePanel/universeLayoutConfig";
 import { UniverseSidePanelOptions } from "../../model/sidePanel/universeSidePanelOptions";
+import { DataChanges } from "../../dataMutator";
 import { UniverseDataNormalizer } from "../../universeDataNormalizer";
 import { SaveManager } from "./saveManager";
 import { UniverseTabsManager } from "./universeTabsManager";
@@ -11,15 +13,21 @@ import { Logger } from "../../logging/logger";
 import { FlyingFleetEvent } from "../../model/flyingFleetEvent";
 import { UniverseFleetEventItem } from "../../messaging/data/universeFleetEventItem";
 
+const COUNTERS_STORAGE_KEY_PREFIX = 'ogm.universeCounters.';
+
 export class UniverseManager {
-    private readonly universeDataByUniverse = new Map<string, { universeCounters: SidePanelUniverseCounters }>();
+    private readonly countersByUniverse = new Map<string, SidePanelUniverseCounters>();
     private readonly savesByUniverse = new Map<string, ExtensionLocalData>();
 
     constructor(
         private readonly logger: Logger,
         private readonly saveManager: SaveManager,
         private readonly universeTabsManager: UniverseTabsManager
-    ) { }
+    ) {
+        this.saveManager.OnLocalDataSaved((universeKey, data) => {
+            if (data?.UniverseKey) this.savesByUniverse.set(universeKey, data);
+        });
+    }
 
     private initialization?: Promise<void>;
 
@@ -31,10 +39,9 @@ export class UniverseManager {
     private async LoadSavesAsync(): Promise<void> {
         try {
             const universes = await this.saveManager.GetAllExtensionLocalDataAsync();
-            this.savesByUniverse.clear();
             if (universes) {
                 for (const [key, value] of Object.entries(universes)) {
-                    this.savesByUniverse.set(key, value);
+                    if (!this.savesByUniverse.has(key)) this.savesByUniverse.set(key, value);
                 }
             }
             this.logger.info('Initialization complete. Loaded universes:', Array.from(this.savesByUniverse.keys()));
@@ -43,15 +50,47 @@ export class UniverseManager {
         }
     }
 
-    public async UpdateUniverseSaveAsync(universeKey: string, data: ExtensionLocalData): Promise<void> {
-        await this.InitializeAsync();
-        if (data.UniverseKey) this.savesByUniverse.set(universeKey, data);
+    private async LoadCountersAsync(universeKeys: string[]): Promise<void> {
+        const missingKeys = universeKeys.filter((key) => !this.countersByUniverse.has(key));
+        if (missingKeys.length === 0) return;
+
+        try {
+            const storageArea = browser.storage?.session;
+            if (!storageArea) return;
+
+            const stored = await storageArea.get(missingKeys.map((key) => COUNTERS_STORAGE_KEY_PREFIX + key));
+            for (const key of missingKeys) {
+                const counters = stored?.[COUNTERS_STORAGE_KEY_PREFIX + key];
+                if (counters && !this.countersByUniverse.has(key)) {
+                    this.countersByUniverse.set(key, new SidePanelUniverseCounters(counters));
+                }
+            }
+        } catch (error) {
+            this.logger.error('Failed to load universe counters from session storage', error);
+        }
+    }
+
+    private async SaveCountersAsync(universeKey: string, universeCounters: SidePanelUniverseCounters): Promise<void> {
+        this.countersByUniverse.set(universeKey, universeCounters);
+        try {
+            await browser.storage?.session?.set({ [COUNTERS_STORAGE_KEY_PREFIX + universeKey]: universeCounters });
+        } catch (error) {
+            this.logger.error('Failed to persist universe counters to session storage', error);
+        }
+    }
+
+    private async RemoveCountersAsync(universeKey: string): Promise<void> {
+        this.countersByUniverse.delete(universeKey);
+        try {
+            await browser.storage?.session?.remove(COUNTERS_STORAGE_KEY_PREFIX + universeKey);
+        } catch (error) {
+            this.logger.error('Failed to remove universe counters from session storage', error);
+        }
     }
 
     public async RegisterUniverseAsync(universeKey: string, universeName: string, universeDomain: string, lastRefreshDate: number): Promise<void> {
         await this.InitializeAsync();
-        const localSave = await this.saveManager.RegisterUniverseAsync(universeKey, universeName, universeDomain, lastRefreshDate);
-        await this.UpdateUniverseSaveAsync(universeKey, localSave);
+        await this.saveManager.RegisterUniverseAsync(universeKey, universeName, universeDomain, lastRefreshDate);
         await this.saveManager.AppendToUniverseOrderAndGridAsync(universeKey);
     }
 
@@ -59,34 +98,36 @@ export class UniverseManager {
         await this.InitializeAsync();
         await this.saveManager.RemoveUniverseAsync(universeKey);
         this.savesByUniverse.delete(universeKey);
-        this.universeDataByUniverse.delete(universeKey);
+        await this.RemoveCountersAsync(universeKey);
         await this.saveManager.RemoveFromUniverseOrderAndGridAsync(universeKey);
     }
 
     public async UpdateUniverseStatusAsync(universeKey: string, universeCounters: SidePanelUniverseCounters, flyingFleetEvents: FlyingFleetEvent[]): Promise<void> {
         await this.InitializeAsync();
         const localSave = await this.saveManager.UpdateExtensionLocalDataAsync(universeKey, (d) => {
+            if (JSON.stringify(d.FlyingFleetEvents ?? []) === JSON.stringify(flyingFleetEvents ?? [])) return DataChanges.None;
             d.FlyingFleetEvents = flyingFleetEvents;
             return d;
         });
 
         universeCounters.MaximumFleetSlots = localSave?.Account?.CalculatedData?.MaximumFleetSlots ?? 0;
         universeCounters.MaximumExpeditionSlots = localSave?.Account?.CalculatedData?.MaximumExpeditionSlots ?? 0;
-        this.universeDataByUniverse.set(universeKey, { universeCounters });
-        await this.UpdateUniverseSaveAsync(universeKey, localSave);
+        await this.SaveCountersAsync(universeKey, universeCounters);
     }
 
     public async ListUniverseStatusesAsync(mode: 'list' | 'grid'): Promise<SidePanelUniversesSections> {
         await this.InitializeAsync();
-        const allUniverseKeys = Array.from(this.savesByUniverse.keys());
+        const allUniverseKeySet = new Set<string>(this.savesByUniverse.keys());
         await this.universeTabsManager.WhenReadyAsync();
 
         const tabsMapByUniverse = this.universeTabsManager.GetTabsMapByUniverse();
-        tabsMapByUniverse.forEach((_, key) => {
-            if (!allUniverseKeys.includes(key)) allUniverseKeys.push(key);
-        });
+        tabsMapByUniverse.forEach((_, key) => allUniverseKeySet.add(key));
+        const allUniverseKeys = Array.from(allUniverseKeySet);
 
-        const layout = await this.saveManager.GetUniverseLayoutConfigAsync();
+        const [layout] = await Promise.all([
+            this.saveManager.GetUniverseLayoutConfigAsync(),
+            this.LoadCountersAsync(allUniverseKeys),
+        ]);
         const favKeySet = new Set<string>();
 
         if (mode === 'list') {
@@ -128,16 +169,7 @@ export class UniverseManager {
 
     public async SaveUniverseSidePanelOptionsAsync(universeKey: string, options: UniverseSidePanelOptions): Promise<void> {
         await this.InitializeAsync();
-        const localSave = this.savesByUniverse.get(universeKey);
-        if (localSave) {
-            localSave.SidePanelOptions = options;
-            await this.saveManager.UpdateExtensionLocalDataAsync(universeKey, (d) => {
-                d.SidePanelOptions = options;
-                return d;
-            });
-        } else {
-            await this.saveManager.SaveUniverseSidePanelOptionsAsync(universeKey, options);
-        }
+        await this.saveManager.SaveUniverseSidePanelOptionsAsync(universeKey, options);
     }
 
     public async SetUniverseLayoutAsync(layout: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
@@ -194,7 +226,6 @@ export class UniverseManager {
     private BuildUniverseStatus(universeKey: string, universe: ExtensionLocalData | undefined, tabsMapByUniverse: Map<string, number[]>): SidePanelUniverseStatus {
         const tabIds = tabsMapByUniverse.get(universeKey) || [];
         const lastRefreshAtMs = universe?.LastRefreshDate;
-        const universeData = this.universeDataByUniverse.get(universeKey);
 
         return new SidePanelUniverseStatus({
             UniverseKey: universeKey,
@@ -203,7 +234,7 @@ export class UniverseManager {
             TabIds: tabIds,
             LastRefreshAtIso: typeof lastRefreshAtMs === 'number' ? new Date(lastRefreshAtMs).toISOString() : undefined,
             SidePanelOptions: universe?.SidePanelOptions || new UniverseSidePanelOptions({}),
-            SidePanelUniverseCounters: universeData?.universeCounters || new SidePanelUniverseCounters({}),
+            SidePanelUniverseCounters: this.countersByUniverse.get(universeKey) || new SidePanelUniverseCounters({}),
         });
     }
 
@@ -214,8 +245,7 @@ export class UniverseManager {
         for (const [key, data] of this.savesByUniverse.entries()) {
             if (universeKey && key !== universeKey) continue;
 
-            const universeSave = this.savesByUniverse.get(key);
-            const displayName = universeSave?.UniverseName || UniverseDataNormalizer.ToUniverseDisplayName(key);
+            const displayName = data?.UniverseName || UniverseDataNormalizer.ToUniverseDisplayName(key);
 
             if (data.FlyingFleetEvents && data.FlyingFleetEvents.length > 0) {
                 for (const event of data.FlyingFleetEvents) {
