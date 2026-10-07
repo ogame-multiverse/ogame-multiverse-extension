@@ -7,6 +7,7 @@ import { SidePanelUniversesSections } from '../../model/sidePanel/sidePanelUnive
 import { SidePanelUniverseStatus } from '../../model/sidePanel/sidePanelUniverseStatus';
 import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
+import { BuildFleetFilterKey, FLEET_EVENT_FILTER_GROUPS, FLEET_FILTER_CATEGORIES, FleetEventFilterGroup, FleetOwnership, GHOST_FILTER_KEY, GetAllFleetFilterKeys, IsFleetFilterEnabled } from '../../model/sidePanel/fleetEventFilters';
 import { LocalWindowTabsTracker } from './localWindowTabsTracker';
 import { DEFAULT_WARNING_THRESHOLD_MINUTES, TAB_CHANGE_REFRESH_DEBOUNCE_MS, TabRelatedController } from './tabRelatedController';
 
@@ -330,6 +331,65 @@ export class UniversePanelController extends TabRelatedController {
         });
     }
 
+    /** Applies the checked state of every fleet filter checkbox of a row (initial setup and external updates). */
+    private ApplyFleetFiltersState(row: HTMLElement, options: UniverseSidePanelOptions | undefined): void {
+        row.querySelectorAll<HTMLInputElement>('.fleet-filter-checkbox').forEach((checkbox) => {
+            const filterKey = checkbox.dataset.filterKey;
+            if (filterKey) checkbox.checked = IsFleetFilterEnabled(options?.FleetEventFilters, filterKey);
+        });
+    }
+
+    /** Builds the fleet events filters matrix (rows = mission groups, columns = own / friendly / hostile).
+     *  Order: Ghost, ungrouped rows, then one section per category. Combinations that cannot exist get no checkbox.
+     *  Only displayed while fleets tracking is enabled (see SCSS). */
+    private BuildFleetFiltersMatrixHtml(universeKey: string): string {
+        const columns: Array<{ ownership: FleetOwnership; labelKey: string }> = [
+            { ownership: 'own', labelKey: 'Own' },
+            { ownership: 'friendly', labelKey: 'Friendly' },
+            { ownership: 'hostile', labelKey: 'Hostile' },
+        ];
+        const emptyCell = '<span class="fleet-filter-cell"></span>';
+        const checkboxHtml = (filterKey: string, label: string): string =>
+            `<input type="checkbox" class="fleet-filter-checkbox" data-filter-key="${filterKey}" aria-label="${label}" />`;
+
+        const headerCells = columns.map(({ ownership, labelKey }) =>
+            `<span class="fleet-filters-column-header fleet-filters-${ownership}">${Localizator.Translate(labelKey)}</span>`).join('');
+
+        const groupRowHtml = (group: FleetEventFilterGroup): string => {
+            const label = Localizator.Translate(group.labelKey);
+            const cells = columns.map(({ ownership }) => group.ownerships.includes(ownership)
+                ? `<span class="fleet-filter-cell">${checkboxHtml(BuildFleetFilterKey(group.key, ownership), label)}</span>`
+                : emptyCell).join('');
+            return `<span class="fleet-filter-row-label">${label}</span>${cells}`;
+        };
+
+        const ghostHint = Localizator.Translate('SidePanelFleetFilterGhostHint');
+        const ghostRow = `<span class="fleet-filter-row-label fleet-filter-ghost-label" title="${ghostHint}">${Localizator.Translate('Ghost')}</span>`
+            + `<span class="fleet-filter-cell">${checkboxHtml(GHOST_FILTER_KEY, ghostHint)}</span>${emptyCell}${emptyCell}`;
+
+        const ungroupedRows = FLEET_EVENT_FILTER_GROUPS.filter((group) => !group.category).map(groupRowHtml).join('');
+
+        const categorySections = FLEET_FILTER_CATEGORIES.map(({ key, labelKey }) => {
+            const rows = FLEET_EVENT_FILTER_GROUPS.filter((group) => group.category === key).map(groupRowHtml).join('');
+            return rows ? `<span class="fleet-filters-category">${Localizator.Translate(labelKey)}</span>${rows}` : '';
+        }).join('');
+
+        return `
+                <div class="fleet-filters-matrix" data-universe-key="${universeKey}">
+                  <div class="fleet-filters-toolbar">
+                    <span class="fleet-filters-title">${Localizator.Translate('SidePanelSettingsFleetFiltersTitle')}</span>
+                    <span class="fleet-filters-bulk-actions">
+                      <button type="button" class="fleet-filters-bulk-button" data-check-all="true">${Localizator.Translate('SidePanelFleetFilterCheckAll')}</button>
+                      <button type="button" class="fleet-filters-bulk-button" data-check-all="false">${Localizator.Translate('SidePanelFleetFilterUncheckAll')}</button>
+                    </span>
+                  </div>
+                  <span></span>${headerCells}
+                  ${ghostRow}
+                  ${ungroupedRows}
+                  ${categorySections}
+                </div>`;
+    }
+
     public UpdateSingleUniverseOptions(universeKey: string, options: UniverseSidePanelOptions): void {
         if (!universeKey || !options) return;
 
@@ -348,6 +408,7 @@ export class UniversePanelController extends TabRelatedController {
         if (fleetsTrackingCheckbox) {
             fleetsTrackingCheckbox.checked = fleetTrackingEnabled;
         }
+        this.ApplyFleetFiltersState(existingRow.row, options);
     }
 
     protected OnAnimationFrame(): void {
@@ -532,8 +593,38 @@ export class UniversePanelController extends TabRelatedController {
             });
         }
 
+        this.ApplyFleetFiltersState(row, status.SidePanelOptions);
+        row.querySelectorAll<HTMLInputElement>('.fleet-filter-checkbox').forEach((checkbox) => {
+            checkbox.addEventListener('change', async () => {
+                const filterKey = checkbox.dataset.filterKey;
+                if (filterKey) await this.SaveFleetFilterAsync(rowView.currentStatus.UniverseKey, filterKey, checkbox.checked);
+            });
+        });
+        row.querySelectorAll<HTMLButtonElement>('.fleet-filters-bulk-button').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const checked = button.dataset.checkAll === 'true';
+                row.querySelectorAll<HTMLInputElement>('.fleet-filter-checkbox').forEach((checkbox) => checkbox.checked = checked);
+                await this.SaveAllFleetFiltersAsync(rowView.currentStatus.UniverseKey, checked);
+            });
+        });
+
         this.UpdateUniverseRow(rowView, status);
         return rowView;
+    }
+
+    private async SaveFleetFilterAsync(universeKey: string, filterKey: string, checked: boolean): Promise<void> {
+        const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, universeKey);
+        options.FleetEventFilters = { ...(options.FleetEventFilters ?? {}), [filterKey]: checked };
+        await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, universeKey, options);
+    }
+
+    /** Sets every fleet filter (Ghost included) to the same value, in a single save. */
+    private async SaveAllFleetFiltersAsync(universeKey: string, checked: boolean): Promise<void> {
+        const options = await serviceWorkerProtocolClient.GetUniverseSidePanelOptionsAsync(this.logger, universeKey);
+        const filters: Record<string, boolean> = { ...(options.FleetEventFilters ?? {}) };
+        GetAllFleetFilterKeys().forEach((filterKey) => filters[filterKey] = checked);
+        options.FleetEventFilters = filters;
+        await serviceWorkerProtocolClient.SaveUniverseSidePanelOptionsAsync(this.logger, universeKey, options);
     }
 
     private async SaveOption<K extends keyof UniverseSidePanelOptions>(universeKey: string, key: K, value: UniverseSidePanelOptions[K]): Promise<void> {
@@ -1002,6 +1093,23 @@ export class UniversePanelController extends TabRelatedController {
             .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
     }
 
+    /** Generic collapsible (accordion) settings group, collapsed by default. Native <details>: no JS needed.
+     *  groupClass keeps the per-group class used for grid placement in the SCSS. */
+    private BuildSettingsAccordionHtml(groupClass: string, titleKey: string, contentHtml: string): string {
+        return `
+            <div class="universe-settings-group ${groupClass}">
+              <details class="settings-accordion">
+                <summary class="universe-settings-group-header">
+                  <span class="material-symbols-outlined accordion-chevron" aria-hidden="true">chevron_right</span>
+                  <span>${Localizator.Translate(titleKey)}:</span>
+                </summary>
+                <div class="universe-settings-group-content">
+                  ${contentHtml}
+                </div>
+              </details>
+            </div>`;
+    }
+
     private GetUniverseRowTemplate(universeKey: string): string {
         const indicatorSettingsHtml = INDICATOR_BINDINGS.map(({ checkboxIdSuffix, labelKey, icon, containerClass }) => `
                 <div class="universe-setting-item ${containerClass}">
@@ -1012,6 +1120,16 @@ export class UniversePanelController extends TabRelatedController {
                   <input type="checkbox" id="${checkboxIdSuffix}-${universeKey}" class="setting-item-checkbox" />
                 </div>
     `.trim()).join('\n');
+
+        const eventsTrackingSettingsHtml = `
+                <div class="universe-setting-item fleets-tracking-setting">
+                  <label for="enable-fleets-tracking-${universeKey}" class="setting-item-label">
+                    <span class="material-symbols-outlined">event_upcoming</span>
+                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelSettingsEnableFleetsTracking')}</span>
+                  </label>
+                  <input type="checkbox" id="enable-fleets-tracking-${universeKey}" class="setting-item-checkbox" />
+                </div>
+                ${this.BuildFleetFiltersMatrixHtml(universeKey)}`;
 
         return `
       <div class="universe-item-box">
@@ -1083,25 +1201,8 @@ export class UniversePanelController extends TabRelatedController {
                 </div>
               </div>
             </div>
-            <div class="universe-settings-group indicators-settings-group">
-              <span class="universe-settings-group-header">${Localizator.Translate('SidePanelSettingsGroupIndicators')}:</span>
-              <div class="universe-settings-group-content">
-                ${indicatorSettingsHtml}
-              </div>
-            </div>
-
-            <div class="universe-settings-group events-tracking-group">
-              <span class="universe-settings-group-header">${Localizator.Translate('SidePanelSettingsGroupEventsTracking')}:</span>
-              <div class="universe-settings-group-content">
-                <div class="universe-setting-item fleets-tracking-setting">
-                  <label for="enable-fleets-tracking-${universeKey}" class="setting-item-label">
-                    <span class="material-symbols-outlined">event_upcoming</span>
-                    <span class="setting-item-label-text">${Localizator.Translate('SidePanelSettingsEnableFleetsTracking')}</span>
-                  </label>
-                  <input type="checkbox" id="enable-fleets-tracking-${universeKey}" class="setting-item-checkbox" />
-                </div>
-              </div>
-            </div>
+            ${this.BuildSettingsAccordionHtml('indicators-settings-group', 'SidePanelSettingsGroupIndicators', indicatorSettingsHtml)}
+            ${this.BuildSettingsAccordionHtml('events-tracking-group', 'SidePanelSettingsGroupEventsTracking', eventsTrackingSettingsHtml)}
             <button type="button" class="universe-remove-button" title="${Localizator.Translate('SidePanelRemoveUniverse')}" aria-label="${Localizator.Translate('SidePanelRemoveUniverse')}">
               <span class="material-symbols-outlined" aria-hidden="true">delete</span>
             </button>

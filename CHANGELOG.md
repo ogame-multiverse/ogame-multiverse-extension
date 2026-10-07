@@ -46,6 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Cards of the universe active in the current window are highlighted.
     - Tooltips (Tippy) show the details of a group's sub-cards, each with its own countdown.
 - Per-universe option to enable or disable fleet event tracking.
+- Per-universe fleet event filters, available in the universe settings under "Events tracking" (only shown while fleet tracking is enabled).
+  - Matrix of checkboxes: one row per mission type, one column per ownership (own, friendly, hostile). Combinations that cannot exist have no checkbox.
+  - Rows are organized as follows:
+    - Ungrouped: Ghost, Expedition.
+    - Military: Attack, Espionage, Moon destruction, Missile attack, ACS defend.
+    - Civil: Transport, Deployment, Harvest, Colonisation, Exploration.
+    - Anomalies: Anomaly encounter, Reward delivery.
+  - Attack and ACS attack share a single row, as do anomaly encounter and ACS anomaly encounter.
+  - Ghost row: when checked, ghost fleets are always displayed, whatever the filters of their mission type. When unchecked, they follow the regular filters.
+  - "Check all" and "Uncheck all" buttons.
+  - Every box is checked by default. Events with an unknown mission type are always displayed.
+  - Filters only hide events in the Events tab and apply to both outbound and return trips.
 - Technical informations:
   - Parsing of the OGame page to retrieve the data required for fleet event tracking.
   - Support for two new OGame data endpoints:
@@ -62,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Softened the interface colors to make them less harsh.
+- "Last observed indicators" and "Events tracking" groups in the universe settings are now collapsible and collapsed by default, to save vertical space.
 
 ## [1.3.0.1] - 2026-08-31
 

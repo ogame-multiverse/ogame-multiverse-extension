@@ -1156,7 +1156,8 @@ body {
                     }
 
                     .universe-settings {
-                        max-height: 330px;
+                        // Large enough for every setting, including the fleet filters matrix once expanded
+                        max-height: 1400px;
                         opacity: 1;
                         margin-top: 10px;
                     }
@@ -1245,6 +1246,34 @@ body {
                         &.events-tracking-group {
                             grid-row: 4;
                         }
+                        // Collapsible settings groups (indicators, events tracking): collapsed by default to save vertical space
+                        .settings-accordion {
+                            > summary {
+                                display: flex;
+                                align-items: center;
+                                gap: 2px;
+                                cursor: pointer;
+                                list-style: none;
+                                user-select: none;
+
+                                &::-webkit-details-marker {
+                                    display: none;
+                                }
+
+                                &::marker {
+                                    content: '';
+                                }
+
+                                .accordion-chevron {
+                                    font-size: 20px;
+                                    transition: transform 0.15s ease-out;
+                                }
+                            }
+
+                            &[open] > summary .accordion-chevron {
+                                transform: rotate(90deg);
+                            }
+                        }
                     }
 
                     .universe-setting-item {
@@ -1296,6 +1325,98 @@ body {
                         .material-symbols-outlined {
                             color: $ogm-color-blue;
                         }
+                    }
+                    // Fleet events filters matrix: only visible while fleets tracking is enabled
+                    .fleet-filters-matrix {
+                        display: none;
+                        grid-template-columns: 1fr repeat(3, 58px);
+                        align-items: center;
+                        column-gap: 4px;
+                        row-gap: 2px;
+                        margin: 6px 0 2px 0;
+                        font-size: 13px;
+                        font-weight: 400;
+
+                        .fleet-filters-toolbar {
+                            grid-column: 1 / -1;
+                            display: flex;
+                            flex-wrap: wrap;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 4px;
+                        }
+
+                        .fleet-filters-title {
+                            font-weight: 600;
+                        }
+
+                        .fleet-filters-bulk-actions {
+                            display: inline-flex;
+                            gap: 4px;
+                        }
+
+                        .fleet-filters-bulk-button {
+                            font: inherit;
+                            font-size: 12px;
+                            color: inherit;
+                            background: $ogm-background-color-lighter;
+                            border: 1px solid $ogm-border-color;
+                            border-radius: 4px;
+                            padding: 1px 6px;
+                            cursor: pointer;
+
+                            &:hover {
+                                border-color: color.adjust($ogm-border-color, $lightness: 15%);
+                            }
+                        }
+
+                        .fleet-filters-column-header {
+                            text-align: center;
+                            font-weight: 600;
+
+                            &.fleet-filters-own {
+                                color: $ogm-color-green;
+                            }
+
+                            &.fleet-filters-friendly {
+                                color: $ogm-color-orange;
+                            }
+
+                            &.fleet-filters-hostile {
+                                color: $ogm-color-red;
+                            }
+                        }
+
+                        .fleet-filter-row-label {
+                            text-align: right;
+                            padding-right: 6px;
+                        }
+
+                        .fleet-filters-category {
+                            grid-column: 1 / -1;
+                            margin-top: 6px;
+                            padding-bottom: 1px;
+                            border-bottom: 1px solid $ogm-border-color;
+                            font-weight: 600;
+                            font-size: 12px;
+                            text-transform: uppercase;
+                            letter-spacing: 0.04em;
+                        }
+
+                        .fleet-filter-cell {
+                            display: flex;
+                            justify-content: center;
+                            min-height: 20px;
+                        }
+
+                        .fleet-filter-checkbox {
+                            cursor: pointer;
+                            margin: 0;
+                        }
+                    }
+
+                    &:has(.fleets-tracking-setting .setting-item-checkbox:checked) .fleet-filters-matrix {
+                        display: grid;
                     }
 
                     .threshold-setting {
