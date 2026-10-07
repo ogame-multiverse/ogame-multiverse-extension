@@ -187,6 +187,12 @@ body {
 
 
 
+// Applied to a tab button and to its panel to hide them (see SidePanelContextApp.SetEventsTabVisible).
+// !important: panels get their display from [data-active='true'] rules with a higher specificity.
+.tab-hidden {
+    display: none !important;
+}
+
 @mixin event-details-content {
     .event-header {
         display: flex;
@@ -1246,15 +1252,30 @@ body {
                         &.events-tracking-group {
                             grid-row: 4;
                         }
-                        // Collapsible settings groups (indicators, events tracking): collapsed by default to save vertical space
+                        // Collapsible settings groups (indicators, events tracking): collapsed by default to save vertical space.
+                        // Rendered as a "box" (border, background, rounded corners) so the groups stand out from the rest.
                         .settings-accordion {
+                            border: 1px solid $ogm-border-color;
+                            border-radius: 6px;
+                            background: $ogm-surface-color;
+                            overflow: hidden;
+
+                            .universe-settings-group-content {
+                                padding: 8px;
+                            }
+
                             > summary {
                                 display: flex;
                                 align-items: center;
                                 gap: 2px;
+                                padding: 6px 8px;
                                 cursor: pointer;
                                 list-style: none;
                                 user-select: none;
+
+                                &:hover {
+                                    background: $ogm-background-color-lighter;
+                                }
 
                                 &::-webkit-details-marker {
                                     display: none;
@@ -1270,8 +1291,13 @@ body {
                                 }
                             }
 
-                            &[open] > summary .accordion-chevron {
-                                transform: rotate(90deg);
+                            &[open] > summary {
+                                background: $ogm-background-color-lighter;
+                                border-bottom: 1px solid $ogm-border-color;
+
+                                .accordion-chevron {
+                                    transform: rotate(90deg);
+                                }
                             }
                         }
                     }

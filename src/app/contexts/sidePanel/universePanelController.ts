@@ -404,7 +404,7 @@ export class UniversePanelController extends TabRelatedController {
         this.ApplyIndicatorState(existingRow.row, existingRow.currentStatus.UniverseKey, options);
 
         const fleetsTrackingCheckbox = existingRow.row.querySelector(`#enable-fleets-tracking-${existingRow.currentStatus.UniverseKey}`) as HTMLInputElement;
-        const fleetTrackingEnabled = options.FleetTrackingEnabled ?? true;
+        const fleetTrackingEnabled = options.FleetTrackingEnabled ?? false;
         if (fleetsTrackingCheckbox) {
             fleetsTrackingCheckbox.checked = fleetTrackingEnabled;
         }
@@ -584,7 +584,7 @@ export class UniversePanelController extends TabRelatedController {
 
         const fleetsTrackingCheckbox = row.querySelector(`#enable-fleets-tracking-${status.UniverseKey}`) as HTMLInputElement;
         if (fleetsTrackingCheckbox) {
-            const initialValue = status.SidePanelOptions?.FleetTrackingEnabled ?? true;
+            const initialValue = status.SidePanelOptions?.FleetTrackingEnabled ?? false;
             fleetsTrackingCheckbox.checked = initialValue;
 
             fleetsTrackingCheckbox.addEventListener('change', async () => {

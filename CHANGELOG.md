@@ -45,7 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Other behaviors
     - Cards of the universe active in the current window are highlighted.
     - Tooltips (Tippy) show the details of a group's sub-cards, each with its own countdown.
-- Per-universe option to enable or disable fleet event tracking.
+- Per-universe option to enable or disable fleet event tracking. It is disabled by default.
+  - The Events tab is hidden as long as no universe has fleet event tracking enabled, and reappears as soon as one does. This applies to every open side panel; if the Events tab was active when it disappears, the side panel switches back to the Universes tab.
 - Per-universe fleet event filters, available in the universe settings under "Events tracking" (only shown while fleet tracking is enabled).
   - Matrix of checkboxes: one row per mission type, one column per ownership (own, friendly, hostile). Combinations that cannot exist have no checkbox.
   - Rows are organized as follows:

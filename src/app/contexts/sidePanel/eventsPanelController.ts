@@ -184,7 +184,7 @@ export class EventsPanelController extends TabRelatedController {
             return;
         }
 
-        const wasEnabled = status.SidePanelOptions?.FleetTrackingEnabled ?? true;
+        const wasEnabled = status.SidePanelOptions?.FleetTrackingEnabled ?? false;
         const previousFilters = JSON.stringify(status.SidePanelOptions?.FleetEventFilters ?? {});
         status.SidePanelOptions = options;
         this.UpdateRefreshWarningStates();
@@ -192,7 +192,7 @@ export class EventsPanelController extends TabRelatedController {
         // The render signature ignores ownership/ghost flags: force a re-render only when the filters really changed.
         if (previousFilters !== JSON.stringify(options.FleetEventFilters ?? {})) this.lastRenderSignature = '';
 
-        if (!wasEnabled && (options.FleetTrackingEnabled ?? true)) {
+        if (!wasEnabled && (options.FleetTrackingEnabled ?? false)) {
             void this.RefreshAsync();
             return;
         }
@@ -206,7 +206,7 @@ export class EventsPanelController extends TabRelatedController {
     private RebuildAndRenderEvents(): void {
         const visibleItems = this.lastFetchedEventItems.filter((item) => {
             const options = this.universeStatusByKey.get(item.universeKey)?.SidePanelOptions;
-            if (!(options?.FleetTrackingEnabled ?? true)) return false;
+            if (!(options?.FleetTrackingEnabled ?? false)) return false;
             return IsFleetEventVisible(item.event, options?.FleetEventFilters);
         });
 
