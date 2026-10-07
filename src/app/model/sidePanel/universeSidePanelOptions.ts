@@ -5,9 +5,12 @@ export class UniverseSidePanelOptions {
     public ShowOwnFleetIndicator: boolean = true;
     public ShowUnreadMessagesIndicator: boolean = true;
     public ShowUnreadChatMessagesIndicator: boolean = true;
-    public FleetTrackingEnabled: boolean = true;
+    public FleetTrackingEnabled: boolean = false;
     public ShowExpeditionsIndicator: boolean = true;
     public ShowFleetSlotsIndicator: boolean = true;
+    /** Fleet events filters (see fleetEventFilters.ts). Key = `${groupKey}:${ownership}`, value = shown or not.
+     *  A missing key means "shown" (checked by default). */
+    public FleetEventFilters: Record<string, boolean> = {};
 
     constructor(data: Partial<UniverseSidePanelOptions>) {
         this.WarningThresholdMinutes = data.WarningThresholdMinutes ?? 15;
@@ -16,8 +19,9 @@ export class UniverseSidePanelOptions {
         this.ShowOwnFleetIndicator = data.ShowOwnFleetIndicator ?? true;
         this.ShowUnreadMessagesIndicator = data.ShowUnreadMessagesIndicator ?? true;
         this.ShowUnreadChatMessagesIndicator = data.ShowUnreadChatMessagesIndicator ?? true;
-        this.FleetTrackingEnabled = data.FleetTrackingEnabled ?? true;
+        this.FleetTrackingEnabled = data.FleetTrackingEnabled ?? false;
         this.ShowExpeditionsIndicator = data.ShowExpeditionsIndicator ?? true;
         this.ShowFleetSlotsIndicator = data.ShowFleetSlotsIndicator ?? true;
+        this.FleetEventFilters = { ...(data.FleetEventFilters ?? {}) };
     }
 }

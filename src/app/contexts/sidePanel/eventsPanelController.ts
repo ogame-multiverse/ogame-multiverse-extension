@@ -7,6 +7,7 @@ import { serviceWorkerProtocolClient } from '../../messaging/serviceWorkerProtoc
 import { MissionType } from '../../model/enums/missionType';
 import { PositionType } from '../../model/enums/positionType';
 import { FlyingFleetEvent } from '../../model/flyingFleetEvent';
+import { IsFleetEventVisible } from '../../model/sidePanel/fleetEventFilters';
 import { Position } from '../../model/position';
 import { SidePanelUniverseStatus } from '../../model/sidePanel/sidePanelUniverseStatus';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
@@ -183,11 +184,15 @@ export class EventsPanelController extends TabRelatedController {
             return;
         }
 
-        const wasEnabled = status.SidePanelOptions?.FleetTrackingEnabled ?? true;
+        const wasEnabled = status.SidePanelOptions?.FleetTrackingEnabled ?? false;
+        const previousFilters = JSON.stringify(status.SidePanelOptions?.FleetEventFilters ?? {});
         status.SidePanelOptions = options;
         this.UpdateRefreshWarningStates();
 
-        if (!wasEnabled && (options.FleetTrackingEnabled ?? true)) {
+        // The render signature ignores ownership/ghost flags: force a re-render only when the filters really changed.
+        if (previousFilters !== JSON.stringify(options.FleetEventFilters ?? {})) this.lastRenderSignature = '';
+
+        if (!wasEnabled && (options.FleetTrackingEnabled ?? false)) {
             void this.RefreshAsync();
             return;
         }
@@ -200,8 +205,9 @@ export class EventsPanelController extends TabRelatedController {
      */
     private RebuildAndRenderEvents(): void {
         const visibleItems = this.lastFetchedEventItems.filter((item) => {
-            const status = this.universeStatusByKey.get(item.universeKey);
-            return status?.SidePanelOptions?.FleetTrackingEnabled ?? true;
+            const options = this.universeStatusByKey.get(item.universeKey)?.SidePanelOptions;
+            if (!(options?.FleetTrackingEnabled ?? false)) return false;
+            return IsFleetEventVisible(item.event, options?.FleetEventFilters);
         });
 
         const groups = this.GroupEvents(visibleItems);

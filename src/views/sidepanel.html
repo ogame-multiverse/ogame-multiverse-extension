@@ -13,7 +13,7 @@
                 <span class="material-symbols-outlined">public</span>
                 <span class="tab-label" oga-data-i18n="SidePanelUniverse"></span>
             </button>
-            <button id="tab-events" class="tab" type="button" role="tab" aria-controls="panel-events" aria-selected="false">
+            <button id="tab-events" class="tab tab-hidden" type="button" role="tab" aria-controls="panel-events" aria-selected="false">
                 <span class="material-symbols-outlined">event_upcoming</span>
                 <span class="tab-label" oga-data-i18n="SidePanelEvents"></span>
             </button>
@@ -21,7 +21,7 @@
 
         <section id="panel-universe" class="panel" role="tabpanel" aria-labelledby="tab-universe" data-active="true">
         </section>
-        <section id="panel-events" class="panel" role="tabpanel" aria-labelledby="tab-events" data-active="false">
+        <section id="panel-events" class="panel tab-hidden" role="tabpanel" aria-labelledby="tab-events" data-active="false">
             <div class="events-toolbar">
                 <label class="events-timeline-toggle">
                     <input type="checkbox" id="events-timeline-toggle-checkbox" checked />

@@ -45,9 +45,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Other behaviors
     - Cards of the universe active in the current window are highlighted.
     - Tooltips (Tippy) show the details of a group's sub-cards, each with its own countdown.
-- Per-universe option to enable or disable fleet event tracking.
+- Per-universe option to enable or disable fleet event tracking. It is disabled by default.
+  - The Events tab is hidden as long as no universe has fleet event tracking enabled, and reappears as soon as one does. This applies to every open side panel; if the Events tab was active when it disappears, the side panel switches back to the Universes tab.
+- Per-universe fleet event filters, available in the universe settings under "Events tracking" (only shown while fleet tracking is enabled).
+  - Matrix of checkboxes: one row per mission type, one column per ownership (own, friendly, hostile). Combinations that cannot exist have no checkbox.
+  - Rows are organized as follows:
+    - Ungrouped: Ghost, Expedition.
+    - Military: Attack, Espionage, Moon destruction, Missile attack, ACS defend.
+    - Civil: Transport, Deployment, Harvest, Colonisation, Exploration.
+    - Anomalies: Anomaly encounter, Reward delivery.
+  - Attack and ACS attack share a single row, as do anomaly encounter and ACS anomaly encounter.
+  - Ghost row: when checked, ghost fleets are always displayed, whatever the filters of their mission type. When unchecked, they follow the regular filters.
+  - "Check all" and "Uncheck all" buttons.
+  - Every box is checked by default. Events with an unknown mission type are always displayed.
+  - Filters only hide events in the Events tab and apply to both outbound and return trips.
 - Technical informations:
   - Parsing of the OGame page to retrieve the data required for fleet event tracking.
+  - Reusable `ConfirmableButton` class (`dom/confirmableButton.ts`) adding a two-step confirmation to any button, without a modal dialog. It supports an anti double-click delay, a confirmation timeout, an optional cancel element, the Escape key and CSS classes for the armed and locked states.
   - Support for two new OGame data endpoints:
     - Species Bonuses (`/game/index.php?page=componentOnly&component=externaldataexport&action=speciesBonuses&asJson=1`)
       - Only fetched on page load if the last fetch is more than 1 hour old.
@@ -62,6 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Softened the interface colors to make them less harsh.
+- The "Delete universe data" button is now a labeled, full-width button placed below the universe settings. It requires a second click to confirm before deleting, and the confirming click is ignored during the first seconds to prevent accidental double clicks. The confirmation can be canceled with the Escape key, a "Cancel" button displayed next to it, or by clicking elsewhere; it also cancels itself after a few seconds.
+- "Last observed indicators" and "Events tracking" groups in the universe settings are now collapsible, collapsed by default to save vertical space, and displayed as boxes to stand out from the rest of the settings.
 
 ## [1.3.0.1] - 2026-08-31
 

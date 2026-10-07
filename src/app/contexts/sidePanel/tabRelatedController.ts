@@ -47,6 +47,14 @@ export abstract class TabRelatedController {
     private static isGlobalWarningRefreshQueued = false;
     private static readonly globalRefreshWarningListeners = new Set<(hasWarning: boolean) => void>();
 
+    /**
+     * Aggregated "at least one universe has fleet tracking enabled" state, shared across ALL instances and
+     * computed from data (RefreshGlobalWarningAsync). undefined until the first computation.
+     * Used by the side panel bootstrap to show/hide the Events tab.
+     */
+    private static hasAnyFleetTrackingEnabled: boolean | undefined;
+    private static readonly fleetTrackingAvailabilityListeners = new Set<(hasTracking: boolean) => void>();
+
     private loopIntervalId?: number;
 
     constructor(protected readonly logger: Logger, protected readonly localWindowTabsTracker: LocalWindowTabsTracker) {
@@ -160,6 +168,21 @@ export abstract class TabRelatedController {
         callback(TabRelatedController.hasGlobalRefreshWarning);
     }
 
+    /**
+     * Registers a listener for the aggregated fleet tracking availability. Invoked immediately only if the
+     * state is already known, then on the first computation and on every change.
+     */
+    public static OnFleetTrackingAvailabilityChanged(callback: (hasTracking: boolean) => void): void {
+        TabRelatedController.fleetTrackingAvailabilityListeners.add(callback);
+        if (TabRelatedController.hasAnyFleetTrackingEnabled !== undefined) callback(TabRelatedController.hasAnyFleetTrackingEnabled);
+    }
+
+    protected static NotifyFleetTrackingAvailability(hasTracking: boolean): void {
+        if (hasTracking === TabRelatedController.hasAnyFleetTrackingEnabled) return;
+        TabRelatedController.hasAnyFleetTrackingEnabled = hasTracking;
+        TabRelatedController.fleetTrackingAvailabilityListeners.forEach((listener) => listener(hasTracking));
+    }
+
     /** Updates the aggregated refresh-warning state and notifies listeners only when it changes. */
     protected static NotifyRefreshWarningState(hasWarning: boolean): void {
         if (hasWarning === TabRelatedController.hasGlobalRefreshWarning) return;
@@ -233,6 +256,9 @@ export abstract class TabRelatedController {
                 ...(rawData?.favorites || []).flat(),
                 ...(rawData?.others || []).flat(),
             ];
+            TabRelatedController.NotifyFleetTrackingAvailability(
+                TabRelatedController.lastKnownStatuses.some((status) => status.SidePanelOptions?.FleetTrackingEnabled ?? false)
+            );
             TabRelatedController.RecomputeGlobalWarningFromCache();
         } catch (error) {
             logger.error('Failed to refresh global warning state', error);

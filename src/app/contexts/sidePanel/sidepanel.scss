@@ -187,6 +187,12 @@ body {
 
 
 
+// Applied to a tab button and to its panel to hide them (see SidePanelContextApp.SetEventsTabVisible).
+// !important: panels get their display from [data-active='true'] rules with a higher specificity.
+.tab-hidden {
+    display: none !important;
+}
+
 @mixin event-details-content {
     .event-header {
         display: flex;
@@ -1156,7 +1162,8 @@ body {
                     }
 
                     .universe-settings {
-                        max-height: 330px;
+                        // Large enough for every setting, including the fleet filters matrix once expanded
+                        max-height: 1400px;
                         opacity: 1;
                         margin-top: 10px;
                     }
@@ -1191,15 +1198,44 @@ body {
                         text-transform: uppercase;
                         text-decoration: underline;
                     }
+                    // Row holding the "Cancel" and "Delete universe data" buttons, right below the last settings group
+                    .universe-remove-actions {
+                        grid-row: 5;
+                        grid-column: 1 / -1;
+                        display: flex;
+                        gap: 6px;
+                    }
+                    // "Cancel" button of the delete confirmation: only displayed while the remove button is armed
+                    // (class added by ConfirmableButton), on its left.
+                    .universe-remove-cancel-button {
+                        display: none;
+                        flex: 1 1 0;
+                        min-width: 0;
+                        margin: 8px 0 3px 0;
+                        border: 1px solid $ogm-border-color;
+                        background: $ogm-background-color-lighter;
+                        color: inherit;
+                        border-radius: 6px;
+                        padding: 4px 10px;
+                        font: inherit;
+                        font-size: 13px;
+                        cursor: pointer;
 
+                        &.is-armed {
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
 
-
+                        &:hover {
+                            border-color: color.adjust($ogm-border-color, $lightness: 15%);
+                        }
+                    }
+                    // Full-width "Delete universe data" button, right below the last settings group
                     .universe-remove-button {
-                        grid-row: 4;
-                        grid-column: 2;
-                        align-self: end;
-                        justify-self: end;
-                        margin-bottom: 3px;
+                        flex: 1 1 0;
+                        min-width: 0;
+                        margin: 8px 0 3px 0;
                         border: 1px solid $ogm-border-color;
                         background: $ogm-background-color-lighter;
                         color: inherit;
@@ -1207,11 +1243,19 @@ body {
                         display: inline-flex;
                         align-items: center;
                         justify-content: center;
-                        width: 30px;
-                        height: 30px;
+                        gap: 6px;
+                        padding: 6px 10px;
+                        font: inherit;
+                        font-size: 13px;
                         cursor: pointer;
-
-                        &:hover:not(:disabled) {
+                        // Locked = armed, but still inside the anti double-click delay (class added by ConfirmableButton)
+                        &.is-locked {
+                            opacity: 0.6;
+                            cursor: wait;
+                        }
+                        // Armed = waiting for the confirmation click (class added by ConfirmableButton)
+                        &:hover:not(:disabled),
+                        &.is-armed:not(:disabled) {
                             color: $ogm-color-red;
                             border-color: $ogm-color-red;
                             box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-red, $alpha: -0.35);
@@ -1244,6 +1288,54 @@ body {
 
                         &.events-tracking-group {
                             grid-row: 4;
+                        }
+                        // Collapsible settings groups (indicators, events tracking): collapsed by default to save vertical space.
+                        // Rendered as a "box" (border, background, rounded corners) so the groups stand out from the rest.
+                        .settings-accordion {
+                            border: 1px solid $ogm-border-color;
+                            border-radius: 6px;
+                            background: $ogm-surface-color;
+                            overflow: hidden;
+
+                            .universe-settings-group-content {
+                                padding: 8px;
+                            }
+
+                            > summary {
+                                display: flex;
+                                align-items: center;
+                                gap: 2px;
+                                padding: 6px 8px;
+                                cursor: pointer;
+                                list-style: none;
+                                user-select: none;
+
+                                &:hover {
+                                    background: $ogm-background-color-lighter;
+                                }
+
+                                &::-webkit-details-marker {
+                                    display: none;
+                                }
+
+                                &::marker {
+                                    content: '';
+                                }
+
+                                .accordion-chevron {
+                                    font-size: 20px;
+                                    transition: transform 0.15s ease-out;
+                                }
+                            }
+
+                            &[open] > summary {
+                                background: $ogm-background-color-lighter;
+                                border-bottom: 1px solid $ogm-border-color;
+
+                                .accordion-chevron {
+                                    transform: rotate(90deg);
+                                }
+                            }
                         }
                     }
 
@@ -1296,6 +1388,98 @@ body {
                         .material-symbols-outlined {
                             color: $ogm-color-blue;
                         }
+                    }
+                    // Fleet events filters matrix: only visible while fleets tracking is enabled
+                    .fleet-filters-matrix {
+                        display: none;
+                        grid-template-columns: 1fr repeat(3, 58px);
+                        align-items: center;
+                        column-gap: 4px;
+                        row-gap: 2px;
+                        margin: 6px 0 2px 0;
+                        font-size: 13px;
+                        font-weight: 400;
+
+                        .fleet-filters-toolbar {
+                            grid-column: 1 / -1;
+                            display: flex;
+                            flex-wrap: wrap;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 4px;
+                        }
+
+                        .fleet-filters-title {
+                            font-weight: 600;
+                        }
+
+                        .fleet-filters-bulk-actions {
+                            display: inline-flex;
+                            gap: 4px;
+                        }
+
+                        .fleet-filters-bulk-button {
+                            font: inherit;
+                            font-size: 12px;
+                            color: inherit;
+                            background: $ogm-background-color-lighter;
+                            border: 1px solid $ogm-border-color;
+                            border-radius: 4px;
+                            padding: 1px 6px;
+                            cursor: pointer;
+
+                            &:hover {
+                                border-color: color.adjust($ogm-border-color, $lightness: 15%);
+                            }
+                        }
+
+                        .fleet-filters-column-header {
+                            text-align: center;
+                            font-weight: 600;
+
+                            &.fleet-filters-own {
+                                color: $ogm-color-green;
+                            }
+
+                            &.fleet-filters-friendly {
+                                color: $ogm-color-orange;
+                            }
+
+                            &.fleet-filters-hostile {
+                                color: $ogm-color-red;
+                            }
+                        }
+
+                        .fleet-filter-row-label {
+                            text-align: right;
+                            padding-right: 6px;
+                        }
+
+                        .fleet-filters-category {
+                            grid-column: 1 / -1;
+                            margin-top: 6px;
+                            padding-bottom: 1px;
+                            border-bottom: 1px solid $ogm-border-color;
+                            font-weight: 600;
+                            font-size: 12px;
+                            text-transform: uppercase;
+                            letter-spacing: 0.04em;
+                        }
+
+                        .fleet-filter-cell {
+                            display: flex;
+                            justify-content: center;
+                            min-height: 20px;
+                        }
+
+                        .fleet-filter-checkbox {
+                            cursor: pointer;
+                            margin: 0;
+                        }
+                    }
+
+                    &:has(.fleets-tracking-setting .setting-item-checkbox:checked) .fleet-filters-matrix {
+                        display: grid;
                     }
 
                     .threshold-setting {
