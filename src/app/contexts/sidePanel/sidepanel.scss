@@ -3,6 +3,8 @@
 $ogm-color-green: #99cc00;
 $ogm-color-orange: #ff9600;
 $ogm-color-red: #d43635;
+$ogm-color-blue: #00aaff;
+$ogm-color-neutral-gray: #9e9e9e;
 $ogm-sidepanel-color: #0d1014;
 $ogm-background-color: #0c0f14;
 $ogm-background-color-lighter: #171d24;
@@ -10,6 +12,7 @@ $ogm-text-color: #e0e1dd;
 $ogm-border-color: #2a3240;
 $ogm-surface-color: #121821;
 $ogm-surface-color-hover: #1a2230;
+$ogm-max-universe-width: 350px;
 
 @font-face {
   font-family: 'Material Symbols Outlined';
@@ -36,12 +39,24 @@ $ogm-surface-color-hover: #1a2230;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 body {
   margin: 0;
   background: $ogm-sidepanel-color;
   color: $ogm-text-color;
   font-size: 15px;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .tabs {
@@ -87,52 +102,108 @@ body {
 
 
 #panel-universe {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+  gap: 16px;
+  position: relative;
 
-  .universe-sync-paused {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px;
-    margin-bottom: 8px;
-    border: 1px solid $ogm-border-color;
-    background: color.adjust($ogm-background-color-lighter, $alpha: -0.06);
-    color: $ogm-text-color;
-    border-radius: 6px;
-    font-size: 13px;
-    opacity: 0.95;
-
-    .material-symbols-outlined {
-      color: $ogm-color-red;
-      font-size: 18px;
-      line-height: 1;
-    }
+  .drop-indicator-line {
+    position: absolute;
+    background-color: $ogm-color-orange;
+    border-radius: 2px;
+    box-shadow: 0 0 6px $ogm-color-orange;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
   }
-  /* When sync is paused, hide message/fleet counters in the universe list */
-  &:has(.universe-sync-paused) {
-    .universe-indicators,
-    .universe-value-group,
-    .universe-value,
-    .universe-value-label {
-      display: none !important;
+
+  .universe-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .universe-section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid $ogm-border-color;
+      color: darken($ogm-color-orange, 5%);
+      font-weight: 600;
+      font-size: 15px;
+
+      .material-symbols-outlined {
+        font-size: 18px;
+      }
+    }
+
+    &:not(:has(.universe-item-box)),
+    &.is-empty {
+      .universe-section-header {
+        color: $ogm-color-neutral-gray;
+      }
     }
   }
 
   .universe-list {
-    display: block;
-    column-gap: 5px;
-    column-count: 1;
-    max-width: 340px;
+    flex: 1;
+    position: relative;
+    width: 100%;
+    min-height: 25px; // Minimum height to ensure the list is visible even when empty
+    gap: 8px;
+    /* List mode : single column */
+    &[data-mode='list'] {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: $ogm-max-universe-width;
 
+      .universe-column {
+        display: contents;
+      }
 
-    .universe-empty {
-      opacity: 0.8;
+      .universe-item-box {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+    }
+    /* Grid mode : multiple columns */
+    &[data-mode="grid"] {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 8px;
+      width: max-content;
+      min-width: 100%;
+
+      .universe-column {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: $ogm-max-universe-width;
+        min-width: $ogm-max-universe-width;
+        flex-shrink: 0;
+      }
     }
 
     .universe-item-box {
-      display: block;
       width: 100%;
-      break-inside: avoid;
-      margin-bottom: 5px;
+      max-width: $ogm-max-universe-width;
+      box-sizing: border-box;
+      margin-bottom: 0;
+
+      .universe-item-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      &.dragging {
+        opacity: 0.4;
+      }
 
 
 
@@ -145,7 +216,10 @@ body {
         background: $ogm-surface-color;
         border: 1px solid $ogm-border-color;
         border-radius: 6px;
-        padding: 8px;
+        padding-left: 12px;
+        padding-right: 8px;
+        padding-top: 8px;
+        padding-bottom: 8px;
 
 
         .universe-details {
@@ -157,37 +231,109 @@ body {
           gap: 2px;
 
           .universe-head {
+            display: flex;
+            flex-flow: row;
+            align-items: center;
+            column-gap: 4px;
+            min-width: 0;
 
-            .universe-status-badge {
+            .universe-title {
+              min-width: 0;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+
+            .universe-drag-handle {
               display: inline-flex;
               align-items: center;
-              justify-content: center;
-              vertical-align: bottom;
+              opacity: 0.5;
+              cursor: grab;
+              user-select: none;
+              font-size: 20px;
+              padding: 6px; // Increase the padding to make the grab area larger
+              margin: -6px; // Negative margin to offset the padding and keep the layout consistent
 
-              &.is-open {
+              &:hover {
                 opacity: 1;
-                color: $ogm-color-green;
               }
 
-              &.is-closed {
-                opacity: 0.8;
-                color: $ogm-color-red;
+              &:active {
+                cursor: grabbing;
               }
             }
 
-            .universe-title {
+            .universe-status-badges {
               display: inline-flex;
-              font-weight: 600;
-              font-size: 17px;
+
+              .universe-status-badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                vertical-align: bottom;
+
+                &.is-active-current-window {
+                  color: $ogm-color-green;
+                }
+
+                &.is-open {
+                  color: $ogm-color-green;
+                  cursor: pointer;
+
+                  .icon-hover {
+                    display: none;
+                  }
+
+                  &:hover {
+                    .icon-default {
+                      display: none;
+                    }
+
+                    .icon-hover {
+                      display: inline-flex;
+                    }
+                  }
+                }
+
+
+                &.is-closed {
+                  color: $ogm-color-red;
+                }
+
+                &.is-other-window {
+                  color: $ogm-color-blue;
+                  cursor: pointer;
+
+                  .icon-hover {
+                    display: none;
+                  }
+
+                  &:hover {
+                    &.close-tab {
+                      color: $ogm-color-red;
+                    }
+
+                    &.move-tab {
+                      color: $ogm-color-green;
+                    }
+
+                    .icon-default {
+                      display: none;
+                    }
+
+                    .icon-hover {
+                      display: inline-flex;
+                    }
+                  }
+                }
+              }
             }
           }
 
           .universe-last-refresh {
             font-size: 13px;
             opacity: 0.85;
-          }
 
-          .universe-last-refresh {
             &.universe-last-refresh-warning {
               color: $ogm-color-red;
               opacity: 1;
@@ -259,63 +405,44 @@ body {
           }
         }
 
-        .universe-refresh-button {
+        .universe-actions {
           grid-row: 1;
           grid-column: 2;
-          border: 1px solid $ogm-border-color;
-          background: $ogm-background-color-lighter;
-          color: inherit;
-          border-radius: 6px;
-          display: inline-flex;
-          align-items: center;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
           align-self: start;
-          justify-content: center;
-          width: 30px;
-          height: 30px;
-          cursor: pointer;
 
-          &.universe-refresh-warning {
-            color: $ogm-color-orange;
-            border-color: $ogm-color-orange;
-            box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-orange, $alpha: -0.35);
-            animation: button-warning-pulse 1.8s ease-in-out infinite;
+          .universe-refresh-button,
+          .universe-settings-button {
+            border: 1px solid $ogm-border-color;
+            background: $ogm-background-color-lighter;
+            color: inherit;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+
+            &:hover:not(:disabled) {
+              background: $ogm-surface-color-hover;
+              border-color: color.adjust($ogm-border-color, $lightness: 10%);
+            }
+
+            &:disabled {
+              opacity: 0.5;
+              cursor: default;
+            }
           }
 
-          &:hover:not(:disabled) {
-            background: $ogm-surface-color-hover;
-            border-color: color.adjust($ogm-border-color, $lightness: 10%);
-          }
-
-          &:disabled {
-            opacity: 0.5;
-            cursor: default;
-          }
-        }
-
-        .universe-settings-button {
-          grid-row: 1;
-          grid-column: 2;
-          border: 1px solid $ogm-border-color;
-          background: $ogm-background-color-lighter;
-          color: inherit;
-          border-radius: 6px;
-          display: inline-flex;
-          align-items: center;
-          align-self: end;
-          justify-content: center;
-          width: 30px;
-          height: 30px;
-          cursor: pointer;
-
-          &:hover {
-            background: $ogm-surface-color-hover;
-            border-color: color.adjust($ogm-border-color, $lightness: 10%);
-          }
-
-          &:disabled {
-            opacity: 0.5;
-            cursor: default;
-          }
+            .universe-refresh-button.universe-refresh-warning {
+              color: $ogm-color-orange;
+              border-color: $ogm-color-orange;
+              box-shadow: 0 0 0 1px color.adjust($ogm-color-orange, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-orange, $alpha: -0.35);
+              animation: button-warning-pulse 1.8s ease-in-out infinite;
+            }
         }
 
 
@@ -329,7 +456,9 @@ body {
           }
 
           .universe-settings {
-            animation: universe-settings-opening 0.2s ease-in forwards;
+            max-height: 200px;
+            opacity: 1;
+            margin-top: 10px;
           }
         }
 
@@ -345,9 +474,10 @@ body {
           grid-template-rows: auto;
           grid-row: 2;
           grid-column: 1/3;
-          height: 0px;
+          max-height: 0;
           overflow: hidden;
           opacity: 0;
+          transition: max-height 0.2s ease-out, opacity 0.2s ease-out, margin-top 0.2s ease-out;
 
 
 
@@ -445,16 +575,46 @@ body {
           }
         }
       }
+      // Highlight the universe item when it is the active one in the current window
+      &[data-universe-active-current-window='true'] {
+        .universe-item {
+          background-color: color.adjust($ogm-surface-color, $lightness: 1.5%);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+          position: relative;
+          overflow: hidden;
+          // Soften the edges of the highlight with a pseudo-element
+          &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 6px;
+            bottom: 6px;
+            width: 3px;
+            background-color: color.adjust($ogm-color-green, $lightness: -5%);
+            box-shadow: 0 0 5px color.adjust($ogm-color-green, $alpha: -0.5);
+            clip-path: polygon(0 0, 100% 4px, 100% calc(100% - 4px), 0 100%);
+          }
+        }
+      }
       // Hide the remove button when the universe is open
       &[data-universe-open='true'] {
         .universe-remove-button {
           display: none !important;
         }
       }
-      // Hide the indicators when the universe is closed
+      //Hide the indicators when the universe is closed
       &[data-universe-open='false'] {
         .universe-indicators {
           display: none !important;
+        }
+      }
+      // Hide the refresh button, and settings button when the universe is open, but not in the current window
+      // Indicators are still shown, since the are only updfated when the universe is open in an active tab
+      &[data-universe-open='true'] {
+        &[data-universe-open-current-window='false'] {
+          .universe-actions {
+            display: none !important;
+          }
         }
       }
 
@@ -491,39 +651,14 @@ body {
       }
     }
   }
-  // Define breakpoints and column counts for the universe list (min-width, column-count, max-width)
+  // Define the breakpoints and corresponding column counts for the grid layout
   $grid-paliers: ( (680px, 2, 680px), (1020px, 3, 1020px), (1280px, 4, 1280px), (1600px, 5, 1600px) );
   // Generate media queries for each breakpoint
   @each $width, $count, $max in $grid-paliers {
     @media (min-width: $width) {
       .universe-list {
-        column-count: $count;
         max-width: $max;
       }
-    }
-  }
-
-  @keyframes universe-settings-opening {
-    0% {
-      height: 0px;
-      opacity: 0;
-    }
-
-    100% {
-      height: 190px;
-      opacity: 1;
-    }
-  }
-
-  @keyframes universe-settings-closing {
-    0% {
-      height: 190px;
-      opacity: 1;
-    }
-
-    100% {
-      height: 0px;
-      opacity: 0;
     }
   }
 
@@ -548,18 +683,21 @@ body {
   }
 
   .universe-controls {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 6px;
     font-size: 13px;
     opacity: 0.9;
 
     .universe-threshold-label {
       opacity: 0.85;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .universe-threshold-select {
+      flex-shrink: 0;
       font: inherit;
       color: inherit;
       background: $ogm-background-color-lighter;
@@ -568,28 +706,4 @@ body {
       padding: 1px 4px;
     }
   }
-
-
-
-  .data-source-delete {
-    border: 1px solid $ogm-border-color;
-    border-radius: 4px;
-    background: $ogm-background-color-lighter;
-    color: $ogm-color-red;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-
-    &:hover:not(:disabled) {
-      background: color.adjust($ogm-color-red, $alpha: -0.88);
-      border-color: color.adjust($ogm-color-red, $alpha: -0.4);
-    }
-  }
-
-    .data-source-delete:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
 }

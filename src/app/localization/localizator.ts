@@ -1,5 +1,6 @@
 import { I18n } from "./I18n";
 import { Localizations } from "./translations";
+import { Logger } from '../logging/logger';
 
 export class Localizator {
   public static Init(lang: string): void {
@@ -7,8 +8,8 @@ export class Localizator {
   }
 
   // 🔧 Correction : Utilisation des types et objets natifs (Document / HTMLElement)
-  public static ApplyAll(root: HTMLElement | Document = document): void {
-    I18n.ApplyAll(root);
+  public static ApplyAll(logger: Logger, root: HTMLElement | Document = document): void {
+    I18n.ApplyAll(logger, root);
   }
 
   public static Translate(key: string, vars?: Record<string, string | number>): string {

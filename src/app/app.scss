@@ -1,0 +1,77 @@
+
+
+$ogm-z-index-sidebar-vertical: 1000;
+$ogm-z-index-sidebar-horizontal: $ogm-z-index-sidebar-vertical - 1;
+
+$ogm-sidebar-width: 56px;
+$ogm-sidebar-color: transparent;// #181c22;
+@mixin ogm-sidebar($orientation: vertical) {
+  position: fixed;
+  background: $ogm-sidebar-color;
+  display: flex;
+  align-items: center;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+
+  @if ($orientation == 'vertical') {
+    z-index: $ogm-z-index-sidebar-vertical;
+    top: 0;
+    width: $ogm-sidebar-width;
+    height: 100vh;
+    padding-top: 40px;
+    flex-direction: column;
+  }
+  @else if($orientation == 'horizontal') {
+    z-index: $ogm-z-index-sidebar-horizontal;
+    height: $ogm-sidebar-width;
+    width: 100vw;
+    padding-left: 40px;
+    padding-right: 40px;
+    flex-direction: row;
+    justify-content: center;
+  }
+  /*if has no children, do not display*/
+  &:empty {
+    display: none;
+  }
+}
+
+
+#ogm-sidebar-left {
+  @include ogm-sidebar('vertical');
+  left: 0;
+}
+
+#ogm-sidebar-middle {
+  @include ogm-sidebar('horizontal');
+  bottom: 19px;
+}
+
+#ogm-sidebar-right {
+  @include ogm-sidebar('vertical');
+  right: 0;
+}
+
+.ogm-sidebar {
+  .ogm-sidebar-header {
+    .ogm-sidebar-header-button {
+      $border-color: #4c4c4c;
+
+      width: 45px;
+      height: 45px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border-width: 2px;
+      border-style: solid;
+      border-color: $border-color;
+      background-image: url('chrome-extension://__MSG_@@extension_id__/assets/images/logo.png');
+      background-size: 46px;
+      background-position: center;
+      background-repeat: no-repeat;
+      cursor: pointer;
+
+      &:hover {
+        border-color: lighten($border-color, 20%);
+      }
+    }
+  }
+}

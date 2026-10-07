@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Check if TolerationRules files or their usages are modified in this commit
+STAGED_CHANGES=$(git diff --cached -S "tolerationRules" --name-only)
+
+if [ -n "$STAGED_CHANGES" ]; then
+  echo ""
+  echo "---------------------------------------------------------"
+  echo "  WARNING: COMPLIANCE SENSITIVE CODE MODIFIED"
+  echo "---------------------------------------------------------"
+  echo "You are modifying toleration rules or their usages in:"
+  echo "$STAGED_CHANGES"
+  echo "Ensure this change maintains OGame rules compliance!"
+  echo "---------------------------------------------------------"
+  echo ""
+fi

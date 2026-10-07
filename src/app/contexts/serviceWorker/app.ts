@@ -1,57 +1,102 @@
+import browser from 'webextension-polyfill';
+import { browserInfo } from '../../dom/browserInfos';
+import { Localizator } from '../../localization/localizator';
+import { serviceWorkerLoggerFactory } from '../../logging/loggerFactory';
 import { serviceWorkerProtocolRegistrar } from '../../messaging/serviceWorkerProtocol';
+import { sidePanelBroadcastProtocolClient } from '../../messaging/sidePanelBroadcastProtocol';
+import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
+import { ContextMenusManager } from './contextMenusManager';
+import { ExtensionStorageService, StorageArea } from './extensionStorageService';
+import { KeyboardCommandsManager } from './keyboardCommandsManager';
 import { SaveManager } from './saveManager';
 import { SidePanelManager } from './sidePanelManager';
 import { UniverseManager } from './universeManager';
-import { UniverseTabsService } from './universeTabsManager';
+import { UniverseTabsManager } from './universeTabsManager';
 
 class ServiceWorkerContextApp {
   private readonly universeManager: UniverseManager;
-  private readonly universeTabsService: UniverseTabsService;
+  private readonly universeTabsManager: UniverseTabsManager;
   private readonly sidePanelManager: SidePanelManager;
-  private readonly saveManager: SaveManager;
+  private readonly contextMenusManager: ContextMenusManager;
+  private readonly keyboardCommandsManager: KeyboardCommandsManager
+  private readonly logger = serviceWorkerLoggerFactory.CreateLogger("ServiceWorkerContextApp");
 
   constructor() {
-    this.saveManager = new SaveManager();
-    this.universeTabsService = new UniverseTabsService();
-    this.sidePanelManager = new SidePanelManager();
-    this.universeManager = new UniverseManager(this.saveManager, this.universeTabsService);
+    const saveManager = new SaveManager(new ExtensionStorageService(serviceWorkerLoggerFactory.CreateLogger("ExtensionStorageService<ExtensionLocalData>"), StorageArea.Local));
+    this.universeTabsManager = new UniverseTabsManager(serviceWorkerLoggerFactory.CreateLogger("UniverseTabsService"));
+    this.sidePanelManager = new SidePanelManager(serviceWorkerLoggerFactory.CreateLogger("SidePanelManager"));
+    this.universeManager = new UniverseManager(serviceWorkerLoggerFactory.CreateLogger("UniverseManager"), saveManager, this.universeTabsManager);
+    this.contextMenusManager = new ContextMenusManager(serviceWorkerLoggerFactory.CreateLogger("ContextMenusManager"), this.sidePanelManager);
+    this.keyboardCommandsManager = new KeyboardCommandsManager(serviceWorkerLoggerFactory.CreateLogger("KeyboardCommandsManager"), this.sidePanelManager);
 
-    serviceWorkerProtocolRegistrar.OnRegisterUniverse((data: { universeKey: string, universeDomain: string, lastRefreshDate: number }) =>
-      this.universeManager.RegisterUniverseAsync(data.universeKey, data.universeDomain, data.lastRefreshDate)
-    )
+    this.RegisterServiceWorkerEvents();
 
-    serviceWorkerProtocolRegistrar.OnUpdateUniverseStatus((data: { universeKey: string, universeName: string, universeCounters: any }) =>
-      this.universeManager.UpdateUniverseStatusAsync(data.universeKey, data.universeName, data.universeCounters)
-    )
-
-    serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(() =>
-      this.universeManager.ListUniverseStatusesAsync()
-    )
-
-    serviceWorkerProtocolRegistrar.OnReloadUniverseTab((data: string) =>
-      this.universeTabsService.ReloadUniverseTabAsync(data)
-    )
-
-    serviceWorkerProtocolRegistrar.OnRemoveUniverse((data: string) =>
-      this.universeManager.RemoveUniverseAsync(data)
-    )
-
-    serviceWorkerProtocolRegistrar.OnGetUniverseSidePanelOptions((data: string) =>
-      this.saveManager.GetUniverseSidePanelOptionsAsync(data)
-    )
-
-    serviceWorkerProtocolRegistrar.OnSaveUniverseSidePanelOptions((data: { universeKey: string, options: UniverseSidePanelOptions }) =>
-      this.saveManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options)
-    );
+    browser.runtime.onInstalled.addListener(this.OnExtensionInstallation);
   }
 
-  public async StartAsync(): Promise<void> {
-    this.universeManager.InitializeAsync().then(() => {
-      this.universeTabsService.Start();
-      this.sidePanelManager.Start();
-      console.info('OGame Multiverse ✅ Started.');
+  private RegisterServiceWorkerEvents(): void {
+    serviceWorkerProtocolRegistrar.OnRegisterUniverse(this.logger, async (data: { universeKey: string, universeDomain: string, lastRefreshDate: number }) => {
+      await this.universeManager.RegisterUniverseAsync(data.universeKey, data.universeDomain, data.lastRefreshDate);
+      sidePanelBroadcastProtocolClient.RegisterUniverse(this.logger, data.universeKey, data.universeDomain, data.lastRefreshDate);
     });
+
+    serviceWorkerProtocolRegistrar.OnUpdateUniverseStatus(this.logger, async (data: { universeKey: string, universeName: string, universeCounters: any }) => {
+      await this.universeManager.UpdateUniverseStatusAsync(data.universeKey, data.universeName, data.universeCounters);
+      const isOpen = this.universeTabsManager.HasOpenTabForUniverse(data.universeKey);
+      sidePanelBroadcastProtocolClient.UpdateUniverseStatus(this.logger, data.universeKey, data.universeName, data.universeCounters, isOpen);
+    });
+
+    serviceWorkerProtocolRegistrar.OnGetUniversesStatuses(this.logger, (data) =>
+      this.universeManager.ListUniverseStatusesAsync(data)
+    );
+
+    serviceWorkerProtocolRegistrar.OnActionOnUniverseTab(this.logger, async (data) => {
+      await this.universeTabsManager.ActionOnUniverseTabAsync(data.universeKey, data.action, data.windowId);
+    });
+
+    serviceWorkerProtocolRegistrar.OnRemoveUniverse(this.logger, async (data: string) => {
+      await this.universeManager.RemoveUniverseAsync(data);
+      sidePanelBroadcastProtocolClient.RemoveUniverse(this.logger, data);
+    });
+
+    serviceWorkerProtocolRegistrar.OnGetUniverseSidePanelOptions(this.logger, (data: string) =>
+      this.universeManager.GetUniverseSidePanelOptionsAsync(data)
+    );
+
+    serviceWorkerProtocolRegistrar.OnSaveUniverseSidePanelOptions(this.logger, async (data: { universeKey: string, options: UniverseSidePanelOptions }) => {
+      await this.universeManager.SaveUniverseSidePanelOptionsAsync(data.universeKey, data.options);
+      sidePanelBroadcastProtocolClient.UpdateUniverseSidePanelOptions(this.logger, data.universeKey, data.options);
+    });
+
+    serviceWorkerProtocolRegistrar.OnToggleSidePanel(this.logger, (_, sender) =>
+      this.sidePanelManager.ToggleSidePanel(sender)
+    );
+
+    serviceWorkerProtocolRegistrar.OnSaveUniverseLayout(this.logger, async (layout: UniverseLayoutConfig) => {
+      const normalized = await this.universeManager.SetUniverseLayoutAsync(layout);
+      sidePanelBroadcastProtocolClient.UpdateUniverseGrid(this.logger);
+      return normalized;
+    });
+  }
+
+  private readonly OnExtensionInstallation = (details: { reason: string }): void => {
+    if (details.reason === 'install' || details.reason === 'update') {
+      void this.universeTabsManager.RebuildOpenTabsStateAsync();
+    }
+  };
+
+  public async StartAsync(): Promise<void> {
+    await browserInfo.InitAsync();
+    Localizator.Init(browserInfo.Language);
+
+    await this.universeManager.InitializeAsync();
+    this.universeTabsManager.Start();
+    this.sidePanelManager.Start();
+
+    await this.contextMenusManager.RegisterContextMenusAsync();
+    this.keyboardCommandsManager.RegisterKeyboardCommands();
+    this.logger.info('OGame Multiverse ✅ Started.');
   }
 }
 

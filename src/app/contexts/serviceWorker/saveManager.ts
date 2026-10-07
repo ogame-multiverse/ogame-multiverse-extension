@@ -1,27 +1,244 @@
 import { ExtensionLocalData } from '../../model/save/extensionLocalData';
+import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
-import { ExtensionStorageService, StorageArea } from './extensionStorageService';
+import { ExtensionStorageService } from './extensionStorageService';
+
+export const UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY = '__ogm_universe_layout_config';
 
 export class SaveManager {
-  private readonly extensionStorageService: ExtensionStorageService<ExtensionLocalData> = new ExtensionStorageService<ExtensionLocalData>(StorageArea.Local);
+  constructor(private readonly extensionStorageService: ExtensionStorageService) { }
+
+  private isExtensionLocalData(val: unknown): val is ExtensionLocalData {
+    return (
+      typeof val === 'object' &&
+      val !== null &&
+      !Array.isArray(val) &&
+      ('UniverseKey' in val || 'LastRefreshDate' in val)
+    );
+  }
+
+  private normalizeKey(key: string): string {
+    return (key || '').trim().toLowerCase();
+  }
+
+  private sanitizeRow(items: string[] | undefined): string[] {
+    const result: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of items || []) {
+      if (typeof raw !== 'string') continue;
+      const key = this.normalizeKey(raw);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      result.push(key);
+    }
+    return result;
+  }
+
+  private sanitizeGrid(grid: string[][] | undefined): string[][] {
+    const result: string[][] = [];
+    const seen = new Set<string>();
+    for (const col of grid || []) {
+      if (!Array.isArray(col)) continue;
+      const cleanCol: string[] = [];
+      for (const raw of col) {
+        if (typeof raw !== 'string') continue;
+        const key = this.normalizeKey(raw);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        cleanCol.push(key);
+      }
+      if (cleanCol.length > 0) result.push(cleanCol);
+    }
+    return result;
+  }
+
+  private areEqual(a: unknown, b: unknown): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  /**
+   * Reconciles a section without destroying the multi-column layout during List mode actions.
+   */
+  private reconcileSection(
+    incomingListRaw: string[] | undefined,
+    incomingGridRaw: string[][] | undefined,
+    storedListRaw: string[] | undefined,
+    storedGridRaw: string[][] | undefined
+  ): { list: string[]; grid: string[][] } {
+    const inList = this.sanitizeRow(incomingListRaw);
+    const inGrid = this.sanitizeGrid(incomingGridRaw);
+    const stList = this.sanitizeRow(storedListRaw);
+    const stGrid = this.sanitizeGrid(storedGridRaw);
+
+    // Detection of a call coming from List mode (incoming grid flattened to 1 column)
+    const isIncomingGridFlatList =
+      inGrid.length === 0 ||
+      (inGrid.length === 1 && this.areEqual(inGrid[0], inList));
+
+    let finalGrid: string[][];
+    let finalList: string[];
+
+    if (isIncomingGridFlatList && stGrid.length > 0) {
+      // --- LIST MODE ACTION ---
+      finalList = inList;
+      const listKeys = new Set(finalList);
+
+      finalGrid = stGrid
+        .map((col) => col.filter((id) => listKeys.has(id)))
+        .filter((col) => col.length > 0);
+
+      const currentGridKeys = new Set(finalGrid.flat());
+      const missing = finalList.filter((id) => !currentGridKeys.has(id));
+
+      if (missing.length > 0) {
+        if (finalGrid.length === 0) {
+          finalGrid.push(missing);
+        } else {
+          finalGrid[finalGrid.length - 1].push(...missing);
+        }
+      }
+    } else if (inGrid.length > 0) {
+      // --- GRID MODE ACTION ---
+      finalGrid = inGrid;
+      const gridKeys = new Set(finalGrid.flat());
+
+      const baseList = inList.length > 0 ? inList : stList;
+      finalList = baseList.filter((id) => gridKeys.has(id));
+      finalGrid.flat().forEach((id) => {
+        if (!finalList.includes(id)) {
+          finalList.push(id);
+        }
+      });
+    } else {
+      // --- INITIALIZATION OR EMPTY SECTIONS ---
+      finalList = inList.length > 0 ? inList : stList;
+      finalGrid = stGrid.length > 0 ? stGrid : (finalList.length > 0 ? [finalList] : []);
+    }
+
+    return { list: finalList, grid: finalGrid };
+  }
+
   public async GetAllExtensionLocalDataAsync(): Promise<Record<string, ExtensionLocalData>> {
-    return await this.extensionStorageService.GetAll();
+    return await this.extensionStorageService.GetAll<ExtensionLocalData>(
+      (val): val is ExtensionLocalData => this.isExtensionLocalData(val)
+    );
+  }
+
+  public async GetUniverseLayoutConfigAsync(): Promise<UniverseLayoutConfig> {
+    const raw = await this.extensionStorageService.Get<Partial<UniverseLayoutConfig>>(UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY);
+    if (!raw) return new UniverseLayoutConfig();
+
+    const fav = this.reconcileSection(raw.favoriteListOrder, raw.favoriteGridOrder, raw.favoriteListOrder, raw.favoriteGridOrder);
+    const favKeys = new Set([...fav.list, ...fav.grid.flat()]);
+
+    const otherOrder = (raw.listOrder || []).filter((id) => !favKeys.has(this.normalizeKey(id)));
+    const otherGrid = (raw.gridOrder || [])
+      .map((col) => col.filter((id) => !favKeys.has(this.normalizeKey(id))))
+      .filter((col) => col.length > 0);
+
+    const others = this.reconcileSection(otherOrder, otherGrid, otherOrder, otherGrid);
+
+    return new UniverseLayoutConfig({
+      favoriteListOrder: fav.list,
+      favoriteGridOrder: fav.grid,
+      listOrder: others.list,
+      gridOrder: others.grid,
+    });
+  }
+
+  public async SaveUniverseLayoutConfigAsync(config: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
+    const current = await this.GetUniverseLayoutConfigAsync();
+
+    // Favorites
+    const fav = this.reconcileSection(
+      config.favoriteListOrder,
+      config.favoriteGridOrder,
+      current.favoriteListOrder,
+      current.favoriteGridOrder
+    );
+    const favKeys = new Set([...fav.list, ...fav.grid.flat()]);
+
+    // Other universes (excluding favorites)
+    const incomingOtherList = (config.listOrder || []).filter((id) => !favKeys.has(this.normalizeKey(id)));
+    const incomingOtherGrid = (config.gridOrder || [])
+      .map((col) => col.filter((id) => !favKeys.has(this.normalizeKey(id))))
+      .filter((col) => col.length > 0);
+
+    const storedOtherList = current.listOrder.filter((id) => !favKeys.has(this.normalizeKey(id)));
+    const storedOtherGrid = current.gridOrder
+      .map((col) => col.filter((id) => !favKeys.has(this.normalizeKey(id))))
+      .filter((col) => col.length > 0);
+
+    const others = this.reconcileSection(
+      incomingOtherList,
+      incomingOtherGrid,
+      storedOtherList,
+      storedOtherGrid
+    );
+
+    const updatedConfig = new UniverseLayoutConfig({
+      favoriteListOrder: fav.list,
+      favoriteGridOrder: fav.grid,
+      listOrder: others.list,
+      gridOrder: others.grid,
+    });
+
+    await this.extensionStorageService.Set(UNIVERSE_LAYOUT_CONFIG_STORAGE_KEY, updatedConfig);
+    return updatedConfig;
+  }
+
+  public async AppendToUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
+    const key = this.normalizeKey(universeKey);
+    if (!key) return;
+
+    const layout = await this.GetUniverseLayoutConfigAsync();
+
+    const inFavList = layout.favoriteListOrder.includes(key);
+    const inOtherList = layout.listOrder.includes(key);
+    if (!inFavList && !inOtherList) {
+      layout.listOrder.push(key);
+    }
+
+    const inFavGrid = layout.favoriteGridOrder.some((col) => col.includes(key));
+    const inOtherGrid = layout.gridOrder.some((col) => col.includes(key));
+    if (!inFavGrid && !inOtherGrid) {
+      if (layout.gridOrder.length === 0) {
+        layout.gridOrder.push([key]);
+      } else {
+        layout.gridOrder[layout.gridOrder.length - 1].push(key);
+      }
+    }
+
+    await this.SaveUniverseLayoutConfigAsync(layout);
+  }
+
+  public async RemoveFromUniverseOrderAndGridAsync(universeKey: string): Promise<void> {
+    const key = this.normalizeKey(universeKey);
+    if (!key) return;
+
+    const layout = await this.GetUniverseLayoutConfigAsync();
+    layout.favoriteListOrder = layout.favoriteListOrder.filter((k) => k !== key);
+    layout.listOrder = layout.listOrder.filter((k) => k !== key);
+    layout.favoriteGridOrder = layout.favoriteGridOrder.map((col) => col.filter((k) => k !== key)).filter((col) => col.length > 0);
+    layout.gridOrder = layout.gridOrder.map((col) => col.filter((k) => k !== key)).filter((col) => col.length > 0);
+
+    await this.SaveUniverseLayoutConfigAsync(layout);
   }
 
   public async GetExtensionLocalDataAsync(universeKey: string): Promise<ExtensionLocalData> {
-    let localSave = new ExtensionLocalData(await this.extensionStorageService.Get(universeKey));
-    if (!localSave) {
-      localSave = new ExtensionLocalData({});
-      await this.SaveExtensionLocalDataAsync(universeKey, localSave)
+    const raw = await this.extensionStorageService.Get<Partial<ExtensionLocalData>>(universeKey);
+    if (!raw) {
+      const localSave = new ExtensionLocalData({});
+      await this.SaveExtensionLocalDataAsync(universeKey, localSave);
+      return localSave;
     }
-    return localSave;
+    return new ExtensionLocalData(raw);
   }
 
   public async GetUniverseSidePanelOptionsAsync(universeKey: string): Promise<UniverseSidePanelOptions> {
     const localSave = await this.GetExtensionLocalDataAsync(universeKey);
     return localSave.SidePanelOptions;
   }
-
 
   public async SaveUniverseSidePanelOptionsAsync(universeKey: string, options: UniverseSidePanelOptions): Promise<void> {
     const localSave = await this.GetExtensionLocalDataAsync(universeKey);
@@ -33,28 +250,24 @@ export class SaveManager {
     await this.extensionStorageService.Set(universeKey, localSave);
   }
 
-  public RemoveUniverseAsync(universeKey: string): Promise<void> {
-    return this.extensionStorageService.Remove(universeKey);
+  public async RemoveUniverseAsync(universeKey: string): Promise<void> {
+    await this.extensionStorageService.Remove(universeKey);
   }
 
-  public async RegisterUniverseAsync(universeKey: string, universeDomain: string, lastRefreshDate: number): Promise<ExtensionLocalData> {
-    let localSave = await this.extensionStorageService.Get(universeKey)
-    if (!localSave) {
-      localSave = new ExtensionLocalData({
+  public async RegisterUniverseAsync(
+    universeKey: string,
+    universeDomain: string,
+    lastRefreshDate: number
+  ): Promise<ExtensionLocalData> {
+    const raw = await this.extensionStorageService.Get<Partial<ExtensionLocalData>>(universeKey);
+    const localSave = raw
+      ? new ExtensionLocalData(raw)
+      : new ExtensionLocalData({
         UniverseKey: universeKey,
         UniverseDomain: universeDomain,
-        LastRefreshDate: lastRefreshDate,
       });
-    }
-    else {
-      localSave.LastRefreshDate = lastRefreshDate;
-    }
-
+    localSave.LastRefreshDate = lastRefreshDate;
     await this.SaveExtensionLocalDataAsync(universeKey, localSave);
     return localSave;
-  }
-
-  public async RemoveExtensionLocalDataAsync(universeKey: string): Promise<void> {
-    await this.extensionStorageService.Remove(universeKey);
   }
 }

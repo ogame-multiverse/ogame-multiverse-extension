@@ -1,58 +1,54 @@
 import { ExtensionLocalData } from "../../model/save/extensionLocalData";
 import { SidePanelUniverseCounters } from "../../model/sidePanel/sidePanelUniverseCounters";
 import { SidePanelUniverseStatus } from "../../model/sidePanel/sidePanelUniverseStatus";
+import { SidePanelUniversesSections } from "../../model/sidePanel/sidePanelUniversesSections";
+import { UniverseLayoutConfig } from "../../model/sidePanel/universeLayoutConfig";
 import { UniverseSidePanelOptions } from "../../model/sidePanel/universeSidePanelOptions";
 import { UniverseDataNormalizer } from "../../universeDataNormalizer";
 import { SaveManager } from "./saveManager";
-import { UniverseTabsService } from "./universeTabsManager";
-export class UniverseManager {
+import { UniverseTabsManager } from "./universeTabsManager";
+import { Logger } from "../../logging/logger";
 
+export class UniverseManager {
   private readonly universeDataByUniverse = new Map<string, { universeName: string, universeCounters: SidePanelUniverseCounters }>();
   private readonly savesByUniverse = new Map<string, ExtensionLocalData>();
 
-  private readonly saveManager: SaveManager;
-  private readonly universeTabsService: UniverseTabsService
-  constructor(saveManager: SaveManager, universeTabsService: UniverseTabsService) {
-    this.saveManager = saveManager;
-    this.universeTabsService = universeTabsService;
-  }
+  constructor(
+    private readonly logger: Logger,
+    private readonly saveManager: SaveManager,
+    private readonly universeTabsManager: UniverseTabsManager
+  ) { }
 
   public async InitializeAsync(): Promise<void> {
     try {
       const universes = await this.saveManager.GetAllExtensionLocalDataAsync();
-
-      // On vide proprement la Map actuelle sans détruire sa référence en mémoire
       this.savesByUniverse.clear();
-
       if (universes) {
         for (const [key, value] of Object.entries(universes)) {
           this.savesByUniverse.set(key, value);
         }
       }
-
-      console.info(`[Init] Initialisé avec succès. Nombre d'univers : ${this.savesByUniverse.size}`);
+      this.logger.info('Initialization complete. Loaded universes:', Array.from(this.savesByUniverse.keys()));
     } catch (error) {
-      console.error("[Init] Erreur d'initialisation :", error);
+      this.logger.error('Error during initialization:', error);
     }
   }
 
   public async RegisterUniverseAsync(universeKey: string, universeDomain: string, lastRefreshDate: number): Promise<void> {
     const localSave = await this.saveManager.RegisterUniverseAsync(universeKey, universeDomain, lastRefreshDate);
     this.savesByUniverse.set(universeKey, localSave);
+    await this.saveManager.AppendToUniverseOrderAndGridAsync(universeKey);
   }
 
   public async RemoveUniverseAsync(universeKey: string): Promise<void> {
-    //remove the universe from the local save and update the in-memory map
     await this.saveManager.RemoveUniverseAsync(universeKey);
     this.savesByUniverse.delete(universeKey);
     this.universeDataByUniverse.delete(universeKey);
+    await this.saveManager.RemoveFromUniverseOrderAndGridAsync(universeKey);
   }
 
   public async UpdateUniverseStatusAsync(universeKey: string, universeName: string, universeCounters: SidePanelUniverseCounters): Promise<void> {
-    // Update the in-memory universe data
     this.universeDataByUniverse.set(universeKey, { universeName, universeCounters });
-
-    // Update the local save with the new universe name if it has changed
     const localSave = this.savesByUniverse.get(universeKey);
     if (localSave && localSave.UniverseName !== universeName) {
       localSave.UniverseName = universeName;
@@ -60,40 +56,126 @@ export class UniverseManager {
     }
   }
 
-
-  public async ListUniverseStatusesAsync(): Promise<SidePanelUniverseStatus[]> {
+  public async ListUniverseStatusesAsync(mode: 'list' | 'grid'): Promise<SidePanelUniversesSections> {
     const allUniverseKeys = Array.from(this.savesByUniverse.keys());
-    console.info(`[ListUniverseStatusesAsync] Found ${allUniverseKeys.length} universe(s) in local save.`);
+    await this.universeTabsManager.RebuildOpenTabsStateAsync();
 
-    await this.universeTabsService.RebuildOpenTabsStateAsync();
-    const openTabsCountByUniverse = this.universeTabsService.GetOpenTabsCountByUniverse(allUniverseKeys);
+    const tabsMapByUniverse = this.universeTabsManager.GetTabsMapByUniverse();
+    tabsMapByUniverse.forEach((_, key) => {
+      if (!allUniverseKeys.includes(key)) allUniverseKeys.push(key);
+    });
 
-    return Array.from(allUniverseKeys)
-      .sort((a, b) => a.localeCompare(b))
-      .map((universeKey) => this.BuildUniverseStatus(universeKey, this.savesByUniverse.get(universeKey), openTabsCountByUniverse));
+    const layout = await this.saveManager.GetUniverseLayoutConfigAsync();
+    const favKeySet = new Set<string>();
+
+    if (mode === 'list') {
+      (layout.favoriteListOrder || []).forEach((k) => favKeySet.add(k));
+    } else {
+      (layout.favoriteGridOrder || []).flat().forEach((k) => favKeySet.add(k));
+    }
+
+    const favKeys = allUniverseKeys.filter((k) => favKeySet.has(k.trim().toLowerCase()));
+    const otherKeys = allUniverseKeys.filter((k) => !favKeySet.has(k.trim().toLowerCase()));
+
+    if (mode === 'list') {
+      const favOrdered = this.SortKeysByPersistedOrder(favKeys, layout.favoriteListOrder);
+      const otherOrdered = this.SortKeysByPersistedOrder(otherKeys, layout.listOrder);
+
+      return {
+        favorites: [favOrdered.map((key) => this.BuildUniverseStatus(key, this.savesByUniverse.get(key), tabsMapByUniverse))],
+        others: [otherOrdered.map((key) => this.BuildUniverseStatus(key, this.savesByUniverse.get(key), tabsMapByUniverse))],
+      };
+    } else {
+      const favGridOrdered = this.SortGridByPersistedOrder(favKeys, layout.favoriteGridOrder);
+      const otherGridOrdered = this.SortGridByPersistedOrder(otherKeys, layout.gridOrder);
+
+      return {
+        favorites: favGridOrdered.map((col) => col.map((key) => this.BuildUniverseStatus(key, this.savesByUniverse.get(key), tabsMapByUniverse))),
+        others: otherGridOrdered.map((col) => col.map((key) => this.BuildUniverseStatus(key, this.savesByUniverse.get(key), tabsMapByUniverse))),
+      };
+    }
   }
 
-  private BuildUniverseStatus(universeKey: string, universe: ExtensionLocalData | undefined, openTabsCountByUniverse: Map<string, number>): SidePanelUniverseStatus {
-    const openTabsCount = openTabsCountByUniverse.get(universeKey) || 0;
-    const lastRefreshAtMs = universe?.LastRefreshDate;
+  public async GetUniverseSidePanelOptionsAsync(universeKey: string): Promise<UniverseSidePanelOptions> {
+    const localSave = this.savesByUniverse.get(universeKey);
+    if (localSave?.SidePanelOptions) {
+      return localSave.SidePanelOptions;
+    }
+    return await this.saveManager.GetUniverseSidePanelOptionsAsync(universeKey);
+  }
 
+  public async SaveUniverseSidePanelOptionsAsync(universeKey: string, options: UniverseSidePanelOptions): Promise<void> {
+    await this.saveManager.SaveUniverseSidePanelOptionsAsync(universeKey, options);
+    const localSave = this.savesByUniverse.get(universeKey);
+    if (localSave) {
+      localSave.SidePanelOptions = options;
+    }
+  }
+
+  public async SetUniverseLayoutAsync(layout: UniverseLayoutConfig): Promise<UniverseLayoutConfig> {
+    return await this.saveManager.SaveUniverseLayoutConfigAsync(layout);
+  }
+
+  private SortKeysByPersistedOrder(keys: string[], persistedOrder: string[]): string[] {
+    const keyByNormalized = new Map<string, string>();
+    keys.forEach((key) => keyByNormalized.set(key.trim().toLowerCase(), key));
+
+    const ordered: string[] = [];
+    const consumed = new Set<string>();
+
+    (persistedOrder || []).forEach((normalized) => {
+      const original = keyByNormalized.get(normalized.trim().toLowerCase());
+      if (original && !consumed.has(normalized.trim().toLowerCase())) {
+        ordered.push(original);
+        consumed.add(normalized.trim().toLowerCase());
+      }
+    });
+
+    const remaining = keys.filter((k) => !consumed.has(k.trim().toLowerCase())).sort((a, b) => a.localeCompare(b));
+    return [...ordered, ...remaining];
+  }
+
+  private SortGridByPersistedOrder(keys: string[], persistedGrid: string[][]): string[][] {
+    const keyByNormalized = new Map<string, string>();
+    keys.forEach((key) => keyByNormalized.set(key.trim().toLowerCase(), key));
+
+    const orderedGrid: string[][] = [];
+    const consumed = new Set<string>();
+
+    for (const column of persistedGrid || []) {
+      const orderedColumn: string[] = [];
+      for (const normalized of column || []) {
+        const original = keyByNormalized.get(normalized.trim().toLowerCase());
+        if (original && !consumed.has(normalized.trim().toLowerCase())) {
+          orderedColumn.push(original);
+          consumed.add(normalized.trim().toLowerCase());
+        }
+      }
+      if (orderedColumn.length > 0) orderedGrid.push(orderedColumn);
+    }
+
+    const remaining = keys.filter((k) => !consumed.has(k.trim().toLowerCase())).sort((a, b) => a.localeCompare(b));
+    if (remaining.length > 0) {
+      if (orderedGrid.length === 0) orderedGrid.push([]);
+      orderedGrid[0].push(...remaining);
+    }
+
+    return orderedGrid;
+  }
+
+  private BuildUniverseStatus(universeKey: string, universe: ExtensionLocalData | undefined, tabsMapByUniverse: Map<string, number[]>): SidePanelUniverseStatus {
+    const tabIds = tabsMapByUniverse.get(universeKey) || [];
+    const lastRefreshAtMs = universe?.LastRefreshDate;
     const universeData = this.universeDataByUniverse.get(universeKey);
-    const detectedDisplayName = universe?.UniverseName;
 
     return new SidePanelUniverseStatus({
       UniverseKey: universeKey,
-      UniverseDisplayName: detectedDisplayName || UniverseDataNormalizer.ToUniverseDisplayName(universeKey),
-      IsOpen: openTabsCount > 0,
-      OpenTabsCount: openTabsCount,
+      UniverseDisplayName: universe?.UniverseName || UniverseDataNormalizer.ToUniverseDisplayName(universeKey),
+      IsOpen: tabIds.length > 0,
+      TabIds: tabIds,
       LastRefreshAtIso: typeof lastRefreshAtMs === 'number' ? new Date(lastRefreshAtMs).toISOString() : undefined,
       SidePanelOptions: universe?.SidePanelOptions || new UniverseSidePanelOptions({}),
       SidePanelUniverseCounters: universeData?.universeCounters || new SidePanelUniverseCounters({})
-
-
     });
   }
-
-
-
-
 }

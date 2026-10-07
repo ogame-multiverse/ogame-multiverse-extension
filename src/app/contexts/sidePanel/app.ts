@@ -1,35 +1,120 @@
 import { Localizator } from '../../localization/localizator';
+import browser from 'webextension-polyfill';
+import { browserInfo } from '../../dom/browserInfos';
 import { UniversePanelController } from './universePanelController';
+import { sidePanelLoggerFactory } from '../../logging/loggerFactory';
+import { sidePanelProtocolRegistrar } from '../../messaging/sidePanelProtocol';
+import { GlobalConstants } from '../../globalConstants';
 
 class SidePanelContextApp {
-  private readonly supportedLanguages = new Set(['en', 'fr', 'es', 'de', 'tr', 'br']);
-  private readonly universePanelController = new UniversePanelController();
+  private windowId: number | undefined;
+  private activePort: browser.Runtime.Port | null = null;
+  private reconnectTimeoutId: number | undefined;
+  private pingIntervalId: number | undefined;
 
-  public Start(): void {
-    const language = this.ResolveLanguage();
-    document.documentElement.lang = language;
+  private readonly logger = sidePanelLoggerFactory.CreateLogger('SidePanelContextApp');
+  private readonly universePanelController = new UniversePanelController(
+    sidePanelLoggerFactory.CreateLogger('UniversePanelController')
+  );
 
-    Localizator.Init(language);
-    Localizator.ApplyAll();
+  public async StartAsync(): Promise<void> {
+    await browserInfo.InitAsync();
+    Localizator.Init(browserInfo.Language);
+    Localizator.ApplyAll(this.logger);
 
-    this.InitializeTabs('tab-universe');
+    const currentWindow = await browser.windows.getCurrent();
+    this.windowId = currentWindow.id;
+
+    if (!this.windowId) {
+      this.logger.error("Failed to retrieve the current window ID.");
+      return;
+    }
+
+    document.documentElement.lang = browserInfo.Language;
+
+    this.InitializeSidePanelProtocol();
+    await this.InitializeTabsAsync('tab-universe');
   }
 
-  private ResolveLanguage(): string {
-    const chromeApi = (globalThis as { chrome?: { i18n?: { getUILanguage?: () => string } } }).chrome;
-    const browserLanguage = chromeApi?.i18n?.getUILanguage?.() || navigator.language || 'en';
-    const languageCode = browserLanguage.split('-')[0].toLowerCase();
+  private InitializeSidePanelProtocol(): void {
+    // Register the port connection and disconnection events
+    sidePanelProtocolRegistrar.OnClosePanel(() => {
+      window.close();
+    });
 
-    if (languageCode === 'pt') return 'br';
-    if (this.supportedLanguages.has(languageCode)) return languageCode;
-    return 'en';
+    this.ConnectPort();
   }
 
-  private InitializeTabs(defaultTabId: string): void {
+  private ConnectPort(): void {
+    if (!this.windowId) return;
+
+    // Cleanup any existing reconnection timeout
+    if (this.reconnectTimeoutId !== undefined) {
+      window.clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = undefined;
+    }
+
+    // Cleanup any existing ping interval
+    if (this.pingIntervalId !== undefined) {
+      window.clearInterval(this.pingIntervalId);
+      this.pingIntervalId = undefined;
+    }
+
+    // Disconnect the existing port safely without triggering onDisconnect
+    if (this.activePort) {
+      const oldPort = this.activePort;
+      this.activePort = null;
+      try {
+        oldPort.disconnect();
+      } catch {
+        // Ignore any errors during disconnection
+      }
+    }
+
+    // Open a new port and connect it
+    this.logger.debug(`Opening side panel port for windowId ${this.windowId}`);
+    const newPort = sidePanelProtocolRegistrar.OpenPort(this.logger, this.windowId);
+    this.activePort = newPort;
+
+    sidePanelProtocolRegistrar.Connect(this.logger, newPort);
+
+    // 🔄 Ping Keep-Alive toutes les 20s pour éviter la coupure Chrome au bout de 30s
+    this.pingIntervalId = window.setInterval(() => {
+      if (this.activePort === newPort) {
+        try {
+          newPort.postMessage({ type: 'PING' });
+        } catch {
+          // Ignorer si le port s'est fermé
+        }
+      }
+    }, GlobalConstants.SIDE_PANEL_PING_SERVICE_WORKER_INTERVAL_MS);
+
+    // Handle port disconnection and attempt to reconnect after a delay
+    newPort.onDisconnect.addListener(() => {
+      // Ignorer si le port a déjà été nettoyé ou remplacé
+      if (this.activePort !== newPort) return;
+
+      this.logger.warn("Side panel port disconnected. Attempting to reconnect...");
+      this.activePort = null;
+
+      if (this.pingIntervalId !== undefined) {
+        window.clearInterval(this.pingIntervalId);
+        this.pingIntervalId = undefined;
+      }
+
+      this.reconnectTimeoutId = window.setTimeout(() => {
+        this.ConnectPort();
+        // Refresh the universe panel after reconnection
+        this.universePanelController.Refresh();
+      }, 1000);
+    });
+  }
+
+  private async InitializeTabsAsync(defaultTabId: string): Promise<void> {
     const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
     const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel'));
 
-    const activate = (tabId: string): void => {
+    const activateAsync = async (tabId: string): Promise<void> => {
       tabs.forEach((tab) => {
         const active = tab.id === tabId;
         tab.setAttribute('aria-selected', String(active));
@@ -41,26 +126,22 @@ class SidePanelContextApp {
       });
 
       if (tabId === 'tab-universe') {
-        this.universePanelController.Activate();
+        await this.universePanelController.ActivateAsync();
       } else {
         this.universePanelController.Deactivate();
       }
     };
 
     tabs.forEach((tab) => {
-      tab.addEventListener('click', () => activate(tab.id));
+      tab.addEventListener('click', () => activateAsync(tab.id));
     });
 
-    const initialTab = tabs.find((tab) => tab.id === defaultTabId) || tabs.find((tab) => tab.getAttribute('aria-selected') === 'true');
-    if (initialTab) activate(initialTab.id);
-  }
+    const initialTab =
+      tabs.find((tab) => tab.id === defaultTabId) ||
+      tabs.find((tab) => tab.getAttribute('aria-selected') === 'true');
 
-  private HandleContextInvalidated(): void {
-    this.universePanelController.StopSync();
-    window.setTimeout(() => {
-      window.location.reload();
-    }, 50);
+    if (initialTab) activateAsync(initialTab.id);
   }
 }
 
-new SidePanelContextApp().Start();
+new SidePanelContextApp().StartAsync();
