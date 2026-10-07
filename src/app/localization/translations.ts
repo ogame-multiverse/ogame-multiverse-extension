@@ -154,12 +154,12 @@ export const Localizations = [
         br: 'd',
     }),
     new I18nValue('SidePanelSettingsGroupIndicators', {
-        en: 'Last observed indicators',
-        fr: 'Derniers indicateurs observés',
-        es: 'Últimos indicadores observados',
-        de: 'Zuletzt beobachtete Indikatoren',
-        tr: 'Son gözlemlenen göstergeler',
-        br: 'Últimos indicadores observados',
+        en: 'Indicators',
+        fr: 'Indicateurs',
+        es: 'Indicadores',
+        de: 'Indikatoren',
+        tr: 'Göstergeler',
+        br: 'Indicadores',
     }),
     new I18nValue('SidePanelCancel', {
         en: 'Cancel',

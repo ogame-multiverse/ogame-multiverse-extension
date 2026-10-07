@@ -67,10 +67,10 @@ body {
         background: $ogm-sidepanel-color;
         cursor: pointer;
         vertical-align: bottom;
-
+        // Checked = filled with the accent color, without the native white check mark
         &:checked {
-            appearance: checkbox;
-            accent-color: $ogm-color-orange;
+            background: $ogm-color-orange;
+            border-color: $ogm-color-orange;
         }
     }
 
@@ -1401,6 +1401,8 @@ body {
                         font-weight: 400;
 
                         .fleet-filters-toolbar {
+                            margin-top: 5px;
+                            margin-bottom: 5px;
                             grid-column: 1 / -1;
                             display: flex;
                             flex-wrap: wrap;
@@ -1412,6 +1414,12 @@ body {
                         .fleet-filters-title {
                             font-weight: 600;
                         }
+
+                        .fleet-filters-column-header {
+                            margin-bottom: 5px;
+                        }
+
+
 
                         .fleet-filters-bulk-actions {
                             display: inline-flex;
@@ -1453,6 +1461,7 @@ body {
                         .fleet-filter-row-label {
                             text-align: right;
                             padding-right: 6px;
+                            align-self: baseline;
                         }
 
                         .fleet-filters-category {
@@ -1475,6 +1484,7 @@ body {
                         .fleet-filter-checkbox {
                             cursor: pointer;
                             margin: 0;
+                            align-self: center;
                         }
                     }
 

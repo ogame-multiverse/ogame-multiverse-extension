@@ -1108,7 +1108,7 @@ export class UniversePanelController extends TabRelatedController {
               <details class="settings-accordion">
                 <summary class="universe-settings-group-header">
                   <span class="material-symbols-outlined accordion-chevron" aria-hidden="true">chevron_right</span>
-                  <span>${Localizator.Translate(titleKey)}:</span>
+                  <span>${Localizator.Translate(titleKey)}</span>
                 </summary>
                 <div class="universe-settings-group-content">
                   ${contentHtml}
