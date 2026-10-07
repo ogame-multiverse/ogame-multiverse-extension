@@ -1198,15 +1198,44 @@ body {
                         text-transform: uppercase;
                         text-decoration: underline;
                     }
+                    // Row holding the "Cancel" and "Delete universe data" buttons, right below the last settings group
+                    .universe-remove-actions {
+                        grid-row: 5;
+                        grid-column: 1 / -1;
+                        display: flex;
+                        gap: 6px;
+                    }
+                    // "Cancel" button of the delete confirmation: only displayed while the remove button is armed
+                    // (class added by ConfirmableButton), on its left.
+                    .universe-remove-cancel-button {
+                        display: none;
+                        flex: 1 1 0;
+                        min-width: 0;
+                        margin: 8px 0 3px 0;
+                        border: 1px solid $ogm-border-color;
+                        background: $ogm-background-color-lighter;
+                        color: inherit;
+                        border-radius: 6px;
+                        padding: 4px 10px;
+                        font: inherit;
+                        font-size: 13px;
+                        cursor: pointer;
 
+                        &.is-armed {
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
 
-
+                        &:hover {
+                            border-color: color.adjust($ogm-border-color, $lightness: 15%);
+                        }
+                    }
+                    // Full-width "Delete universe data" button, right below the last settings group
                     .universe-remove-button {
-                        grid-row: 4;
-                        grid-column: 2;
-                        align-self: end;
-                        justify-self: end;
-                        margin-bottom: 3px;
+                        flex: 1 1 0;
+                        min-width: 0;
+                        margin: 8px 0 3px 0;
                         border: 1px solid $ogm-border-color;
                         background: $ogm-background-color-lighter;
                         color: inherit;
@@ -1214,11 +1243,19 @@ body {
                         display: inline-flex;
                         align-items: center;
                         justify-content: center;
-                        width: 30px;
-                        height: 30px;
+                        gap: 6px;
+                        padding: 6px 10px;
+                        font: inherit;
+                        font-size: 13px;
                         cursor: pointer;
-
-                        &:hover:not(:disabled) {
+                        // Locked = armed, but still inside the anti double-click delay (class added by ConfirmableButton)
+                        &.is-locked {
+                            opacity: 0.6;
+                            cursor: wait;
+                        }
+                        // Armed = waiting for the confirmation click (class added by ConfirmableButton)
+                        &:hover:not(:disabled),
+                        &.is-armed:not(:disabled) {
                             color: $ogm-color-red;
                             border-color: $ogm-color-red;
                             box-shadow: 0 0 0 1px color.adjust($ogm-color-red, $alpha: -0.5), 0 0 10px color.adjust($ogm-color-red, $alpha: -0.35);

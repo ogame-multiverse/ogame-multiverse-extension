@@ -7,6 +7,7 @@ import { SidePanelUniversesSections } from '../../model/sidePanel/sidePanelUnive
 import { SidePanelUniverseStatus } from '../../model/sidePanel/sidePanelUniverseStatus';
 import { UniverseLayoutConfig } from '../../model/sidePanel/universeLayoutConfig';
 import { UniverseSidePanelOptions } from '../../model/sidePanel/universeSidePanelOptions';
+import { ConfirmableButton } from '../../dom/components/confirmableButton';
 import { BuildFleetFilterKey, FLEET_EVENT_FILTER_GROUPS, FLEET_FILTER_CATEGORIES, FleetEventFilterGroup, FleetOwnership, GHOST_FILTER_KEY, GetAllFleetFilterKeys, IsFleetFilterEnabled } from '../../model/sidePanel/fleetEventFilters';
 import { LocalWindowTabsTracker } from './localWindowTabsTracker';
 import { DEFAULT_WARNING_THRESHOLD_MINUTES, TAB_CHANGE_REFRESH_DEBOUNCE_MS, TabRelatedController } from './tabRelatedController';
@@ -562,7 +563,13 @@ export class UniversePanelController extends TabRelatedController {
         refreshButton.addEventListener('click', () =>
             this.HandleUniverseTabIconClickAsync(this.logger, rowView.currentStatus, refreshButton, this.localWindowTabsTracker.WindowId)
         );
-        removeButton.addEventListener('click', () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, rowView.currentStatus.UniverseKey)));
+        new ConfirmableButton(removeButton, {
+            ConfirmLabel: Localizator.Translate('SidePanelRemoveUniverseDataConfirm'),
+            LabelElement: removeButton.querySelector<HTMLElement>('.universe-remove-button-label'),
+            CancelElement: row.querySelector<HTMLElement>('.universe-remove-cancel-button'),
+            ConfirmDelayMs: 2000, // anti double-click: the confirming click is ignored during the first seconds
+            OnConfirm: () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, rowView.currentStatus.UniverseKey)),
+        });
 
         settingsButton.addEventListener('click', () => {
             const isActive = settingsButton.getAttribute('data-universe-settings-active') === 'true';
@@ -1203,9 +1210,13 @@ export class UniversePanelController extends TabRelatedController {
             </div>
             ${this.BuildSettingsAccordionHtml('indicators-settings-group', 'SidePanelSettingsGroupIndicators', indicatorSettingsHtml)}
             ${this.BuildSettingsAccordionHtml('events-tracking-group', 'SidePanelSettingsGroupEventsTracking', eventsTrackingSettingsHtml)}
-            <button type="button" class="universe-remove-button" title="${Localizator.Translate('SidePanelRemoveUniverse')}" aria-label="${Localizator.Translate('SidePanelRemoveUniverse')}">
-              <span class="material-symbols-outlined" aria-hidden="true">delete</span>
-            </button>
+            <div class="universe-remove-actions">
+              <button type="button" class="universe-remove-cancel-button">${Localizator.Translate('SidePanelCancel')}</button>
+              <button type="button" class="universe-remove-button" title="${Localizator.Translate('SidePanelRemoveUniverseData')}" aria-label="${Localizator.Translate('SidePanelRemoveUniverseData')}">
+                <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                <span class="universe-remove-button-label">${Localizator.Translate('SidePanelRemoveUniverseData')}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
