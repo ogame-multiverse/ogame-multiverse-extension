@@ -567,7 +567,8 @@ export class UniversePanelController extends TabRelatedController {
             ConfirmLabel: Localizator.Translate('SidePanelRemoveUniverseDataConfirm'),
             LabelElement: removeButton.querySelector<HTMLElement>('.universe-remove-button-label'),
             CancelElement: row.querySelector<HTMLElement>('.universe-remove-cancel-button'),
-            ConfirmDelayMs: 2000, // anti double-click: the confirming click is ignored during the first seconds
+            CancelMethods: ['outsideClick', 'cancelElement'],
+            ConfirmDelayMs: 1000, // anti double-click: the confirming click is ignored during the first seconds
             OnConfirm: () => this.ExecuteRowAction(removeButton, () => serviceWorkerProtocolClient.RemoveUniverseAsync(this.logger, rowView.currentStatus.UniverseKey)),
         });
 

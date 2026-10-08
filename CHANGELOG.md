@@ -61,7 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Filters only hide events in the Events tab and apply to both outbound and return trips.
 - Technical informations:
   - Parsing of the OGame page to retrieve the data required for fleet event tracking.
-  - Reusable `ConfirmableButton` class (`dom/confirmableButton.ts`) adding a two-step confirmation to any button, without a modal dialog. It supports an anti double-click delay, a confirmation timeout, an optional cancel element, the Escape key and CSS classes for the armed and locked states.
   - Support for two new OGame data endpoints:
     - Species Bonuses (`/game/index.php?page=componentOnly&component=externaldataexport&action=speciesBonuses&asJson=1`)
       - Only fetched on page load if the last fetch is more than 1 hour old.
@@ -76,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Softened the interface colors to make them less harsh.
-- The "Delete universe data" button is now a labeled, full-width button placed below the universe settings. It requires a second click to confirm before deleting, and the confirming click is ignored during the first seconds to prevent accidental double clicks. The confirmation can be canceled with the Escape key, a "Cancel" button displayed next to it, or by clicking elsewhere; it also cancels itself after a few seconds.
+- The "Delete universe data" button is now a labeled, full-width button placed below the universe settings. It requires a second click to confirm before deleting, and the confirming click is ignored during the first seconds to prevent accidental double clicks. The confirmation can be canceled with a "Cancel" button displayed next to it, or by clicking elsewhere.
 - "Last observed indicators" and "Events tracking" groups in the universe settings are now collapsible, collapsed by default to save vertical space, and displayed as boxes to stand out from the rest of the settings.
 
 ## [1.3.0.1] - 2026-08-31
